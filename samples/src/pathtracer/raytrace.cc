@@ -43,7 +43,7 @@ void trax_main()
   RayCamera camera(loadi(0, 10), 4.320378f); // luxroom
 
   // loop over pixels
-  for(int pix = atomicinc(0); pix < xres*yres; pix = atomicinc(0))
+  for(int pix = atomicinc(0); pix < xres * yres; pix = atomicinc(0))
     {
 
       int i = pix / xres;
