@@ -1,0 +1,5 @@
+As this code builds on the MicroBlaze backend found in llvm-2.9, the
+code in this directory and its children is under the LLVM license,
+which can be found at the following URL.
+
+http://llvm.org/docs/DeveloperPolicy.html#license
