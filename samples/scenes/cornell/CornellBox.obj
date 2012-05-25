@@ -1,0 +1,173 @@
+# Max2Obj Version 4.0 Mar 10th, 2001
+#
+mtllib ./CornellBox.mtl
+g
+# object WallsFloorAndCeiling to come ...
+#
+v  0 0 0
+v  552.8 0 0
+v  0 559.2 0
+v  549.6 559.2 0
+v  0 0 548.8
+v  556 0 548.8
+v  0 559.2 548.8
+v  556 559.2 548.8
+# 8 vertices
+
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+vt  1 0 1
+vt  0 0 1
+vt  1 1 1
+vt  0 1 1
+vt  1 0 1
+vt  1 1 1
+vt  0 1 1
+vt  0 0 1
+vt  1 0 1
+vt  1 1 1
+vt  0 1 1
+vt  0 0 1
+vt  1 0 0
+vt  1 1 0
+vt  0 1 0
+vt  0 0 0
+# 20 texture vertices
+
+g WallsFloorAndCeiling
+usemtl White
+f 1/1 2/2 4/4
+f 4/4 3/3 1/1
+f 5/5 7/7 8/8
+f 8/8 6/6 5/5
+usemtl Red
+f 2/9 6/10 8/11
+f 8/11 4/12 2/9
+usemtl White
+f 4/13 8/14 7/15
+f 7/15 3/16 4/13
+usemtl Green
+f 3/17 7/18 5/19
+f 5/19 1/20 3/17
+# 10 faces
+
+g
+# object ShortBlock to come ...
+#
+v  130 65 0
+v  290 114 0
+v  82 225 0
+v  240 272 0
+v  130 65 165
+v  290 114 165
+v  82 225 165
+v  240 272 165
+# 8 vertices
+
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+# 20 texture vertices
+
+g ShortBlock
+usemtl White
+f 13/21 14/22 16/24
+f 16/24 15/23 13/21
+f 14/28 13/27 9/25
+f 9/25 10/26 14/28
+f 10/29 12/30 16/32
+f 16/32 14/31 10/29
+f 15/36 16/35 12/33
+f 12/33 11/34 15/36
+f 11/37 9/38 13/40
+f 13/40 15/39 11/37
+# 10 faces
+
+g
+# object TallBlock to come ...
+#
+v  265 296 0
+v  423 247 0
+v  314 456 0
+v  472 406 0
+v  265 296 330
+v  423 247 330
+v  314 456 330
+v  472 406 330
+# 8 vertices
+
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+# 20 texture vertices
+
+g TallBlock
+usemtl White
+f 21/41 22/42 24/44
+f 24/44 23/43 21/41
+f 17/45 18/46 22/48
+f 22/48 21/47 17/45
+f 18/49 20/50 24/52
+f 24/52 22/51 18/49
+f 20/53 19/54 23/56
+f 23/56 24/55 20/53
+f 23/59 19/57 17/58
+f 17/58 21/60 23/59
+# 10 faces
+
+g
+# object LightSource to come ...
+#
+v  213 227 548.7
+v  343 227 548.7
+v  213 332 548.7
+v  343 332 548.7
+# 4 vertices
+
+vt  0 0 0
+vt  1 0 0
+vt  0 1 0
+vt  1 1 0
+# 4 texture vertices
+
+g LightSource
+usemtl Light
+f 26/62 25/61 27/63
+f 27/63 28/64 26/62
+# 2 faces
