@@ -15,12 +15,10 @@ BINARYOUTPUT=run_rt
 TRAXOUTPUT=rt-llvm.s
 
 # The directory for SimHWRT
-SIMDIR=../../SimHWRT/trunk
-# Josef's directory style
-# SIMDIR=../../sim
+SIMDIR=../../../sim
 
 # The directory for LLVM_Trax
-LLVM_TRAXDIR=../../LLVM_TRAX
+LLVM_TRAXDIR=../../../llvm_trax
 
 # Directories that should be in LLVM_Trax
 BINDIR=${LLVM_TRAXDIR}/bin
@@ -66,7 +64,7 @@ MEMORYFILE=\"memory.mem\"
 CXX=g++
 CXXFILENAMES=-DVIEWFILE=${VIEWFILE} -DMODELFILE=${MODELFILE} -DLIGHTFILE=${LIGHTFILE} -DMEMORYFILE=${MEMORYFILE}
 CXXFLAGS=-DTRAX=0 -DWIDTH=${WIDTH} -DHEIGHT=${HEIGHT} ${CXXFILENAMES} -I${SIMDIR} -I${INCLUDEDIR} -pthread -O3
-CXXSIMFILES=${SIMDIR}/LoadMemory.cc ${SIMDIR}/OBJLoader.cc ${SIMDIR}/OBJListLoader.cc ${SIMDIR}/IWLoader.cc ${SIMDIR}/BVH.cc ${SIMDIR}/Grid.cc ${SIMDIR}/Camera.cc ${SIMDIR}/ReadLightfile.cc ${SIMDIR}/ReadViewfile.cc ${SIMDIR}/Material.cc ${SIMDIR}/Triangle.cc ${SIMDIR}/MTLLoader.cc ${SIMDIR}/PPM.cc ${SIMDIR}/TGALoader.cc ${SIMDIR}/CustomLoadMemory.cc ${SIMDIR}/StreamQueue.cc
+CXXSIMFILES=${SIMDIR}/LoadMemory.cc ${SIMDIR}/OBJLoader.cc ${SIMDIR}/OBJListLoader.cc ${SIMDIR}/IWLoader.cc ${SIMDIR}/BVH.cc ${SIMDIR}/Grid.cc ${SIMDIR}/Camera.cc ${SIMDIR}/ReadLightfile.cc ${SIMDIR}/ReadViewfile.cc ${SIMDIR}/Material.cc ${SIMDIR}/Triangle.cc ${SIMDIR}/MTLLoader.cc ${SIMDIR}/PPM.cc ${SIMDIR}/TGALoader.cc ${SIMDIR}/CustomLoadMemory.cc
 CXXLIBS=${LIBDIR}/trax_cpp.cpp
 
 # Front end compiler to use for trax target
