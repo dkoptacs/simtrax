@@ -46,12 +46,16 @@ else
 fi
 
 # Copy our versions of Triple.cpp and Triple.h
-CONFIG_MATCH=`diff misc/${BUILD_TYPE}_configure $LLVMDIR/configure > /dev/null`
-if $CONFIG_MATCH; then
+if [ -e bin/llc ]; then
     echo -n ''
 else
     echo Updating configure script...
     cp misc/${BUILD_TYPE}_configure $LLVMDIR/configure
+
+    cd $LLVMDIR
+    echo Configuring...
+    ./configure
+    cd ../
 fi
 if diff misc/Triple.cpp $LLVMDIR/lib/Support/Triple.cpp > /dev/null; then
     echo -n ''
@@ -77,12 +81,6 @@ fi
 
 # Configure and build
 cd $LLVMDIR
-if $CONFIG_MATCH; then
-    echo -n ''
-else
-    echo Configuring...
-    ./configure
-fi
 echo Building...
 make -j$NUM_CORES
 cd ../
