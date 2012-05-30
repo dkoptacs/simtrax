@@ -1,0 +1,31 @@
+This file tries to explain some of the things about the
+65nm________.config files.
+
+The file name indicates the frequency and the number of threads
+assumed to be in each TM (32, 48, 64).
+
+There is 1 FPADD per 8 threads and 1 FPMUL per 8 threads.
+
+There is 1 FPINV per TM.
+
+There is 1 INTMUL per 16 threads.
+
+The L1 cache size is indicated by the second to last number (in
+kBytes) and the number of banks is the final number.
+
+The size of the L1 cache is computed using the following data.
+
+dcache:
+16x4 = 285100
+16x8 = 438800
+32x4 = 415000
+32x8 = 574900
+64x8 = 834800
+
+icache:
+1 per 16 threads
+16 bank = 146300
+
+localstore (one per thread):
+512B = 19470
+
