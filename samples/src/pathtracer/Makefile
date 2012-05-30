@@ -26,10 +26,12 @@ LIBDIR=${LLVM_TRAXDIR}/lib
 INCLUDEDIR=${LLVM_TRAXDIR}/include
 LINKERDIR=${LLVM_TRAXDIR}/linker
 
+# Scene setup
+SCENEDIR=../../scenes
 # Cornell Scene
-#VIEWFILE=\"${SIMDIR}/views/cornell_obj.view\"
-#MODELFILE=\"${SIMDIR}/test_models/cornell/CornellBox.obj\"
-#LIGHTFILE=\"${SIMDIR}/lights/cornell.light\"
+VIEWFILE=\"${SCENEDIR}/cornell/cornell.view\"
+MODELFILE=\"${SCENEDIR}/cornell/CornellBox.obj\"
+LIGHTFILE=\"${SCENEDIR}/cornell/cornell.light\"
 # Sponza Scene
 # VIEWFILE=\"${SIMDIR}/views/sponza_obj.view\"
 # MODELFILE=\"${SIMDIR}/test_models/sponza.obj\"
@@ -47,9 +49,9 @@ LINKERDIR=${LLVM_TRAXDIR}/linker
 # MODELFILE=\"${SIMDIR}/test_models/conference.obj\"
 # LIGHTFILE=\"${SIMDIR}/lights/conference.light\"
 # Luxmark Room Scene
-VIEWFILE=\"${SIMDIR}/views/luxroom_wide.view\"
-MODELFILE=\"${SIMDIR}/test_models/luxroom/luxroom.objl\"
-LIGHTFILE=\"${SIMDIR}/lights/cube.light\"
+# VIEWFILE=\"${SIMDIR}/views/luxroom_wide.view\"
+# MODELFILE=\"${SIMDIR}/test_models/luxroom/luxroom.objl\"
+# LIGHTFILE=\"${SIMDIR}/lights/cube.light\"
 # Luxmark Sala Scene
 #VIEWFILE=\"${SIMDIR}/views/luxsala.view\"
 #MODELFILE=\"${SIMDIR}/test_models/luxsala/luxsala.objl\"
@@ -63,7 +65,7 @@ MEMORYFILE=\"memory.mem\"
 # The compiler to use for the executable
 CXX=g++
 CXXFILENAMES=-DVIEWFILE=${VIEWFILE} -DMODELFILE=${MODELFILE} -DLIGHTFILE=${LIGHTFILE} -DMEMORYFILE=${MEMORYFILE}
-CXXFLAGS=-DTRAX=0 -DWIDTH=${WIDTH} -DHEIGHT=${HEIGHT} ${CXXFILENAMES} -I${SIMDIR} -I${INCLUDEDIR} -pthread -O3
+CXXFLAGS=-DTRAX=0 -DWIDTH=${WIDTH} -DHEIGHT=${HEIGHT} ${CXXFILENAMES} -I${SIMDIR} -I${INCLUDEDIR} -pthread -O3 -g
 CXXSIMFILES=${SIMDIR}/LoadMemory.cc ${SIMDIR}/OBJLoader.cc ${SIMDIR}/OBJListLoader.cc ${SIMDIR}/IWLoader.cc ${SIMDIR}/BVH.cc ${SIMDIR}/Grid.cc ${SIMDIR}/Camera.cc ${SIMDIR}/ReadLightfile.cc ${SIMDIR}/ReadViewfile.cc ${SIMDIR}/Material.cc ${SIMDIR}/Triangle.cc ${SIMDIR}/MTLLoader.cc ${SIMDIR}/PPM.cc ${SIMDIR}/TGALoader.cc ${SIMDIR}/CustomLoadMemory.cc
 CXXLIBS=${LIBDIR}/trax_cpp.cpp
 
