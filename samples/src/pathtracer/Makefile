@@ -72,9 +72,6 @@ CXXLIBS=${LIBDIR}/trax_cpp.cpp
 # Front end compiler to use for trax target
 # For the default mac build
 TRAXC=llvm-gcc
-# For compiling on the CADE machines
-# TRAXC=/usr/local/stow/llvm-gcc/llvm-gcc4.2-2.6/bin/g++
-# TRAXC=/scratch/Research/hwrt/llvm-gcc4.2-2.9-x86_64-linux/bin/llvm-gcc
 # If you prefer clang it might work.
 # TRAXC=clang
 TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR}
@@ -95,15 +92,15 @@ ${TRAXOUTPUT}: rt.s
 mkdirs:
 	@mkdir -p objs;
 
-objs/%.o: ${SIMDIR}/%.cc
+objs/%.o: ${SIMDIR}/%.cc mkdirs
 	@echo "Building $<"
 	@${CXX} ${CXXFLAGS} -o $@ -c $<
 
-objs/trax_trax.bc: ${LIBDIR}/trax_trax.cpp
+objs/trax_trax.bc: ${LIBDIR}/trax_trax.cpp mkdirs
 	@echo "Building $<"
 	@${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
 
-objs/%.bc: %${CSUFFIX}
+objs/%.bc: %${CSUFFIX} mkdirs
 	@echo "Building $<"
 	@${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
 
@@ -117,4 +114,4 @@ rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
 	@${BINDIR}/llc rt.bc -o rt.s -march=trax
 
 clean:
-	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ 
+	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ *.dDYM a.out

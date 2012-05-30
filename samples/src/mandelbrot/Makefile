@@ -15,12 +15,10 @@ BINARYOUTPUT=run_rt
 TRAXOUTPUT=rt-llvm.s
 
 # The directory for SimHWRT
-SIMDIR=../../SimHWRT/trunk
-# Josef's directory style
-# SIMDIR=../../sim
+SIMDIR=../../../sim
 
 # The directory for LLVM_Trax
-LLVM_TRAXDIR=../../LLVM_TRAX
+LLVM_TRAXDIR=../../../llvm_trax
 
 # Directories that should be in LLVM_Trax
 BINDIR=${LLVM_TRAXDIR}/bin
@@ -28,10 +26,12 @@ LIBDIR=${LLVM_TRAXDIR}/lib
 INCLUDEDIR=${LLVM_TRAXDIR}/include
 LINKERDIR=${LLVM_TRAXDIR}/linker
 
+# Scene setup
+SCENEDIR=../../scenes
 # Cornell Scene
-VIEWFILE=\"${SIMDIR}/views/cornell_obj.view\"
-MODELFILE=\"${SIMDIR}/test_models/cornell/CornellBox.obj\"
-LIGHTFILE=\"${SIMDIR}/lights/cornell.light\"
+VIEWFILE=\"${SCENEDIR}/cornell/cornell.view\"
+MODELFILE=\"${SCENEDIR}/cornell/CornellBox.obj\"
+LIGHTFILE=\"${SCENEDIR}/cornell/cornell.light\"
 # Sponza Scene
 # VIEWFILE=\"${SIMDIR}/views/sponza_obj.view\"
 # MODELFILE=\"${SIMDIR}/test_models/sponza.obj\"
@@ -49,9 +49,9 @@ LIGHTFILE=\"${SIMDIR}/lights/cornell.light\"
 # MODELFILE=\"${SIMDIR}/test_models/conference.obj\"
 # LIGHTFILE=\"${SIMDIR}/lights/conference.light\"
 # Luxmark Room Scene
-#VIEWFILE=\"${SIMDIR}/views/luxroom_wide.view\"
-#MODELFILE=\"${SIMDIR}/test_models/luxroom/luxroom.objl\"
-#LIGHTFILE=\"${SIMDIR}/lights/cube.light\"
+# VIEWFILE=\"${SIMDIR}/views/luxroom_wide.view\"
+# MODELFILE=\"${SIMDIR}/test_models/luxroom/luxroom.objl\"
+# LIGHTFILE=\"${SIMDIR}/lights/cube.light\"
 # Luxmark Sala Scene
 #VIEWFILE=\"${SIMDIR}/views/luxsala.view\"
 #MODELFILE=\"${SIMDIR}/test_models/luxsala/luxsala.objl\"
@@ -65,16 +65,13 @@ MEMORYFILE=\"memory.mem\"
 # The compiler to use for the executable
 CXX=g++
 CXXFILENAMES=-DVIEWFILE=${VIEWFILE} -DMODELFILE=${MODELFILE} -DLIGHTFILE=${LIGHTFILE} -DMEMORYFILE=${MEMORYFILE}
-CXXFLAGS=-DTRAX=0 -DWIDTH=${WIDTH} -DHEIGHT=${HEIGHT} ${CXXFILENAMES} -I${SIMDIR} -I${INCLUDEDIR} -pthread -O3
-CXXSIMFILES=${SIMDIR}/LoadMemory.cc ${SIMDIR}/OBJLoader.cc ${SIMDIR}/OBJListLoader.cc ${SIMDIR}/IWLoader.cc ${SIMDIR}/BVH.cc ${SIMDIR}/Grid.cc ${SIMDIR}/Camera.cc ${SIMDIR}/ReadLightfile.cc ${SIMDIR}/ReadViewfile.cc ${SIMDIR}/Material.cc ${SIMDIR}/Triangle.cc ${SIMDIR}/MTLLoader.cc ${SIMDIR}/PPM.cc ${SIMDIR}/TGALoader.cc ${SIMDIR}/CustomLoadMemory.cc ${SIMDIR}/StreamQueue.cc
+CXXFLAGS=-DTRAX=0 -DWIDTH=${WIDTH} -DHEIGHT=${HEIGHT} ${CXXFILENAMES} -I${SIMDIR} -I${INCLUDEDIR} -pthread -O3 -g
+CXXSIMFILES=${SIMDIR}/LoadMemory.cc ${SIMDIR}/OBJLoader.cc ${SIMDIR}/OBJListLoader.cc ${SIMDIR}/IWLoader.cc ${SIMDIR}/BVH.cc ${SIMDIR}/Grid.cc ${SIMDIR}/Camera.cc ${SIMDIR}/ReadLightfile.cc ${SIMDIR}/ReadViewfile.cc ${SIMDIR}/Material.cc ${SIMDIR}/Triangle.cc ${SIMDIR}/MTLLoader.cc ${SIMDIR}/PPM.cc ${SIMDIR}/TGALoader.cc ${SIMDIR}/CustomLoadMemory.cc
 CXXLIBS=${LIBDIR}/trax_cpp.cpp
 
 # Front end compiler to use for trax target
 # For the default mac build
 TRAXC=llvm-gcc
-# For compiling on the CADE machines
-# TRAXC=/usr/local/stow/llvm-gcc/llvm-gcc4.2-2.6/bin/g++
-# TRAXC=/scratch/Research/hwrt/llvm-gcc4.2-2.9-x86_64-linux/bin/llvm-gcc
 # If you prefer clang it might work.
 # TRAXC=clang
 TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR}
@@ -95,15 +92,15 @@ ${TRAXOUTPUT}: rt.s
 mkdirs:
 	@mkdir -p objs;
 
-objs/%.o: ${SIMDIR}/%.cc
+objs/%.o: ${SIMDIR}/%.cc mkdirs
 	@echo "Building $<"
 	@${CXX} ${CXXFLAGS} -o $@ -c $<
 
-objs/trax_trax.bc: ${LIBDIR}/trax_trax.cpp
+objs/trax_trax.bc: ${LIBDIR}/trax_trax.cpp mkdirs
 	@echo "Building $<"
 	@${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
 
-objs/%.bc: %${CSUFFIX}
+objs/%.bc: %${CSUFFIX} mkdirs
 	@echo "Building $<"
 	@${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
 
@@ -117,4 +114,4 @@ rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
 	@${BINDIR}/llc rt.bc -o rt.s -march=trax
 
 clean:
-	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ 
+	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ *.dDYM a.out
