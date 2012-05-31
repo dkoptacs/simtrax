@@ -1,3 +1,8 @@
+// Simtrax was developed by the hwrt group at the School of 
+// Computing at the University of Utah in Salt Lake City, Utah
+// 
+// The project can be found at http://code.google.com/p/simtrax/
+//
 /*
 This file is part of Simtrax.
 
