@@ -13,6 +13,45 @@
 #include "trax_cpp.hpp"
 #endif
 
+#define TRAX_XRES                  1
+#define TRAX_INV_XRES              2
+#define TRAX_F_XRES                3
+#define TRAX_YRES                  4
+#define TRAX_INV_YRES              5
+#define TRAX_F_YRES                6
+#define TRAX_START_FB              7
+#define TRAX_START_SCENE           8
+#define TRAX_START_MATLS           9
+#define TRAX_START_CAMERA          10
+#define TRAX_START_BG              11
+#define TRAX_START_LIGHT           12
+#define TRAX_START_PERMUTE         13
+#define TRAX_END_MEMORY            14
+#define TRAX_MEM_SIZE              15
+#define TRAX_RAY_DEPTH             16
+#define TRAX_NUM_SAMPLES           17
+#define TRAX_EPSILON               18
+#define TRAX_START_HAMMERSLEY      19
+// 20 is unused (deprecated)
+#define TRAX_NUM_NODES             21
+#define TRAX_START_COSTS           22
+// 23 is unused (deprecated)
+#define TRAX_START_ALT_BVH         24
+// 25 is unused (deprecated)
+#define TRAX_START_SUBTREE_SIZES   26
+// 27 is unused (deprecated)
+#define TRAX_START_TRIANGLES       28
+#define TRAX_NUM_TRIANGLES         29
+#define TRAX_START_TEX_COORDS      30
+#define TRAX_START_ZBUFFER         31
+#define TRAX_START_PARENT_POINTERS 32
+#define TRAX_START_SUBTREE_IDS     33
+#define TRAX_NUM_SUBTREES          34
+#define TRAX_NUM_TMS               35
+
+
+
+
 // Trax Intrinsics
 
   // Main function (user defined)
