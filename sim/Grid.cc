@@ -106,7 +106,7 @@ void Grid::Preprocess()
 
   for(i=0; i<(int)(triangles->size()); i++)
     {
-	  Box b = GetTriangleBoundingBox(*triangles->at(i), triangles_store_points);
+      Box b = GetTriangleBoundingBox(*triangles->at(i), triangles_store_points);
       int Lx, Hx, Ly, Hy, Lz, Hz;
       Lx = (int)floor((((b.box_min.x()-minx)/xrange))*double(dimensions));
       Ly = (int)floor((((b.box_min.y()-miny)/yrange))*double(dimensions));
@@ -143,69 +143,62 @@ void Grid::Preprocess()
 
 void Grid::ExtendBoundsByTriangle(const Triangle& tri, const bool &tri_store_pts) 
 {
-	if( tri_store_pts ) {
-	  for (int i = 0; i < 3; i++) {
-		if (tri.p0[i] < bounds.box_min[i]) {
-		  bounds.box_min[i] = tri.p0[i] - epsilon;
-		}
-		if (tri.p1[i] < bounds.box_min[i]) {
-		  bounds.box_min[i] = tri.p1[i] - epsilon;
-		}
-		if (tri.p2[i] < bounds.box_min[i]) {
-		  bounds.box_min[i] = tri.p2[i] - epsilon;
-		}
+  if(tri_store_pts)
+    {
+      for(int i=0; i<3; i++)
+        {
+          if(tri.p0[i]<bounds.box_min[i])
+            bounds.box_min[i] = tri.p0[i]-epsilon;
+          if(tri.p1[i]<bounds.box_min[i])
+            bounds.box_min[i] = tri.p1[i]-epsilon;
+          if(tri.p2[i]<bounds.box_min[i])
+            bounds.box_min[i] = tri.p2[i]-epsilon;
 
-		if (tri.p0[i] > bounds.box_max[i]) {
-		  bounds.box_max[i] = tri.p0[i] + epsilon;
-		}
-		if (tri.p1[i] > bounds.box_max[i]) {
-		  bounds.box_max[i] = tri.p1[i] + epsilon;
-		}
-		if (tri.p2[i] > bounds.box_max[i]) {
-		  bounds.box_max[i] = tri.p2[i] + epsilon;
-		}
-	  }
-	}
-	else {
-		for (int i = 0; i < 3; i++) {
-			const double tmp0 = tri.p0[i] + tri.p1[i];
-			if( tmp0 < bounds.box_min[i] ) {
-				bounds.box_min[i] = tmp0 - epsilon;
-			}
-			if( tmp0 > bounds.box_max[i] ) {
-				bounds.box_max[i] = tmp0 + epsilon;
-			}
+          if(tri.p0[i]>bounds.box_max[i])
+            bounds.box_max[i] = tri.p0[i]+epsilon;
+          if(tri.p1[i]>bounds.box_max[i])
+            bounds.box_max[i] = tri.p1[i]+epsilon;
+          if(tri.p2[i]>bounds.box_max[i])
+            bounds.box_max[i] = tri.p2[i]+epsilon;
+        }
+    }
+  else
+    {
+      for(int i=0; i<3; i++)
+        {
+          const double tmp0   = tri.p0[i]+tri.p1[i];
+          if(tmp0<bounds.box_min[i])
+            bounds.box_min[i] = tmp0-epsilon;
+          if(tmp0>bounds.box_max[i])
+            bounds.box_max[i] = tmp0+epsilon;
 
-			if( tri.p1[i] < bounds.box_min[i] ) {
-				bounds.box_min[i] = tri.p1[i] - epsilon;
-			}
-			if( tri.p1[i] > bounds.box_max[i] ) {
-				bounds.box_max[i] = tri.p1[i] + epsilon;
-			}
+          if(tri.p1[i]<bounds.box_min[i])
+            bounds.box_min[i] = tri.p1[i]-epsilon;
+          if(tri.p1[i]>bounds.box_max[i])
+            bounds.box_max[i] = tri.p1[i]+epsilon;
 
-			const double tmp2 = tri.p2[i] + tri.p1[i];
-			if( tmp2 < bounds.box_min[i] ) {
-				bounds.box_min[i] = tmp2 - epsilon;
-			}
-			if( tmp2 > bounds.box_max[i] ) {
-				bounds.box_max[i] = tmp2 + epsilon;
-			}
-		}
-	}
+          const double tmp2   = tri.p2[i]+tri.p1[i];
+          if(tmp2<bounds.box_min[i])
+            bounds.box_min[i] = tmp2-epsilon;
+          if(tmp2>bounds.box_max[i])
+            bounds.box_max[i] = tmp2+epsilon;
+        }
+    }
 }
 
 Box Grid::GetTriangleBoundingBox(const Triangle& tri, const bool &tri_store_pts)
 {
   double p0x = tri.p0.x(), p0y = tri.p0.y(), p0z = tri.p0.z();
   double p2x = tri.p2.x(), p2y = tri.p2.y(), p2z = tri.p2.z();
-  if( tri_store_pts==false ) {
-	  p0x += tri.p1.x();
-	  p0y += tri.p1.y();
-	  p0z += tri.p1.z();
-	  p2x += tri.p1.x();
-	  p2y += tri.p1.y();
-	  p2z += tri.p1.z();
-  }
+  if(tri_store_pts==false)
+    {
+      p0x += tri.p1.x();
+      p0y += tri.p1.y();
+      p0z += tri.p1.z();
+      p2x += tri.p1.x();
+      p2y += tri.p1.y();
+      p2z += tri.p1.z();
+    }
   Box retval;
   retval.box_min.setX(min(min(p0x, tri.p1.x()), p2x) - epsilon);
   retval.box_min.setY(min(min(p0y, tri.p1.y()), p2y) - epsilon);
