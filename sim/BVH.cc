@@ -433,7 +433,7 @@ void BVH::writeDOT(const char *filename, int start_scene, FourByte *memory, int 
   unsigned char red = 127;
   unsigned char green = 127;
   BVHNode root = loadNode(0, start_scene, memory);
-//   char isLeaf = root.num_children >=0 ? 'L' : 'I';
+  //  char isLeaf = root.num_children >=0 ? 'L' : 'I';
   if(verbosity)
     fprintf(output, "Node0 [label=\"0, %d, %d\"];\n", root.start_child, root.subtree);
   else
@@ -462,8 +462,8 @@ void BVH::writeDOTNode(FILE *output, int nodeID, int start_scene, FourByte *memo
     return;
   BVHNode left = loadNode(node.start_child, start_scene, memory);
   BVHNode right = loadNode(node.start_child+1, start_scene, memory);
-//   char isLLeaf = left.num_children >=0 ? 'L' : 'I';
-//   char isRLeaf = right.num_children >=0 ? 'L' : 'I';
+  //char isLLeaf = left.num_children >=0 ? 'L' : 'I';
+  //char isRLeaf = right.num_children >=0 ? 'L' : 'I';
 
 
   // char leftClass = 'L', rightClass = 'L';
@@ -782,55 +782,42 @@ void ExtendBoundByBox(float cur_min[3], float cur_max[3],
 
 void ExtendBoundByTriangle(float cur_min[3], float cur_max[3],
                            const Triangle& tri, const bool &tri_store_pts ) {
+  if (tri_store_pts) {
+    for (int i = 0; i < 3; i++) {
+      if (tri.p0[i] < cur_min[i])
+        cur_min[i] = static_cast<float>(tri.p0[i]);
+      if (tri.p1[i] < cur_min[i])
+        cur_min[i] = static_cast<float>(tri.p1[i]);
+      if (tri.p2[i] < cur_min[i])
+        cur_min[i] = static_cast<float>(tri.p2[i]);
 
-  if( tri_store_pts ) {
-	  for (int i = 0; i < 3; i++) {
-		if (tri.p0[i] < cur_min[i]) {
-		  cur_min[i] = static_cast<float>( tri.p0[i] );
-		}
-		if (tri.p1[i] < cur_min[i]) {
-		  cur_min[i] = static_cast<float>( tri.p1[i] );
-		}
-		if (tri.p2[i] < cur_min[i]) {
-		  cur_min[i] = static_cast<float>( tri.p2[i] );
-		}
-
-		if (tri.p0[i] > cur_max[i]) {
-		  cur_max[i] = static_cast<float>( tri.p0[i] );
-		}
-		if (tri.p1[i] > cur_max[i]) {
-		  cur_max[i] = static_cast<float>( tri.p1[i] );
-		}
-		if (tri.p2[i] > cur_max[i]) {
-		  cur_max[i] = static_cast<float>( tri.p2[i] );
-		}
-	  }
+      if (tri.p0[i] > cur_max[i])
+        cur_max[i] = static_cast<float>(tri.p0[i]);
+      if (tri.p1[i] > cur_max[i])
+        cur_max[i] = static_cast<float>(tri.p1[i]);
+      if (tri.p2[i] > cur_max[i])
+        cur_max[i] = static_cast<float>(tri.p2[i]);
+    }
   }
   else {
-	 for (int i = 0; i < 3; i++) {
-		const float tmp0 = static_cast<float>( tri.p0[i] + tri.p1[i] );
-		if (tmp0 < cur_min[i]) {
-		  cur_min[i] = tmp0;
-		}
-		if (tmp0 > cur_max[i]) {
-		  cur_max[i] = tmp0;
-		}
+    for (int i = 0; i < 3; i++) {
+      const float tmp0 = static_cast<float>(tri.p0[i] + tri.p1[i]);
+      if (tmp0 < cur_min[i])
+        cur_min[i] = tmp0;
+      if (tmp0 > cur_max[i])
+        cur_max[i] = tmp0;
 
-		if (tri.p1[i] < cur_min[i]) {
-		  cur_min[i] = static_cast<float>( tri.p1[i] );
-		}
-		if (tri.p1[i] > cur_max[i]) {
-		  cur_max[i] = static_cast<float>( tri.p1[i] );
-		}
+      if (tri.p1[i] < cur_min[i])
+        cur_min[i] = static_cast<float>(tri.p1[i]);
+      if (tri.p1[i] > cur_max[i])
+        cur_max[i] = static_cast<float>(tri.p1[i]);
 
-		const float tmp2 = static_cast<float>( tri.p2[i] + tri.p1[i] );
-		if (tmp2 < cur_min[i]) {
-		  cur_min[i] = tmp2;
-		}
-		if (tmp2 > cur_max[i]) {
-		  cur_max[i] = tmp2;
-		}
-	  }
+      const float tmp2 = static_cast<float>(tri.p2[i] + tri.p1[i]);
+      if (tmp2 < cur_min[i])
+        cur_min[i] = tmp2;
+      if (tmp2 > cur_max[i])
+        cur_max[i] = tmp2;
+    }
   }
 }
 
@@ -844,7 +831,7 @@ void BVH::updateBounds(int ID) {
       ExtendBoundByTriangle(node.box_min,
                             node.box_max,
                             *inorder_tris[child_id],
-							triangles_store_points);
+                            triangles_store_points);
     }
   } else {
     int left_son = node.start_child;
@@ -865,83 +852,82 @@ void BVH::updateBounds(int ID) {
 
 int BVH::partitionSAH(int objBegin, int objEnd, int& output_axis)
 {
-    int num_objects = objEnd - objBegin;
-    if ( num_objects == 1 )
-    {
-        output_axis = -1;
-        return -1;
-    }
+  int num_objects = objEnd - objBegin;
+  if ( num_objects == 1 )
+  {
+    output_axis = -1;
+    return -1;
+  }
 
-    BVHCostEval best_cost;
-    best_cost.event = 0;
+  BVHCostEval best_cost;
+  best_cost.event = 0;
 #ifdef TREE_ROTATIONS
-    best_cost.cost = FLT_MAX;
+  best_cost.cost = FLT_MAX;
 #else
-    best_cost.cost = BVH_C_isec * num_objects;
+  best_cost.cost = BVH_C_isec * num_objects;
 #endif
-    best_cost.axis = -1;
+  best_cost.axis = -1;
 
-    for ( int axis = 0; axis < 3; axis++ )
+  for ( int axis = 0; axis < 3; axis++ )
+  {
+    BVHCostEval new_cost;
+    if ( buildEvents(objBegin,objEnd,axis,new_cost) )
     {
-        BVHCostEval new_cost;
-        if ( buildEvents(objBegin,objEnd,axis,new_cost) )
-        {
-            if ( new_cost.cost < best_cost.cost )
-            {
-                best_cost = new_cost;
-            }
-        }
+      if ( new_cost.cost < best_cost.cost )
+      {
+        best_cost = new_cost;
+      }
+    }
+  }
+
+  output_axis = best_cost.axis;
+  if ( output_axis != -1 )
+  {
+    // build the events and sort them
+    std::vector<BVHSAHEvent> events;
+    for ( int i = objBegin; i < objEnd; i++ )
+    {
+      float tri_box_min[3];
+      float tri_box_max[3];
+      ResetBound(tri_box_min, tri_box_max);
+      ExtendBoundByTriangle(tri_box_min, tri_box_max,
+                            *triangles->at(i), triangles_store_points);
+
+      BVHSAHEvent new_event;
+      new_event.position = .5f*(tri_box_min[output_axis] +
+                                tri_box_max[output_axis]);
+      new_event.obj_id   = i;
+      events.push_back(new_event);
+    }
+    std::sort(events.begin(), events.end(), CompareBVHSAHEvent());
+    std::vector<Triangle*> copied_tris;
+    for (size_t i = 0; i < events.size(); i++) {
+      copied_tris.push_back(triangles->at(events.at(i).obj_id));
     }
 
-    output_axis = best_cost.axis;
-    if ( output_axis != -1 )
+    for (int i = objBegin; i < objEnd; i++) {
+      triangles->at(i) = copied_tris.at(i-objBegin);
+    }
+
+    int result = objBegin + best_cost.event;
+
+    if ( result == objBegin || result == objEnd )
     {
-        // build the events and sort them
-        std::vector<BVHSAHEvent> events;
-        for ( int i = objBegin; i < objEnd; i++ )
-        {
-          float tri_box_min[3];
-          float tri_box_max[3];
-          ResetBound(tri_box_min, tri_box_max);
-          ExtendBoundByTriangle(tri_box_min, tri_box_max,
-                                *triangles->at(i), triangles_store_points);
-
-          BVHSAHEvent new_event;
-          new_event.position = .5f*(tri_box_min[output_axis] +
-                                    tri_box_max[output_axis]);
-          new_event.obj_id   = i;
-          events.push_back(new_event);
-        }
-        std::sort(events.begin(), events.end(), CompareBVHSAHEvent());
-        std::vector<Triangle*> copied_tris;
-        for (size_t i = 0; i < events.size(); i++) {
-          copied_tris.push_back(triangles->at(events.at(i).obj_id));
-        }
-
-        for (int i = objBegin; i < objEnd; i++) {
-          triangles->at(i) = copied_tris.at(i-objBegin);
-        }
-
-        int result = objBegin + best_cost.event;
-
-        if ( result == objBegin || result == objEnd )
-        {
-            if ( num_objects < 8 )
-            {
-                output_axis = -1;
-                return 0;
-            }
-            result = objBegin + num_objects/2;
-            return result;
-        }
-        else
-            return result;
+      if ( num_objects < 8 )
+      {
+        output_axis = -1;
+        return 0;
+      }
+      result = objBegin + num_objects/2;
+      return result;
     }
     else
-    {
-        return 0; // making a leaf anyway
-    }
-
+      return result;
+  }
+  else
+  {
+    return 0; // making a leaf anyway
+  }
 }
 
 bool BVH::buildEvents(int first,
@@ -977,68 +963,66 @@ bool BVH::buildEvents(int first,
   float left_box_max[3];
   ResetBound(left_box_min, left_box_max);
 
-  int num_left = 0;
+  int num_left  = 0;
   int num_right = num_events;
 
-    for ( size_t i = 0; i < events.size(); i++ )
+  for ( size_t i = 0; i < events.size(); i++ )
+  {
+    events[i].num_left = num_left;
+    events[i].num_right = num_right;
+    events[i].left_area = BoxArea(left_box_min, left_box_max);
+
+    float tri_box_min[3];
+    float tri_box_max[3];
+    ResetBound(tri_box_min, tri_box_max);
+    ExtendBoundByTriangle(tri_box_min, tri_box_max,
+                          *triangles->at(events[i].obj_id), triangles_store_points);
+    ExtendBoundByBox(left_box_min, left_box_max,
+                     tri_box_min, tri_box_max);
+
+    num_left++;
+    num_right--;
+  }
+
+  float right_box_min[3];
+  float right_box_max[3];
+  ResetBound(right_box_min, right_box_max);
+
+  best_eval.cost = FLT_MAX;
+  best_eval.event = -1;
+
+  for ( int i = num_events - 1; i >= 0; i-- )
+  {
+    float tri_box_min[3];
+    float tri_box_max[3];
+    ResetBound(tri_box_min, tri_box_max);
+    ExtendBoundByTriangle(tri_box_min, tri_box_max,
+                          *triangles->at(events[i].obj_id), triangles_store_points);
+    ExtendBoundByBox(right_box_min, right_box_max,
+                     tri_box_min, tri_box_max);
+
+    if ( events[i].num_left > 0 && events[i].num_right > 0 )
     {
-        events[i].num_left = num_left;
-        events[i].num_right = num_right;
-        events[i].left_area = BoxArea(left_box_min, left_box_max);
+      events[i].right_area = BoxArea(right_box_min, right_box_max);
 
-        float tri_box_min[3];
-        float tri_box_max[3];
-        ResetBound(tri_box_min, tri_box_max);
-        ExtendBoundByTriangle(tri_box_min, tri_box_max,
-                              *triangles->at(events[i].obj_id), triangles_store_points);
-        ExtendBoundByBox(left_box_min, left_box_max,
-                         tri_box_min, tri_box_max);
+      float this_cost = (events[i].num_left * events[i].left_area +
+                         events[i].num_right * events[i].right_area);
+      this_cost /= BoxArea(overall_box_min,
+                           overall_box_max);
+      this_cost *= BVH_C_isec;
+      this_cost += BVH_C_trav;
 
-        num_left++;
-        num_right--;
+      events[i].cost = this_cost;
+      if ( this_cost < best_eval.cost )
+      {
+        best_eval.cost       = this_cost;
+        best_eval.position   = events[i].position;
+        best_eval.axis       = axis;
+        best_eval.event      = i;
+        best_eval.num_left   = events[i].num_left;
+        best_eval.num_right  = events[i].num_right;
+      }
     }
-
-    float right_box_min[3];
-    float right_box_max[3];
-    ResetBound(right_box_min, right_box_max);
-
-    best_eval.cost = FLT_MAX;
-    best_eval.event = -1;
-
-    for ( int i = num_events - 1; i >= 0; i-- )
-    {
-        float tri_box_min[3];
-        float tri_box_max[3];
-        ResetBound(tri_box_min, tri_box_max);
-        ExtendBoundByTriangle(tri_box_min, tri_box_max,
-                              *triangles->at(events[i].obj_id), triangles_store_points);
-        ExtendBoundByBox(right_box_min, right_box_max,
-                         tri_box_min, tri_box_max);
-
-        if ( events[i].num_left > 0 && events[i].num_right > 0 )
-        {
-            events[i].right_area = BoxArea(right_box_min,
-                                           right_box_max);
-
-            float this_cost = (events[i].num_left * events[i].left_area +
-                               events[i].num_right * events[i].right_area);
-            this_cost /= BoxArea(overall_box_min,
-                                 overall_box_max);
-            this_cost *= BVH_C_isec;
-            this_cost += BVH_C_trav;
-
-            events[i].cost = this_cost;
-            if ( this_cost < best_eval.cost )
-            {
-                best_eval.cost       = this_cost;
-                best_eval.position   = events[i].position;
-                best_eval.axis       = axis;
-                best_eval.event      = i;
-                best_eval.num_left   = events[i].num_left;
-                best_eval.num_right  = events[i].num_right;
-
-            }
-        }
-    }
-    return best_eval.event != -1;
+  }
+  return best_eval.event != -1;
 }
