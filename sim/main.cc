@@ -62,8 +62,8 @@
 // Windows pipe stuff (needs stdio.h)
 #ifdef WIN32
 # ifndef popen
-#	define popen _popen
-#	define pclose _pclose
+#   define popen _popen
+#   define pclose _pclose
 # endif
 #endif
 
@@ -137,7 +137,7 @@ void NormalizeUtilization(long long int cycle_num, std::vector<double>& sums) {
 void PrintUtilization(std::vector<std::string>& module_names,
                       std::vector<double>& utilization) {
   printf("Module Utilization\n\n");
-//   for (size_t i = 0; i < utilization.size()-6; i++) {
+  //for (size_t i = 0; i < utilization.size()-6; i++) {
   for (size_t i = 0; i < module_names.size(); i++) {
     //printf("i = %d\n", (int)i);
     //fflush(stdout);
@@ -302,66 +302,66 @@ void printUsage(char* program_name) {
 
 
 int main(int argc, char* argv[]) {
-  clock_t start_time = clock();
-  bool print_system_info	= false;
-  bool print_cpi			= true;
-  bool print_png			= true;
-  int image_width			= 128;
-  int image_height			= 128;
-  int grid_dimensions		= -1;
-  int num_regs				= 128;
-  int num_globals			= 8;
-  int num_thread_procs		= 1;
-  int threads_per_proc		= 1;
-  int simd_width			= 1;
-  int num_frames			= 1;
-  int rebuild_frequency		= 0;
-  bool duplicate_bvh		= true;
-  int frames_since_rebuild	= 0;
-  unsigned int num_cores	= 1;
-  num_L2s					= 1;
-  bool l1_off				= false;
-  bool l2_off				= false;
-  bool l1_read_copy			= false;
-  long long int stop_cycle	= -1;
-  char* config_file			= NULL;
-  char* view_file			= NULL;
-  char* model_file			= NULL;
-  char* keyframe_file		= NULL;
-  char* light_file			= NULL;
-  char* output_prefix		= (char*)"out";
-  char* image_type			= (char*)"png";
-  float far					= 1000;
-  int dot_depth				= 0;
-  Camera* camera			= NULL;
-  float *light_pos			= NULL;
-  int tile_width			= 16;
-  int tile_height			= 16;
-  int ray_depth				= 1;
-  int num_samples			= 1;
-  float epsilon				= 1e-4f;
-  bool print_instructions	= false;
-  bool no_scene				= false;
-  int issue_verbosity		= 0;
-  long long int atominc_report_period   = 1000000;
-  int num_icaches			= 1;
-  int icache_banks			= 32;
-  char *assem_file			= NULL;
-  bool memory_trace			= false;
-  int proc_register_trace	= -1;
-  bool print_symbols		= false;
-  char mem_file_orig[64]	= "memory.mem";
-  char* mem_file			= mem_file_orig;
-  bool load_mem_file		= false;
-  bool write_mem_file		= false;
-  int custom_mem_loader         = 0;
-  bool incremental_output	= false;
-  bool serial_execution		= false;
+  clock_t start_time      = clock();
+  bool print_system_info  = false;
+  bool print_cpi          = true;
+  bool print_png          = true;
+  int image_width         = 128;
+  int image_height        = 128;
+  int grid_dimensions     = -1;
+  int num_regs            = 128;
+  int num_globals         = 8;
+  int num_thread_procs    = 1;
+  int threads_per_proc    = 1;
+  int simd_width          = 1;
+  int num_frames          = 1;
+  int rebuild_frequency   = 0;
+  bool duplicate_bvh      = true;
+  int frames_since_rebuild= 0;
+  unsigned int num_cores  = 1;
+  num_L2s                 = 1;
+  bool l1_off             = false;
+  bool l2_off             = false;
+  bool l1_read_copy       = false;
+  long long int stop_cycle= -1;
+  char* config_file       = NULL;
+  char* view_file         = NULL;
+  char* model_file        = NULL;
+  char* keyframe_file     = NULL;
+  char* light_file        = NULL;
+  char* output_prefix     = (char*)"out";
+  char* image_type        = (char*)"png";
+  float far               = 1000;
+  int dot_depth           = 0;
+  Camera* camera          = NULL;
+  float *light_pos        = NULL;
+  int tile_width          = 16;
+  int tile_height         = 16;
+  int ray_depth           = 1;
+  int num_samples         = 1;
+  float epsilon           = 1e-4f;
+  bool print_instructions = false;
+  bool no_scene           = false;
+  int issue_verbosity     = 0;
+  long long int atominc_report_period = 1000000;
+  int num_icaches         = 1;
+  int icache_banks        = 32;
+  char *assem_file        = NULL;
+  bool memory_trace       = false;
+  int proc_register_trace = -1;
+  bool print_symbols      = false;
+  char mem_file_orig[64]  = "memory.mem";
+  char* mem_file          = mem_file_orig;
+  bool load_mem_file      = false;
+  bool write_mem_file     = false;
+  int custom_mem_loader   = 0;
+  bool incremental_output = false;
+  bool serial_execution   = false;
   bool triangles_store_edges = false;
-  int stores_between_output	= 64;
-  int subtree_size = 0;
+  int stores_between_output  = 64;
+  int subtree_size        = 0;
   BVH* bvh;
-  Animation *animation		= NULL;
+  Animation *animation    = NULL;
   ThreadProcessor::SchedulingScheme scheduling_scheme = ThreadProcessor::SIMPLE;
   int total_simulation_threads = 1;
 
@@ -628,36 +628,33 @@ int main(int argc, char* argv[]) {
       }
     
       LoadMemory(memory->getData(), bvh, memory->getSize(), image_width, image_height,
-		 grid_dimensions,
-		 camera, model_file,
-		 start_wq, start_framebuffer, start_scene,
-		 start_matls,
-		 start_camera, start_bg_color, start_light, end_memory,
-		 light_pos, start_permutation, tile_width, tile_height,
-		 ray_depth, num_samples, num_thread_procs * num_cores, num_cores, subtree_size, 
-		 epsilon, duplicate_bvh, triangles_store_edges);
+                 grid_dimensions,
+                 camera, model_file,
+                 start_wq, start_framebuffer, start_scene,
+                 start_matls,
+                 start_camera, start_bg_color, start_light, end_memory,
+                 light_pos, start_permutation, tile_width, tile_height,
+                 ray_depth, num_samples, num_thread_procs * num_cores, num_cores, subtree_size, 
+                 epsilon, duplicate_bvh, triangles_store_edges);
     }
   } // end else for memory dump file
 
   // Once the model has been loaded and the BVH has been built, set up the animation if there is one
   
-  if(keyframe_file != NULL)
-  {
-      if(duplicate_bvh)
-	{
-	  printf("primary bvh starts at %d, secondary at %d\n", bvh->start_nodes, bvh->start_secondary_nodes);
-	  printf("primary triangles start at %d, secondary at %d\n", bvh->start_tris, bvh->start_secondary_tris);
-	  animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-				    &bvh->tri_orders, bvh->inorder_tris.size(), 
-				    bvh->start_tris, bvh->start_nodes,
-				    bvh->start_secondary_tris, bvh->start_secondary_nodes);
-	}
-      else
-	{
-	  animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-				    &bvh->tri_orders, bvh->inorder_tris.size(), 
-				    bvh->start_tris, bvh->start_nodes);
-	}
+  if(keyframe_file != NULL) {
+    if(duplicate_bvh) {
+      printf("primary bvh starts at %d, secondary at %d\n", bvh->start_nodes, bvh->start_secondary_nodes);
+      printf("primary triangles start at %d, secondary at %d\n", bvh->start_tris, bvh->start_secondary_tris);
+      animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
+                                &bvh->tri_orders, bvh->inorder_tris.size(), 
+                                bvh->start_tris, bvh->start_nodes,
+                                bvh->start_secondary_tris, bvh->start_secondary_nodes);
+    }
+    else {
+      animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
+                                &bvh->tri_orders, bvh->inorder_tris.size(), 
+                                bvh->start_tris, bvh->start_nodes);
+    }
   }
   
   // Set up incremental output if option is specified
