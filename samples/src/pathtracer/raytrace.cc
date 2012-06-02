@@ -18,9 +18,9 @@ void trax_main()
 
   BoundingVolumeHierarchy bvh(loadi(0, 8)); // tell the BVH where the scene starts
 
-  //Light light = loadLightFromMemory(loadi(0, 12)); // load the light from memory
+  Light light = loadLightFromMemory(loadi(0, 12)); // load the light from memory
   //Light light(Vector(-0.1f, .8f, .1f), Color(20.f, 20.f, 20.f), DIRECTIONALLIGHT); // crytek
-  Light light(Vector(-0.274531f, -0.252461f, 0.213216f), Color(3.5f, 3.5f, 3.5f), 0.006f); // luxroom (10 degree cone)
+  //Light light(Vector(-0.274531f, -0.252461f, 0.213216f), Color(3.5f, 3.5f, 3.5f), 0.006f); // luxroom 
   //Light light(Vector(0.338314f, 0.703444f, 0.952079f), Color(3.5f, 3.5f, 3.5f), DIRECTIONALLIGHT); // luxsala
   
   int xres = loadi( 0, 1 );
