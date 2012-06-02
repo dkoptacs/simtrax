@@ -25,20 +25,20 @@ void trax_main()
     {
       i = pix / xres;
       j = pix % xres;
-      zreal = 0.0;
-      zimag = 0.0;
-      creal = (j - xres/1.4) / (xres/2.0);
-      cimag = (i - yres/2.0) / (yres/2.0);
+      zreal = 0.0f;
+      zimag = 0.0f;
+      creal = (j - xres/1.4f) / (xres/2.0f);
+      cimag = (i - yres/2.0f) / (yres/2.0f);
       k = 0;
       do
 	{
 	  temp = (zreal * zreal) - (zimag * zimag) + creal;
-	  zimag = (2.0 * zreal * zimag) + cimag;
+	  zimag = (2.0f * zreal * zimag) + cimag;
 	  zreal = temp;
 	  lengthsq = (zreal * zreal) + (zimag * zimag);
 	  ++k;
 	}
-      while(lengthsq < 4.0 && k < MAX_ITERS);
+      while(lengthsq < 4.f && k < MAX_ITERS);
       if(k==MAX_ITERS)
 	k = 0;
       float intensity = k / (float)MAX_ITERS;
