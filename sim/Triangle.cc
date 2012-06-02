@@ -10,28 +10,28 @@ Triangle::Triangle(const Vector3& p0, const Vector3& p1, const Vector3& p2,
                    int object_id, int shader_id) :
   p0(p0), p1(p1), p2(p2), t0(t0), t1(t1), t2(t2), object_id(object_id), shader_id(shader_id)
 {
-	// do we compute 2 edges to store instead of points?
-	// p0 (edge between p1 and p0), p1 (central point), p2 (edge between p2 and p1)
-	if( Triangle::tri_stores_edges ) {
-		this->p0 -= p1;
-		this->p2 -= p1;
-	}
+  // do we compute 2 edges to store instead of points?
+  // p0 (edge between p1 and p0), p1 (central point), p2 (edge between p2 and p1)
+  if( Triangle::tri_stores_edges ) {
+    this->p0 -= p1;
+    this->p2 -= p1;
+  }
 }
 
 Triangle::Triangle(const Vector3& p0, const Vector3& p1, const Vector3& p2,
                    int object_id, int shader_id) :
   p0(p0), p1(p1), p2(p2), object_id(object_id), shader_id(shader_id)
 {
-	// do we compute 2 edges to store instead of points?
-	// p0 (edge between p1 and p0), p1 (central point), p2 (edge between p2 and p1)
-	if( Triangle::tri_stores_edges ) {
-		this->p0 -= p1;
-		this->p2 -= p1;
-	}  
+  // do we compute 2 edges to store instead of points?
+  // p0 (edge between p1 and p0), p1 (central point), p2 (edge between p2 and p1)
+  if( Triangle::tri_stores_edges ) {
+    this->p0 -= p1;
+    this->p2 -= p1;
+  }  
 }
 
 Triangle::Triangle(const Triangle& t) :
-p0(t.p0), p1(t.p1), p2(t.p2), object_id(t.object_id), shader_id(t.shader_id)
+  p0(t.p0), p1(t.p1), p2(t.p2), object_id(t.object_id), shader_id(t.shader_id)
 {
   
 }
