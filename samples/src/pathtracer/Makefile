@@ -32,30 +32,6 @@ SCENEDIR=../../scenes
 VIEWFILE=\"${SCENEDIR}/cornell/cornell.view\"
 MODELFILE=\"${SCENEDIR}/cornell/CornellBox.obj\"
 LIGHTFILE=\"${SCENEDIR}/cornell/cornell.light\"
-# Sponza Scene
-# VIEWFILE=\"${SIMDIR}/views/sponza_obj.view\"
-# MODELFILE=\"${SIMDIR}/test_models/sponza.obj\"
-# LIGHTFILE=\"${SIMDIR}/lights/sponza.light\"
-# Crytek Sponza Scene
-#VIEWFILE=\"${SIMDIR}/views/sponza_obj.view\"
-#MODELFILE=\"${SIMDIR}/test_models/crytek-sponza/sponza.obj\"
-#LIGHTFILE=\"${SIMDIR}/lights/sponza.light\"
-# Cube Scene
-#VIEWFILE=\"${SIMDIR}/views/cube.view\"
-#MODELFILE=\"${SIMDIR}/test_models/cube/cube.obj\"
-#LIGHTFILE=\"${SIMDIR}/lights/cube.light\"
-# Conference Scene
-# VIEWFILE=\"${SIMDIR}/views/conference.view\"
-# MODELFILE=\"${SIMDIR}/test_models/conference.obj\"
-# LIGHTFILE=\"${SIMDIR}/lights/conference.light\"
-# Luxmark Room Scene
-# VIEWFILE=\"${SIMDIR}/views/luxroom_wide.view\"
-# MODELFILE=\"${SIMDIR}/test_models/luxroom/luxroom.objl\"
-# LIGHTFILE=\"${SIMDIR}/lights/cube.light\"
-# Luxmark Sala Scene
-#VIEWFILE=\"${SIMDIR}/views/luxsala.view\"
-#MODELFILE=\"${SIMDIR}/test_models/luxsala/luxsala.objl\"
-#LIGHTFILE=\"${SIMDIR}/lights/cube.light\"
 
 # If you want to load memory dumps instead of rebuilding the BVH
 # use trax_setup(true)

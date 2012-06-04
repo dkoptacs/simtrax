@@ -8,7 +8,7 @@ Kd  0.8 0.8 0.8
 Ks  0.8 0.8 0.8
 d  1
 Ns  0
-illum 2
+illum 0
 #
 newmtl Red
 Ka  0.8 0.05 0.05
@@ -16,7 +16,7 @@ Kd  0.8 0.05 0.05
 Ks  0.8 0.05 0.05
 d  1
 Ns  0
-illum 2
+illum 0
 #
 newmtl Green
 Ka  0.05 0.8 0.05
@@ -24,7 +24,7 @@ Kd  0.05 0.8 0.05
 Ks  0.05 0.8 0.05
 d  1
 Ns  0
-illum 2
+illum 0
 #
 # Multi/Sub Material__46 done 
 #
@@ -35,6 +35,6 @@ Ks  0 0 0
 Ke  15 15 5
 d  1
 Ns  0
-illum 2
+illum 0
 #
 # EOF
