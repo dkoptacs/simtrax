@@ -242,10 +242,11 @@ void trax_setup( runrtParams_t &opts ) {
       int num_cores         = 1; // this either
       bool duplicate_bvh    = false;
       bool tris_store_edges = opts.triangles_store_edges;
-      
+      const char* model = opts.no_scene ? NULL : opts.model_file_name.c_str();
+
       LoadMemory(trax_memory_pointer, bvh, MEMORY_SIZE, opts.img_width, opts.img_height, 
                  grid_dimensions,
-                 camera, opts.model_file_name.c_str(),
+                 camera, model,
                  start_wq, start_framebuffer, start_scene,
                  start_matls,
                  start_camera, start_bg_color, start_light, end_memory,
@@ -486,6 +487,11 @@ void programOptParser( runrtParams_t &params, int argc, char* argv[] ) {
     // write dot file for BVH
     else if( strcmp(argv[i], "--write-dot")==0 ) {
       params.bvh_dot_depth         = atoi( argv[++i] );
+    }
+
+    // don't load a model
+    else if( strcmp(argv[i], "--no-scene")==0 ) {
+      params.no_scene              = true;;
     }
 
     // badness - help?

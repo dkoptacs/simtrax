@@ -87,6 +87,7 @@ void * trax_mainPThreads( void * dummyPtr = 0 );
 typedef struct runrtParams_tt{
   bool read_from_mem_file;
   bool triangles_store_edges;
+  bool no_scene;
   unsigned int num_render_threads;
   unsigned int num_samples_per_pixel;
   unsigned int ray_depth;
@@ -102,7 +103,7 @@ typedef struct runrtParams_tt{
   std::string light_file_name;
   
   // defaults
-  runrtParams_tt() : read_from_mem_file( false ), triangles_store_edges( false ),
+  runrtParams_tt() : read_from_mem_file( false ), triangles_store_edges( false ), no_scene(false),
 		     num_render_threads( 4 ), num_samples_per_pixel( NUMSAMPLES ), ray_depth( RAYDEPTH ),
 		     img_height( HEIGHT ), img_width( WIDTH ), bvh_dot_depth( 0 ), num_global_registers( 8 ),
 		     subtree_size( 0 ), custom_mem_loader( 0 ), mem_file_name( MEMORYFILE ), view_file_name( VIEWFILE ), 
