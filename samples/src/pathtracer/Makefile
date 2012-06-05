@@ -90,4 +90,4 @@ rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
 	@${BINDIR}/llc rt.bc -o rt.s -march=trax
 
 clean:
-	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ *.dDYM a.out
+	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ *.dSYM a.out
