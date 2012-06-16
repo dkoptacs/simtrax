@@ -33,6 +33,9 @@ public:
   void Reset();
   void SetSymbols(std::vector<symbol*> *regs);
 
+  // count thread stalls for fairness
+  long long int CountStalls();
+
   //data members...
   int num_thread_procs;
   int threads_per_proc;

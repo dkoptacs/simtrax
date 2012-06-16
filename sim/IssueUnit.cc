@@ -473,6 +473,18 @@ void IssueUnit::MultipleIssueClockFall() {
   // Begin standard issue code
   int issue_width = 1;
 
+  // Choose a start thread
+  int start_thread = 0;
+  long long int max_time_not_issued = 0;
+  for (size_t thread_id = 0; thread_id < thread_procs.size(); thread_id++) {
+    ThreadState* thread = thread_procs[thread_id]->GetActiveThread();
+    long long int time_not_issued = current_cycle - thread->last_issue;
+    if (time_not_issued > max_time_not_issued) {
+      start_thread = thread_id;
+      max_time_not_issued = time_not_issued;
+    }
+  }
+
   // first choose a simd block
   for (size_t thread_offset = 0;
        thread_offset < thread_procs.size();
@@ -483,7 +495,7 @@ void IssueUnit::MultipleIssueClockFall() {
     bool issued = true;
 
     // change this when simd is added back in
-    size_t proc_id = thread_offset;
+    size_t proc_id = (thread_offset + start_thread) % thread_procs.size();
     ThreadState* thread = thread_procs[proc_id]->GetActiveThread();
     Instruction* fetched_instruction = thread->fetched_instruction;
 
@@ -499,6 +511,7 @@ void IssueUnit::MultipleIssueClockFall() {
 	fetched_instruction = NULL;
 	num_issued++;
 	current_issue_fails = 0;
+	thread->last_issue = current_cycle;
       } else {
 	// stall
 	instructions_stalled++;
@@ -526,6 +539,7 @@ void IssueUnit::MultipleIssueClockFall() {
 	  fetched_instruction = NULL;
 	  num_issued++;
 	  current_issue_fails = 0;
+	  thread->last_issue = current_cycle;
 	} else {
 	  // stall - record reason
 	  instructions_stalled++;
@@ -571,6 +585,7 @@ void IssueUnit::SIMDClockFall() {
 	  fetched_instruction = NULL;
 	  num_issued++;
 	  simd_state[proc_id] = 0;
+	  thread->last_issue = current_cycle;
 	  // save the last issued to fetch the next one first
 	  simd_last_issued[thread_offset] = proc_id - thread_offset;
 	} else {

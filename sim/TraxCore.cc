@@ -100,3 +100,11 @@ void TraxCore::SetSymbols(std::vector<symbol*> *regs)
       debug->setRegisters(regs);
   }
 }
+
+long long int TraxCore::CountStalls() {
+  long long int stall_cycles = 0;
+  for (int i = 0; i < num_thread_procs; i++) {
+    stall_cycles += issuer->current_cycle - thread_procs[i]->GetActiveThread()->last_issue;
+  }
+  return stall_cycles;
+}

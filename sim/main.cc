@@ -62,8 +62,8 @@
 // Windows pipe stuff (needs stdio.h)
 #ifdef WIN32
 # ifndef popen
-#   define popen _popen
-#   define pclose _pclose
+#	define popen _popen
+#	define pclose _pclose
 # endif
 #endif
 
@@ -137,7 +137,7 @@ void NormalizeUtilization(long long int cycle_num, std::vector<double>& sums) {
 void PrintUtilization(std::vector<std::string>& module_names,
                       std::vector<double>& utilization) {
   printf("Module Utilization\n\n");
-  //for (size_t i = 0; i < utilization.size()-6; i++) {
+//   for (size_t i = 0; i < utilization.size()-6; i++) {
   for (size_t i = 0; i < module_names.size(); i++) {
     //printf("i = %d\n", (int)i);
     //fflush(stdout);
@@ -183,9 +183,21 @@ void *CoreThread( void* args ) {
   printf("Thread %d running cores\t%d to\t%d ...\n", (int) core_args->thread_num, (int) core_args->start_core, (int) core_args->end_core-1);
   // main loop for this core
   while (true) {
+    // Choose the first core to issue from
+    int start_core = 0;
+    long long int max_stall_cycles = -1;
     for (int i = core_args->start_core; i < core_args->end_core; ++i) {
-      SystemClockRise((*core_args->cores)[i]->modules);
-      SystemClockFall((*core_args->cores)[i]->modules);
+      long long int stall_cycles = (*core_args->cores)[i]->CountStalls();
+      if (stall_cycles > max_stall_cycles) {
+	start_core = i - core_args->start_core;
+	max_stall_cycles = stall_cycles;
+      }
+    }
+    int num_cores = core_args->end_core - core_args->start_core;
+    for (int i = 0; i < num_cores; ++i) {
+      int core_id = ((i + start_core) % num_cores) + core_args->start_core;
+      SystemClockRise((*core_args->cores)[core_id]->modules);
+      SystemClockFall((*core_args->cores)[core_id]->modules);
     }
     SyncThread(core_args);
     bool all_done = true;
@@ -246,122 +258,122 @@ void SerialExecution(CoreThreadArgs* core_args, int num_cores)
 void printUsage(char* program_name) {
   printf("%s\n", program_name);
   //printf("\t--with-per-cycle      [enable per-cycle output -- currently broken]\n");
-  printf("\t--no-cpi                [disable print of CPI at end]\n");
-  printf("\t--no-png                [disable png output]\n");
-  printf("\t--width                 <width in pixels -- default 128>\n");
-  printf("\t--height                <height in pixels -- default 128>\n");
+  printf("\t--no-cpi         [disable print of CPI at end]\n");
+  printf("\t--no-png         [disable png output]\n");
+  printf("\t--width        <width in pixels -- default 128>\n");
+  printf("\t--height       <height in pixels -- default 128>\n");
   printf("\t--usegrid               <grid dimensions> [uses grid acceleration structure (default is bvh)]\n");
   printf("\t--num-regs              <number of registers -- default 36>\n");
-  printf("\t--num-globals           <number of global registers -- default 8>\n");
-  printf("\t--num-thread-procs      <number of threads per TM -- default 4>\n");
+  printf("\t--num-globals        <number of global registers -- default 8>\n");
+  printf("\t--num-thread-procs   <number of threads per TM -- default 4>\n");
   //printf("\t--threads-per-proc    <number of threads per TP>\n");
   //printf("\t--simd-width          <number of threads issuing in SIMD within a TM>\n");
-  printf("\t--num-cores             <number of cores (Thread Multiprocessors) -- default 1>\n");
+  printf("\t--num-cores    <number of cores (Thread Multiprocessors) -- default 1>\n");
   printf("\t--num-l2s               <number of L2s. Cores (TMs) are multiplied by this number. -- default 1>\n");
-  printf("\t--simulation-threads    <number of simulator threads. -- default 1>\n");
-  printf("\t--l1-off                [turn off the L1 data cache and set latency to 0]\n");
-  printf("\t--l2-off                [turn off the L2 data cache and set latency to 0]\n");
-  printf("\t--l1-read-copy          [turn on read replication of same word reads on the same cycle]\n");
-  printf("\t--stop-cycle            <final cycle>\n");
-  printf("\t--config-file           <config file name>\n");
-  printf("\t--view-file             <view file name>\n");
-  printf("\t--model                 <model file name (.obj)>\n");
-  printf("\t--far-value             <far clipping plane (for rasterizer only) -- default 1000>\n");
-  printf("\t--first-keyframe        <specify the first keyframe for an animation>\n");
-  printf("\t--num-frames            <number of frames to animate over keyframes>\n");
-  printf("\t--rebuild-every         <N (rebuild BVH every N frames) -- default 0>\n");
-  printf("\t--light-file            <light file name>\n");
-  printf("\t--output-prefix         <prefix for image output. Be sure any directories exist>\n");
-  printf("\t--image-type            <type for image output -- default png>\n");
-  printf("\t--tile-width            <width of tile in pixels -- default 16>\n");
-  printf("\t--tile-height           <height of tile in pixels -- default 16>\n");
+  printf("\t--simulation-threads      <number of simulator threads. -- default 1>\n");
+  printf("\t--l1-off       [turn off the L1 data cache and set latency to 0]\n");
+  printf("\t--l2-off       [turn off the L2 data cache and set latency to 0]\n");
+  printf("\t--l1-read-copy [turn on read replication of same word reads on the same cycle]\n");
+  printf("\t--stop-cycle   <final cycle>\n");
+  printf("\t--config-file  <config file name>\n");
+  printf("\t--view-file    <view file name>\n");
+  printf("\t--model        <model file name (.obj)>\n");
+  printf("\t--far-value          <far clipping plane (for rasterizer only) -- default 1000>\n");
+  printf("\t--first-keyframe     <specify the first keyframe for an animation>\n");
+  printf("\t--num-frames         <number of frames to animate over keyframes>\n");
+  printf("\t--rebuild-every      <N (rebuild BVH every N frames) -- default 0>\n");
+  printf("\t--light-file         <light file name>\n");
+  printf("\t--output-prefix      <prefix for image output. Be sure any directories exist>\n");
+  printf("\t--image-type   <type for image output -- default png>\n");
+  printf("\t--tile-width   <width of tile in pixels -- default 16>\n");
+  printf("\t--tile-height  <height of tile in pixels -- default 16>\n");
   printf("\t--ray-depth             <depth of ray paths -- default 1>\n");
-  printf("\t--epsilon               <small number used for various offsets, default 1e-4>\n");
-  printf("\t--num-samples           <number of samples per pixel -- default 1>\n");
+  printf("\t--epsilon      <small number used for various offsets, default 1e-4>\n");
+  printf("\t--num-samples  <number of samples per pixel -- default 1>\n");
   printf("\t--write-dot             <depth> generates dot files for the bvh after each frame. Depth should not exceed 8 (limitation of dot)\n");
-  printf("\t--print-instructions    [print contents of instruction memory]\n");
+  printf("\t--print-instructions [print contents of instruction memory]\n");
   printf("\t--no-scene              [don't load a model, camera, or light]\n");
-  printf("\t--issue-verbosity       <level of verbosity for issue unit -- default 0>\n");
+  printf("\t--issue-verbosity    <level of verbosity for issue unit -- default 0>\n");
   printf("\t--atominc-report        <number of cycles between reporting number of atomicincs -- default 0, 0 means off>\n");
   printf("\t--num-icache-banks      <number of banks per icache -- default 16>\n");
   printf("\t--num-icaches           <number of icaches in a TM, should be a power of 2 -- default 1>\n");
   printf("\t--load-assembly         <filename -- loads a program to run, required>\n");
-  printf("\t--memory-trace          [writes memory access data (cache only) to memory_accesses.txt]\n");
-  printf("\t--proc-register-trace   <proc id to trace> [trace saved in thread_registers.txt]\n");
-  printf("\t--print-symbols         [print symbol table generated by assembler]\n");
-  printf("\t--mem-file              <memory dump file name -- default memory.mem>\n");
-  printf("\t--load-mem-file         [read memory dump from file]\n");
-  printf("\t--write-mem-file        [write memory dump to file]\n");
-  printf("\t--custom-mem-loader     [which custom mem loader to use -- default 0 (off)]\n");
-  printf("\t--incremental-output    <number of stores between outputs -- default 64>\n");
+  printf("\t--memory-trace       [writes memory access data (cache only) to memory_accesses.txt]\n");
+  printf("\t--proc-register-trace <proc id to trace> [trace saved in thread_registers.txt]\n");
+  printf("\t--print-symbols      [print symbol table generated by assembler]\n");
+  printf("\t--mem-file           <memory dump file name -- default memory.mem>\n");
+  printf("\t--load-mem-file      [read memory dump from file]\n");
+  printf("\t--write-mem-file     [write memory dump to file]\n");
+  printf("\t--custom-mem-loader  [which custom mem loader to use -- default 0 (off)]\n");
+  printf("\t--incremental-output <number of stores between outputs -- default 64>\n");
   //printf("\t--serial-execution    [use a single pthread to run simulation]\n"); // deprecated (see --simulation-threads)
   printf("\t--triangles-store-edges [set flag to store 2 edge vecs in a tri instead of 2 verts -- default: off]\n");
-  printf("\t--subtree-size          <Minimum size in words of subtrees built in to BVH -- default 0 (will not build subtrees)>\n");
+  printf("\t--subtree-size        <Minimum size in words of subtrees built in to BVH -- default 0 (will not build subtrees)>\n");
   //printf("\t--scheduling          <\"poststall\", \"prestall\", \"simple\">\n"); // deprecated
 }
 
 
 int main(int argc, char* argv[]) {
-  clock_t start_time      = clock();
-  bool print_system_info  = false;
-  bool print_cpi          = true;
-  bool print_png          = true;
-  int image_width         = 128;
-  int image_height        = 128;
-  int grid_dimensions     = -1;
+  clock_t start_time = clock();
+  bool print_system_info	= false;
+  bool print_cpi			= true;
+  bool print_png			= true;
+  int image_width			= 128;
+  int image_height			= 128;
+  int grid_dimensions		= -1;
   int num_regs            = 36;
-  int num_globals         = 8;
-  int num_thread_procs    = 1;
-  int threads_per_proc    = 1;
-  int simd_width          = 1;
-  int num_frames          = 1;
-  int rebuild_frequency   = 0;
-  bool duplicate_bvh      = true;
+  int num_globals			= 8;
+  int num_thread_procs		= 1;
+  int threads_per_proc		= 1;
+  int simd_width			= 1;
+  int num_frames			= 1;
+  int rebuild_frequency		= 0;
+  bool duplicate_bvh		= true;
   int frames_since_rebuild= 0;
-  unsigned int num_cores  = 1;
-  num_L2s                 = 1;
-  bool l1_off             = false;
-  bool l2_off             = false;
-  bool l1_read_copy       = false;
+  unsigned int num_cores	= 1;
+  num_L2s					= 1;
+  bool l1_off				= false;
+  bool l2_off				= false;
+  bool l1_read_copy			= false;
   long long int stop_cycle= -1;
-  char* config_file       = NULL;
-  char* view_file         = NULL;
-  char* model_file        = NULL;
-  char* keyframe_file     = NULL;
-  char* light_file        = NULL;
-  char* output_prefix     = (char*)"out";
-  char* image_type        = (char*)"png";
-  float far               = 1000;
-  int dot_depth           = 0;
-  Camera* camera          = NULL;
-  float *light_pos        = NULL;
-  int tile_width          = 16;
-  int tile_height         = 16;
-  int ray_depth           = 1;
-  int num_samples         = 1;
-  float epsilon           = 1e-4f;
-  bool print_instructions = false;
-  bool no_scene           = false;
-  int issue_verbosity     = 0;
+  char* config_file			= NULL;
+  char* view_file			= NULL;
+  char* model_file			= NULL;
+  char* keyframe_file		= NULL;
+  char* light_file			= NULL;
+  char* output_prefix		= (char*)"out";
+  char* image_type			= (char*)"png";
+  float far					= 1000;
+  int dot_depth				= 0;
+  Camera* camera			= NULL;
+  float *light_pos			= NULL;
+  int tile_width			= 16;
+  int tile_height			= 16;
+  int ray_depth				= 1;
+  int num_samples			= 1;
+  float epsilon				= 1e-4f;
+  bool print_instructions	= false;
+  bool no_scene				= false;
+  int issue_verbosity		= 0;
   long long int atominc_report_period = 0;
-  int num_icaches         = 1;
+  int num_icaches			= 1;
   int icache_banks        = 16;
-  char *assem_file        = NULL;
-  bool memory_trace       = false;
-  int proc_register_trace = -1;
-  bool print_symbols      = false;
-  char mem_file_orig[64]  = "memory.mem";
-  char* mem_file          = mem_file_orig;
-  bool load_mem_file      = false;
-  bool write_mem_file     = false;
-  int custom_mem_loader   = 0;
-  bool incremental_output = false;
-  bool serial_execution   = false;
+  char *assem_file			= NULL;
+  bool memory_trace			= false;
+  int proc_register_trace	= -1;
+  bool print_symbols		= false;
+  char mem_file_orig[64]	= "memory.mem";
+  char* mem_file			= mem_file_orig;
+  bool load_mem_file		= false;
+  bool write_mem_file		= false;
+  int custom_mem_loader         = 0;
+  bool incremental_output	= false;
+  bool serial_execution		= false;
   bool triangles_store_edges = false;
-  int stores_between_output  = 64;
-  int subtree_size        = 0;
+  int stores_between_output	= 64;
+  int subtree_size = 0;
   BVH* bvh;
-  Animation *animation    = NULL;
+  Animation *animation		= NULL;
   ThreadProcessor::SchedulingScheme scheduling_scheme = ThreadProcessor::SIMPLE;
   int total_simulation_threads = 1;
 
@@ -393,9 +405,9 @@ int main(int argc, char* argv[]) {
       num_globals = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--num-thread-procs") == 0) {
       num_thread_procs = atoi(argv[++i]);
-      //} else if (strcmp(argv[i], "--threads-per-proc") == 0) {
+    //} else if (strcmp(argv[i], "--threads-per-proc") == 0) {
       //threads_per_proc = atoi(argv[++i]);
-      //} else if (strcmp(argv[i], "--simd-width") == 0) {
+    //} else if (strcmp(argv[i], "--simd-width") == 0) {
       //simd_width = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--num-cores") == 0) {
       num_cores = atoi(argv[++i]);
@@ -628,14 +640,14 @@ int main(int argc, char* argv[]) {
       }
     
       LoadMemory(memory->getData(), bvh, memory->getSize(), image_width, image_height,
-                 grid_dimensions,
-                 camera, model_file,
-                 start_wq, start_framebuffer, start_scene,
-                 start_matls,
-                 start_camera, start_bg_color, start_light, end_memory,
-                 light_pos, start_permutation, tile_width, tile_height,
-                 ray_depth, num_samples, num_thread_procs * num_cores, num_cores, subtree_size, 
-                 epsilon, duplicate_bvh, triangles_store_edges);
+		 grid_dimensions,
+		 camera, model_file,
+		 start_wq, start_framebuffer, start_scene,
+		 start_matls,
+		 start_camera, start_bg_color, start_light, end_memory,
+		 light_pos, start_permutation, tile_width, tile_height,
+		 ray_depth, num_samples, num_thread_procs * num_cores, num_cores, subtree_size, 
+		 epsilon, duplicate_bvh, triangles_store_edges);
     }
   } // end else for memory dump file
 
@@ -646,14 +658,14 @@ int main(int argc, char* argv[]) {
       printf("primary bvh starts at %d, secondary at %d\n", bvh->start_nodes, bvh->start_secondary_nodes);
       printf("primary triangles start at %d, secondary at %d\n", bvh->start_tris, bvh->start_secondary_tris);
       animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-                                &bvh->tri_orders, bvh->inorder_tris.size(), 
-                                bvh->start_tris, bvh->start_nodes,
-                                bvh->start_secondary_tris, bvh->start_secondary_nodes);
+				&bvh->tri_orders, bvh->inorder_tris.size(), 
+				bvh->start_tris, bvh->start_nodes,
+				bvh->start_secondary_tris, bvh->start_secondary_nodes);
     }
     else {
       animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-                                &bvh->tri_orders, bvh->inorder_tris.size(), 
-                                bvh->start_tris, bvh->start_nodes);
+				&bvh->tri_orders, bvh->inorder_tris.size(), 
+				bvh->start_tris, bvh->start_nodes);
     }
   }
   

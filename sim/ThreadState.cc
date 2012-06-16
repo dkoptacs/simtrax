@@ -123,6 +123,7 @@ ThreadState::ThreadState(SimpleRegisterFile* regs,
   carry_register = 0;
   halted = false;
   sleep_cycles = 0;
+  last_issue = 0;
   program_counter = 0;
   next_program_counter = 1;
   instruction_id  = 0;
@@ -144,6 +145,7 @@ ThreadState::ThreadState(SimpleRegisterFile* regs,
 void ThreadState::Reset()
 {
   halted = false;
+  last_issue = 0;
   program_counter = 0;
   next_program_counter = 1;
   instruction_id = 0;

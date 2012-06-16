@@ -80,6 +80,7 @@ public:
   
   int instructions_in_flight;
   int sleep_cycles;
+  long long int last_issue;
   bool halted;
   
 };
