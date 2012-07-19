@@ -74,20 +74,20 @@ objs/%.o: ${SIMDIR}/%.cc mkdirs
 
 objs/trax_trax.bc: ${LIBDIR}/trax_trax.cpp mkdirs
 	@echo "Building $<"
-	@${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
+	${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
 
 objs/%.bc: %${CSUFFIX} mkdirs
 	@echo "Building $<"
-	@${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
+	${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
 
 OBJS := $(addprefix objs/, $(notdir $(SOURCES:${CSUFFIX}=.bc))) objs/trax_trax.bc
 
 rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
-	@${BINDIR}/llvm-ld ${OBJS} -b rt.bc
-	@${BINDIR}/llvm-dis rt.bc -o pre.ll
-	@${BINDIR}/opt rt.bc -O3 -inline-threshold 200000000 -o rt.bc
-	@${BINDIR}/llvm-dis rt.bc -o post.ll
-	@${BINDIR}/llc rt.bc -o rt.s -march=trax
+	${BINDIR}/llvm-ld ${OBJS} -b rt.bc
+	${BINDIR}/llvm-dis rt.bc -o pre.ll
+	${BINDIR}/opt rt.bc -O3 -inline-threshold 200000000 -o rt.bc
+	${BINDIR}/llvm-dis rt.bc -o post.ll
+	${BINDIR}/llc rt.bc -o rt.s -march=trax
 
 clean:
 	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ *.dSYM a.out

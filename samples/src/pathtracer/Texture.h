@@ -6,7 +6,6 @@
 #include "Vector.h"
 #include "Math.h"
 #include "trax.hpp"
-#include <stdio.h>
 
 Color getTextureColor(const HitRecord &hr, const int &start_tex_coords, int texture_address);
 

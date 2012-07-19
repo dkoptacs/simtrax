@@ -7,7 +7,6 @@
 #include "Vector.h"
 #include "Texture.h"
 #include "trax.hpp"
-#include <stdio.h>
 
 // Lambertian shader with simple cosine-weighted reflection distribution
 

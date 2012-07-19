@@ -6,7 +6,6 @@
 #include "BoundingVolumeHierarchy.h"
 #include "Vector.h"
 #include "trax.hpp"
-#include <stdio.h>
 
 // Glass material designed for use with a path tracer only. 
 // Stochasitcally casts reflection OR refraction ray weighted by fresnel-schlick, but never both

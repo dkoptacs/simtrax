@@ -7,7 +7,6 @@
 #include "Vector.h"
 #include "Texture.h"
 #include "trax.hpp"
-#include <stdio.h>
 
 // Lambertian shading with the Phong approximation for specular reflections
 
