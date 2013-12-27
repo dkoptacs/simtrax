@@ -14,7 +14,7 @@ class ReadConfig {
 public:
   ReadConfig(const char* input_file,
 	     L2Cache** L2s, size_t num_L2s, MainMemory*& mem, 
-	     double& size_estimate,
+	     double& size_estimate, bool disable_usimm,
 	     bool memory_trace, bool l1_off, bool l2_off,
 	     bool l1_read_copy);
 

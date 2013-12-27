@@ -2,10 +2,12 @@
 #include "SimpleRegisterFile.h"
 #include "Instruction.h"
 #include "WriteRequest.h"
+#include "L2Cache.h"
 #include <assert.h>
+#include <stdlib.h>
 
-
-#define N 200
+#define N 1000
+#define MAX_STALL_CYCLES 16
 
 WriteQueue::WriteQueue() {
   requests = new WriteRequest[N];
@@ -28,6 +30,8 @@ void WriteQueue::clear()
 WriteRequest* WriteQueue::push(long long int cycle) {
   if(size() == N-1){
     printf("\n\nWrite queue overflow\n\n");
+    print();
+    exit(1);
   }
   WriteRequest* ret = &requests[head];
   ret->ready_cycle = cycle;
@@ -54,6 +58,54 @@ int WriteQueue::size() {
 
 bool WriteQueue::empty() {
   return head == tail;
+}
+
+bool WriteQueue::update(ThreadState* thread, int which_reg, long long int which_cycle, unsigned int val, long long new_cycle, unsigned int new_val, Instruction::Opcode new_op)
+{
+  int num = size();
+
+  //printf("searching for reg %d, cycle %lld, val %u\n", which_reg, which_cycle, val);
+
+  for(int i = 0; i < num; ++i) 
+    {
+      //printf("\texamining reg %d, cycle %lld, val %u\n", requests[(tail+i)%N].which_reg, requests[(tail+i)%N].ready_cycle, requests[(tail+i)%N].udata);
+      if (requests[(tail+i)%N].which_reg == which_reg &&
+	  requests[(tail+i)%N].ready_cycle == which_cycle &&
+	  requests[(tail+i)%N].udata == val)
+	{
+
+	  // Find the first available cycle on or after ready cycle
+	  // Always allow unknown_latency to enqueue
+	  if(new_cycle != which_cycle && new_cycle != UNKNOWN_LATENCY)
+	    {
+	      int stall_cycles = -1;
+		while(CycleUsed(new_cycle + ++stall_cycles))
+		  {}
+	      
+	      if(stall_cycles > MAX_STALL_CYCLES)
+		{
+		  //TODO: Take the error out and actually limit the queue length (cause a stall instead of exiting)
+		  printf("error: %s stalled for > %d cycles (%d)\n", Instruction::Opnames[new_op].c_str(), MAX_STALL_CYCLES, stall_cycles);
+		  exit(1);
+		}
+	      new_cycle += stall_cycles;
+	    }
+	  requests[(tail+i)%N].ready_cycle = new_cycle;
+	  requests[(tail+i)%N].udata = new_val;
+	  requests[(tail+i)%N].op = new_op;
+	  thread->register_ready[which_reg] = new_cycle;
+	  return true;
+	}
+    }
+  
+  // If we can't find the write request to be updated, that means it was squashed by a more relevant one
+  //printf("Warning: did not find write to be updated (squashed instruction)\n");
+  return false;
+  
+  //printf("error: did not find write to be updated\n");
+  //printf("looking for reg %d, cycle %lld, val %u, setting new cycle to %lld\n", which_reg, which_cycle, val, new_cycle);
+  //print();
+  //exit(1);
 }
 
 bool WriteQueue::CycleUsed(long long int cycle) {
@@ -84,15 +136,16 @@ Instruction::Opcode WriteQueue::GetOp(int which_reg) {
 }
 
 bool WriteQueue::ReadyBy(int which_reg, long long int which_cycle,
-			 reg_value &val, Instruction::Opcode &op) {
+			 long long int &ready_cycle, reg_value &val, Instruction::Opcode &op) {
   // might be better to know how many writes to this reg are in flight to choose the last one.
   int num = size();
   for(int i = 1; i <= num; ++i) {
     if (requests[(head-i+N)%N].which_reg == which_reg) {
       // this magic number represents the number of pipe stages ahead you can read the value
+      //printf("\tin ReadyBy, which_cycle = %lld, ready_cycle = %lld\n", which_cycle, requests[(head-i+N)%N].ready_cycle);
       if (requests[(head-i+N)%N].ready_cycle <= which_cycle) {
 	val.idata = requests[(head-i+N)%N].idata;
-	//printf("readyby returning %d from %d. head = %d, tail = %d\n", val.idata, (head-i+N)%N, head, tail);
+	ready_cycle = requests[(head-i+N)%N].ready_cycle;
 	return true;
       }
       else {
@@ -129,6 +182,7 @@ ThreadState::ThreadState(SimpleRegisterFile* regs,
   instruction_id  = 0;
   instructions_in_flight = 0;
   instructions_issued = 0;
+  end_sleep_cycle = -1;
 
   fetched_instruction = NULL;
   issued_this_cycle = NULL;
@@ -139,7 +193,6 @@ ThreadState::ThreadState(SimpleRegisterFile* regs,
     register_ready[i] = 0;
     writes_in_flight[i] = 0;
   }
-
 }
 
 void ThreadState::Reset()
@@ -152,12 +205,12 @@ void ThreadState::Reset()
   instructions_in_flight = 0;
   fetched_instruction = NULL;
   issued_this_cycle = NULL;
+  end_sleep_cycle = -1;
   write_requests.clear();
   for (int i = 0; i < registers->num_registers; i++) {
     register_ready[i] = 0;
     writes_in_flight[i] = 0;
   }
-
 }
 
 ThreadState::~ThreadState(){
@@ -169,17 +222,65 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
 //   printf("Queuing write to reg: %d with val: %d on cycle: %lld from op: %s\n", which_reg, val.idata, which_cycle,
 //   Instruction::Opnames[op].c_str());
   //  write_requests.print();
-  if (!write_requests.CycleUsed(which_cycle)) {
-    WriteRequest* new_write = write_requests.push(which_cycle);
-    new_write->which_reg = which_reg;
-    new_write->idata = val.idata;
-    new_write->op = op;
-    writes_in_flight[which_reg]++;
-    //printf("%d writes in flight.\n",writes_in_flight[which_reg]);
-    register_ready[which_reg] = which_cycle;
-    return true;
-  }
-  return false;
+
+  int stall_cycles = -1;
+
+  // If there is already a write in flight to this register, either 
+  // -The compiler generated a useless instruction, squash the old one
+  // -Or the old one hasn't cleared the write queue yet, but it's cycle has passed
+  //  (hence the register has been read then written by a subsequent instruction(s))
+  if(writes_in_flight[which_reg] > 0)
+    {
+      Instruction::Opcode temp;
+      reg_value old_val;
+      long long int old_ready;
+      // Get the old enqueued result
+      write_requests.ReadyBy(which_reg, UNKNOWN_LATENCY, old_ready, old_val, temp);
+      // This should never fail
+      if(!write_requests.update(this, which_reg, old_ready, old_val.udata, which_cycle, val.udata, op))
+	{
+	  printf("Error: found old write request but could not update it(1)\n");
+	  exit(1);
+	}
+      return true;
+    }
+
+  // Find the next available cycle on or after the ready cycle
+  // Unknown latencies can always be enqueue because they will be udpated 
+  // with a real latency later.
+  if(which_cycle != UNKNOWN_LATENCY)
+    while(write_requests.CycleUsed(which_cycle + ++stall_cycles))
+      {}
+
+
+
+  if(stall_cycles > MAX_STALL_CYCLES)
+    {
+      //TODO: Take the error out and actually limit the queue length (cause a stall instead of exiting)
+      printf("error: %s stalled for > %d cycles (%d)\n", Instruction::Opnames[op].c_str(), MAX_STALL_CYCLES, stall_cycles);
+      exit(1);
+    }
+  
+  if(which_cycle != UNKNOWN_LATENCY)
+    which_cycle += stall_cycles;
+
+  //if (which_cycle == UNKNOWN_LATENCY || !write_requests.CycleUsed(which_cycle)) 
+  //{
+  WriteRequest* new_write = write_requests.push(which_cycle);
+  new_write->which_reg = which_reg;
+  new_write->idata = val.idata;
+  new_write->op = op;
+  writes_in_flight[which_reg]++;
+  //printf("%d writes in flight.\n",writes_in_flight[which_reg]);
+  register_ready[which_reg] = which_cycle;
+  return true;
+  //}
+  //return false;
+}
+
+void ThreadState::UpdateWriteCycle(int which_reg, long long int which_cycle, unsigned int val, long long int new_cycle, Instruction::Opcode op)
+{
+  write_requests.update(this, which_reg, which_cycle, val, new_cycle, val, op);
 }
 
 Instruction::Opcode ThreadState::GetFailOp(int which_reg) {
@@ -195,16 +296,21 @@ bool ThreadState::ReadRegister(int which_reg, long long int which_cycle, reg_val
   // check if register is being written
   //printf("Reading reg %d, on cycle: %lld, %d writes in flight\n", which_reg, which_cycle, writes_in_flight[which_reg]);
   //printf("Write queue size: %d\n", write_requests.size());
+
+  //printf("reading register %d", which_reg);
+  //printf("\tin flight = %d\n", writes_in_flight[which_reg]);
+
   if (writes_in_flight[which_reg] > 0) {
     // check if register forwarding is possible
-    
-    bool retval = write_requests.ReadyBy(which_reg, which_cycle, val, op);
+    long long int old_ready;
+    bool retval = write_requests.ReadyBy(which_reg, which_cycle, old_ready, val, op);
     if (retval) {
       // report forwarding
       registers->ReadForwarded(which_reg, which_cycle);
     }
     //write_requests.print();
-    //printf("1ReadRegister returning %d, %d\n", val.idata, retval);
+    //printf("\tReadyBy returning %d, %d\n", val.idata, retval);
+    //printf("\tReadRegister returning %d\n", retval);
     return retval;
   }
   else {
@@ -212,15 +318,16 @@ bool ThreadState::ReadRegister(int which_reg, long long int which_cycle, reg_val
     // not being written, read the value and return true
     //printf("2ReadRegister returning %d, true\n", registers->idata[which_reg]);
     val.idata = registers->idata[which_reg];
+    //printf("\tReadRegister returning true\n");
     return true;
   }
 }
 
 void ThreadState::ApplyWrites(long long int cur_cycle) {
+
   WriteRequest* request = write_requests.front();
   //printf("Write queue size: %d\n", write_requests.size());
   while(!write_requests.empty() && request->IsReady(cur_cycle)) {
-    //printf("Writing register: %d with value: %d\n",request->which_reg, request->idata);
     registers->WriteInt(request->which_reg, request->idata, request->ready_cycle);
     writes_in_flight[request->which_reg]--;
     //printf("%d writes in flight.\n",writes_in_flight[request->which_reg]);

@@ -24,7 +24,11 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::ANDI ||
       op == Instruction::ANDNI ||
       op == Instruction::BITSLEFT ||
-      op == Instruction::BITSRIGHT)
+      op == Instruction::BITSRIGHT ||
+      op == Instruction::bslli || 
+      op == Instruction::bsrli ||
+      op == Instruction::bsrai
+      )
     return true;
   else
     return false;
@@ -52,6 +56,9 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     break;
   case Instruction::sra:
   case Instruction::srl:
+  case Instruction::bslli:
+  case Instruction::bsrli:
+  case Instruction::bsrai:
   case Instruction::ORI:
   case Instruction::XORI:
   case Instruction::ANDI:
@@ -102,6 +109,13 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     break;
   case Instruction::BITSRIGHT:
     result.udata = arg1.udata >> arg2.udata;
+    break;
+  case Instruction::bslli:
+    result.udata = arg1.udata << ins.args[2];
+    break;
+  case Instruction::bsrli:
+  case Instruction::bsrai:
+    result.udata = arg1.udata >> ins.args[2];
     break;
   default:
     fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");

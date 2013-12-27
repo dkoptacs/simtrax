@@ -27,10 +27,12 @@ void MTLLoader::LoadMTL(const char* filename, std::vector<Material*>* matls,
     char *line_buf = line_store;
 
     // trim leading whitespace
-    while(line_buf[0] == ' ' || line_buf[0] == '\t' || line_buf[0] == '\n')
+    while(line_buf[0] == ' ' || line_buf[0] == '\t' || line_buf[0] == '\n' || line_buf[0] == 13) // 13 is CR
       line_buf++; 
+    
     if(strlen(line_buf) < 1)
       continue;
+    
 
     float r, g, b;
     float indexOfRefraction;
@@ -137,24 +139,25 @@ void MTLLoader::LoadMTL(const char* filename, std::vector<Material*>* matls,
     
     // don't support Tr, Tf, d, bump, map_bump, map_d (dissolve) yet
     else if (line_buf[0] == 'd' || line_buf[0] == 'N' || line_buf[0] == 'T' || 
-	     line_buf[0] == 'b' || line_buf[4] == 'b' || line_buf[4] == 'd') {
-      // not used yet
-    } else {
-      printf("Bad line in mtl file: \"%s\"", line_buf);
-      printf("using white\n");
-      if(!new_matl){
-	new_matl = new Material(Vector3(1,1,1), Vector3(1,1,1), Vector3(1,1,1));
+	     line_buf[0] == 'b' || line_buf[4] == 'b' || line_buf[4] == 'd') 
+      {
+	// not used yet
+      } 
+    else 
+      {
+	printf("Unhandled line in mtl file: \"%s\"\n", line_buf);
+	if(!new_matl)
+	  {
+	    printf("using white\n");
+	    new_matl = new Material(Vector3(1,1,1), Vector3(1,1,1), Vector3(1,1,1));
+	  }
+	else
+	  {
+	    printf("Ignoring\n");
+	  }
       }
-      else{
-	new_matl->c0 = Vector3(1, 1, 1);
-	new_matl->c1 = Vector3(1, 1, 1);
-	new_matl->c2 = Vector3(1, 1, 1);
-      }
-      //printf("made new mat\n");
-      //fflush(stdout);
-    }
   }
-
+  
   printf("%d total materials\n", int(matls->size()));
   fclose(input);
 

@@ -5,6 +5,7 @@
 #include "WriteRequest.h"
 #include <float.h>
 #include <cassert>
+#include <stdlib.h>
 
 IntAddSub::IntAddSub(int _latency, int _width) :
   FunctionalUnit(_latency), width(_width){
@@ -40,14 +41,19 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       ins.op == Instruction::RSUBI) {
     if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
       // bad stuff happened
-      printf("IntAddSub unit: Error in Accepting instruction. Should have passed.\n");
+      printf("IntAddSub unit: Error in Accepting instruction. Should have passed1.\n");
     }
   } else {
     // two register instructions
     if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
 	!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
       // bad stuff happened
-      printf("IntAddSub unit: Error in Accepting instruction. Should have passed.\n");
+      printf("IntAddSub unit: Error in Accepting instruction. Should have passed2.\n");
+      printf("PC = %d, thread = %d, core = %d, cycle = %lld, reg_ready[%d] = %lld, reg_ready[%d] = %lld\n", 
+	     ins.pc_address, thread->thread_id, thread->core_id, issuer->current_cycle, 
+	     ins.args[1], thread->register_ready[ins.args[1]],
+	     ins.args[2], thread->register_ready[ins.args[2]]);
+      exit(1);
     }
   }
   

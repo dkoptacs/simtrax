@@ -1,23 +1,3 @@
-// Simtrax was developed by the hwrt group at the School of 
-// Computing at the University of Utah in Salt Lake City, Utah
-// 
-// The project can be found at http://code.google.com/p/simtrax/
-
-// This file is part of Simtrax.
-//
-// Simtrax is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// Simtrax is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with Simtrax.  If not, see <http://www.gnu.org/licenses/>.
-
 #include "Bitwise.h"
 #include "BranchUnit.h"
 #include "BVH.h"
@@ -56,7 +36,9 @@
 #include "Triangle.h"
 #include "Vector3.h"
 #include "Assembler.h"
-
+#include "usimm.h"
+#include "memory_controller.h"
+#include "params.h"
 
 #include "WinCommonNixFcns.h"
 // Windows pipe stuff (needs stdio.h)
@@ -79,10 +61,12 @@ pthread_mutex_t atominc_mutex;
 pthread_mutex_t memory_mutex;
 pthread_mutex_t sync_mutex;
 pthread_mutex_t global_mutex;
+pthread_mutex_t usimm_mutex[MAX_NUM_CHANNELS];
 pthread_cond_t sync_cond;
 // for synchronization
 int global_total_simulation_threads;
 int current_simulation_threads;
+bool disable_usimm;
 
 // this branch delay is reset by code that finds the delay from the
 // config file
@@ -165,17 +149,48 @@ void SyncThread( CoreThreadArgs* core_args ) {
     pthread_cond_wait(&sync_cond, &sync_mutex);
   }
   else {
-    // last thread signal the others
+    // last thread signal the others and sync caches
     for(size_t i = 0; i < num_L2s; i++)
       {
 	L2s[i]->ClockRise();
 	L2s[i]->ClockFall();
       }
+
+    //DK: One thread updates the DRAM
+    // 5 DRAM cycles per trax cycle
+    // (assuming 1GHz trax, 5GHz GDDR5)
+    if(!disable_usimm)
+      {
+	for(int i=0; i < DRAM_CLOCK_MULTIPLIER; i++)
+	  usimmClock();
+      }
+
     current_simulation_threads = global_total_simulation_threads;
     pthread_cond_broadcast(&sync_cond);
   }
   pthread_mutex_unlock(&sync_mutex);
 }
+
+void UsimmUpdate()
+{
+  pthread_mutex_lock(&sync_mutex);
+  current_simulation_threads--;
+  if (current_simulation_threads > 0) {
+    pthread_cond_wait(&sync_cond, &sync_mutex);
+  }
+  else {
+    //DK: One thread updates the DRAM
+    // 5 DRAM cycles per trax cycle
+    // (assuming 1GHz trax, 5GHz GDDR5)
+    for(int i=0; i < DRAM_CLOCK_MULTIPLIER; i++)
+      usimmClock();
+
+    current_simulation_threads = global_total_simulation_threads;
+    pthread_cond_broadcast(&sync_cond);
+  }
+  pthread_mutex_unlock(&sync_mutex);
+}
+
 
 void *CoreThread( void* args ) {
   CoreThreadArgs* core_args = static_cast<CoreThreadArgs*>(args);
@@ -193,6 +208,7 @@ void *CoreThread( void* args ) {
 	max_stall_cycles = stall_cycles;
       }
     }
+
     int num_cores = core_args->end_core - core_args->start_core;
     for (int i = 0; i < num_cores; ++i) {
       int core_id = ((i + start_core) % num_cores) + core_args->start_core;
@@ -200,6 +216,8 @@ void *CoreThread( void* args ) {
       SystemClockFall((*core_args->cores)[core_id]->modules);
     }
     SyncThread(core_args);
+
+    //UsimmUpdate();
     bool all_done = true;
     for (int i = core_args->start_core; i < core_args->end_core; ++i) {
       TrackUtilization((*core_args->cores)[i]->modules,
@@ -257,130 +275,161 @@ void SerialExecution(CoreThreadArgs* core_args, int num_cores)
 
 void printUsage(char* program_name) {
   printf("%s\n", program_name);
-  //printf("\t--with-per-cycle      [enable per-cycle output -- currently broken]\n");
-  printf("\t--no-cpi         [disable print of CPI at end]\n");
-  printf("\t--no-png         [disable png output]\n");
-  printf("\t--width        <width in pixels -- default 128>\n");
-  printf("\t--height       <height in pixels -- default 128>\n");
-  printf("\t--usegrid               <grid dimensions> [uses grid acceleration structure (default is bvh)]\n");
-  printf("\t--num-regs              <number of registers -- default 36>\n");
+  printf("  + Simulator Parameters:\n");
+  printf("\t--atominc-report       <number of cycles between reporting number of atomicincs -- default 1000000, 0 means off>\n");
+  printf("\t--custom-mem-loader    [which custom mem loader to use -- default 0 (off)]\n");
+  printf("\t--incremental-output   <number of stores between outputs -- default 64>\n");
+  printf("\t--issue-verbosity      <level of verbosity for issue unit -- default 0>\n");
+  printf("\t--load-mem-file        [read memory dump from file]\n");
+  printf("\t--mem-file             <memory dump file name -- default memory.mem>\n");
+  printf("\t--memory-trace         [writes memory access data (cache only) to memory_accesses.txt]\n");
+  printf("\t--print-instructions   [print contents of instruction memory]\n");
+  printf("\t--print-symbols        [print symbol table generated by assembler]\n");
+  printf("\t--proc-register-trace  <proc id to trace> [trace saved in thread_registers.txt]\n");
+  printf("\t--serial-execution     [use a single pthread to run simulation]\n");
+  printf("\t--simulation-threads   <number of simulator threads. -- default 1>\n");
+  printf("\t--stop-cycle           <final cycle>\n");
+  printf("\t--write-dot            <depth> generates dot files for the tree after each frame. Depth should not exceed 8\n");
+  printf("\t--write-mem-file       [write memory dump to file]\n");
+
+  printf("\n");
+  printf("  + TRAX Specification:\n");
+  printf("\t--with-per-cycle     [enable per-cycle output -- currently broken]\n");
+  printf("\t--no-cpi             [disable print of CPI at end]\n");
+  printf("\t--cache-snoop        [enable nearby L1 snooping]\n");
+  printf("\t--num-regs           <number of registers -- default 128>\n");
   printf("\t--num-globals        <number of global registers -- default 8>\n");
   printf("\t--num-thread-procs   <number of threads per TM -- default 4>\n");
-  //printf("\t--threads-per-proc    <number of threads per TP>\n");
-  //printf("\t--simd-width          <number of threads issuing in SIMD within a TM>\n");
-  printf("\t--num-cores    <number of cores (Thread Multiprocessors) -- default 1>\n");
-  printf("\t--num-l2s               <number of L2s. Cores (TMs) are multiplied by this number. -- default 1>\n");
-  printf("\t--simulation-threads      <number of simulator threads. -- default 1>\n");
-  printf("\t--l1-off       [turn off the L1 data cache and set latency to 0]\n");
-  printf("\t--l2-off       [turn off the L2 data cache and set latency to 0]\n");
-  printf("\t--l1-read-copy [turn on read replication of same word reads on the same cycle]\n");
-  printf("\t--stop-cycle   <final cycle>\n");
-  printf("\t--config-file  <config file name>\n");
-  printf("\t--view-file    <view file name>\n");
-  printf("\t--model        <model file name (.obj)>\n");
-  printf("\t--far-value          <far clipping plane (for rasterizer only) -- default 1000>\n");
-  printf("\t--first-keyframe     <specify the first keyframe for an animation>\n");
-  printf("\t--num-frames         <number of frames to animate over keyframes>\n");
-  printf("\t--rebuild-every      <N (rebuild BVH every N frames) -- default 0>\n");
-  printf("\t--light-file         <light file name>\n");
-  printf("\t--output-prefix      <prefix for image output. Be sure any directories exist>\n");
-  printf("\t--image-type   <type for image output -- default png>\n");
-  printf("\t--tile-width   <width of tile in pixels -- default 16>\n");
-  printf("\t--tile-height  <height of tile in pixels -- default 16>\n");
-  printf("\t--ray-depth             <depth of ray paths -- default 1>\n");
-  printf("\t--epsilon      <small number used for various offsets, default 1e-4>\n");
-  printf("\t--num-samples  <number of samples per pixel -- default 1>\n");
-  printf("\t--write-dot             <depth> generates dot files for the bvh after each frame. Depth should not exceed 8 (limitation of dot)\n");
-  printf("\t--print-instructions [print contents of instruction memory]\n");
-  printf("\t--no-scene              [don't load a model, camera, or light]\n");
-  printf("\t--issue-verbosity    <level of verbosity for issue unit -- default 0>\n");
-  printf("\t--atominc-report        <number of cycles between reporting number of atomicincs -- default 0, 0 means off>\n");
-  printf("\t--num-icache-banks      <number of banks per icache -- default 16>\n");
-  printf("\t--num-icaches           <number of icaches in a TM, should be a power of 2 -- default 1>\n");
-  printf("\t--load-assembly         <filename -- loads a program to run, required>\n");
-  printf("\t--memory-trace       [writes memory access data (cache only) to memory_accesses.txt]\n");
-  printf("\t--proc-register-trace <proc id to trace> [trace saved in thread_registers.txt]\n");
-  printf("\t--print-symbols      [print symbol table generated by assembler]\n");
-  printf("\t--mem-file           <memory dump file name -- default memory.mem>\n");
-  printf("\t--load-mem-file      [read memory dump from file]\n");
-  printf("\t--write-mem-file     [write memory dump to file]\n");
-  printf("\t--custom-mem-loader  [which custom mem loader to use -- default 0 (off)]\n");
-  printf("\t--incremental-output <number of stores between outputs -- default 64>\n");
-  //printf("\t--serial-execution    [use a single pthread to run simulation]\n"); // deprecated (see --simulation-threads)
-  printf("\t--triangles-store-edges [set flag to store 2 edge vecs in a tri instead of 2 verts -- default: off]\n");
-  printf("\t--subtree-size        <Minimum size in words of subtrees built in to BVH -- default 0 (will not build subtrees)>\n");
-  //printf("\t--scheduling          <\"poststall\", \"prestall\", \"simple\">\n"); // deprecated
+  printf("\t--threads-per-proc   <number of hyperthreads per TP>\n");
+  printf("\t--simd-width         <number of threads issuing in SIMD within a TM>\n");
+  printf("\t--num-cores          <number of cores (Thread Multiprocessors) -- default 1>\n");
+  printf("\t--num-l2s            <number of L2s. All resources are multiplied by this number. -- default 1>\n");
+  printf("\t--l1-off             [turn off the L1 data cache and set latency to 0]\n");
+  printf("\t--l2-off             [turn off the L2 data cache and set latency to 0]\n");
+  printf("\t--l1-read-copy       [turn on read replication of same word reads on the same cycle]\n");
+  printf("\t--num-icache-banks   <number of banks per icache -- default 32>\n");
+  printf("\t--num-icaches        <number of icaches in a core. Should be a power of 2 -- default 1>\n");
+  printf("\t--disable-usimm      [use naive DRAM simulation instead of usimm]\n");
+
+  printf("\n");
+  printf("   + Files:\n");
+  printf("\t--config-file     <config file name>\n");
+  printf("\t--light-file      <light file name>\n");
+  printf("\t--load-assembly   <filename -- loads the default if not specified>\n");
+  printf("\t--model           <model file name (.obj)>\n");
+  printf("\t--output-prefix   <prefix for image output. Be sure any directories exist>\n");
+  printf("\t--usimm-config    <usimm config file name>\n");
+  printf("\t--view-file       <view file name>\n");
+
+  printf("\n");
+  printf("  + Scene Parameters:\n");
+  printf("\t--epsilon         <small number used for various offsets, default 1e-4>\n");
+  printf("\t--far-value       <far clipping plane (for rasterizer only) -- default 1000>\n");
+  printf("\t--first-keyframe  <specify the first keyframe for an animation>\n");
+  printf("\t--height          <height in pixels -- default 128>\n");
+  printf("\t--image-type      <type for image output -- default png>\n");
+  printf("\t--no-png          [disable png output]\n");
+  printf("\t--no-scene\n");
+  printf("\t--num-frames      <number of frames to animate over keyframes>\n");
+  printf("\t--num-samples     <number of samples per pixel -- default 1>\n");
+  printf("\t--ray-depth       <depth of rays -- default 1>\n");
+  printf("\t--rebuild-every   <N (rebuild BVH every N frames) -- default 0>\n");
+  printf("\t--tile-height     <height of tile in pixels -- default 16>\n");
+  printf("\t--tile-width      <width of tile in pixels -- default 16>\n");
+  printf("\t--usegrid         <grid dimensions> [uses grid acceleration structure]\n");
+  printf("\t--width           <width in pixels -- default 128>\n");
+
+
+  printf("\n");
+  printf("  + Other:\n");
+  printf("\t--pack-split-axis         [BVH nodes will pack split axis in the 2nd byte and num_children in the 1st byte (lsb) of 6th word]\n");
+  printf("\t--pack-stream-boundaries  [BVH nodes will pack their parent and child subtree IDs in to one word, instead of saving their own subtree ID]\n");
+  printf("\t--scheduling              <\"poststall\", \"prestall\", \"simple\">\n");
+  printf("\t--subtree-size            <Minimum size in words of subtrees built in to BVH -- default 0 (will not build subtrees)>\n");
+  printf("\t--triangles-store-edges   [set flag to store 2 edge vecs in a tri instead of 2 verts -- default: off]\n");
 }
 
 
 int main(int argc, char* argv[]) {
-  clock_t start_time = clock();
-  bool print_system_info	= false;
-  bool print_cpi			= true;
-  bool print_png			= true;
-  int image_width			= 128;
-  int image_height			= 128;
-  int grid_dimensions		= -1;
-  int num_regs            = 36;
-  int num_globals			= 8;
-  int num_thread_procs		= 1;
-  int threads_per_proc		= 1;
-  int simd_width			= 1;
-  int num_frames			= 1;
-  int rebuild_frequency		= 0;
-  bool duplicate_bvh		= true;
-  int frames_since_rebuild= 0;
-  unsigned int num_cores	= 1;
-  num_L2s					= 1;
-  bool l1_off				= false;
-  bool l2_off				= false;
-  bool l1_read_copy			= false;
-  long long int stop_cycle= -1;
-  char* config_file			= NULL;
-  char* view_file			= NULL;
-  char* model_file			= NULL;
-  char* keyframe_file		= NULL;
-  char* light_file			= NULL;
-  char* output_prefix		= (char*)"out";
-  char* image_type			= (char*)"png";
-  float far					= 1000;
-  int dot_depth				= 0;
-  Camera* camera			= NULL;
-  float *light_pos			= NULL;
-  int tile_width			= 16;
-  int tile_height			= 16;
-  int ray_depth				= 1;
-  int num_samples			= 1;
-  float epsilon				= 1e-4f;
-  bool print_instructions	= false;
-  bool no_scene				= false;
-  int issue_verbosity		= 0;
-  long long int atominc_report_period = 0;
-  int num_icaches			= 1;
-  int icache_banks        = 16;
-  char *assem_file			= NULL;
-  bool memory_trace			= false;
-  int proc_register_trace	= -1;
-  bool print_symbols		= false;
-  char mem_file_orig[64]	= "memory.mem";
-  char* mem_file			= mem_file_orig;
-  bool load_mem_file		= false;
-  bool write_mem_file		= false;
-  int custom_mem_loader         = 0;
-  bool incremental_output	= false;
-  bool serial_execution		= false;
-  bool triangles_store_edges = false;
-  int stores_between_output	= 64;
-  int subtree_size = 0;
+  clock_t start_time                    = clock();
+  bool print_system_info                = false;
+  bool print_cpi                        = true;
+  bool print_png                        = true;
+  bool cache_snoop                      = false;
+  int image_width                       = 128;
+  int image_height                      = 128;
+  int grid_dimensions                   = -1;
+  int num_regs                          = 128;
+  int num_globals                       = 8;
+  int num_thread_procs                  = 1;
+  int threads_per_proc                  = 1;
+  int simd_width                        = 1;
+  int num_frames                        = 1;
+  int rebuild_frequency                 = 0;
+  bool duplicate_bvh                    = false;
+  int frames_since_rebuild              = 0;
+  unsigned int num_cores                = 1;
+  num_L2s                               = 1;
+  bool l1_off                           = false;
+  bool l2_off                           = false;
+  bool l1_read_copy                     = false;
+  long long int stop_cycle              = -1;
+  char* config_file                     = NULL;
+  char* view_file                       = NULL;
+  char* model_file                      = NULL;
+  char* keyframe_file                   = NULL;
+  char* light_file                      = NULL;
+  char* output_prefix                   = (char*)"out";
+  char* image_type                      = (char*)"png";
+  float far                             = 1000;
+  int dot_depth                         = 0;
+  Camera* camera                        = NULL;
+  float *light_pos                      = NULL;
+  int tile_width                        = 16;
+  int tile_height                       = 16;
+  int ray_depth                         = 1;
+  int num_samples                       = 1;
+  float epsilon                         = 1e-4f;
+  bool print_instructions               = false;
+  bool no_scene                         = false;
+  int issue_verbosity                   = 0;
+  long long int atominc_report_period   = 1000000;
+  int num_icaches                       = 1;
+  int icache_banks                      = 32;
+  char *assem_file                      = NULL;
+  bool memory_trace                     = false;
+  int proc_register_trace               = -1;
+  bool print_symbols                    = false;
+  char mem_file_orig[64]                = "memory.mem";
+  char* mem_file                        = mem_file_orig;
+  bool load_mem_file                    = false;
+  bool write_mem_file                   = false;
+  int custom_mem_loader                 = 0;
+  bool incremental_output               = false;
+  bool serial_execution                 = false;
+  bool triangles_store_edges            = false;
+  int stores_between_output             = 64;
+  int subtree_size                      = 0;
+  bool pack_split_axis                  = 0;
+  bool pack_stream_boundaries           = 0;
+  disable_usimm                         = 0; // globally defined for use above
   BVH* bvh;
-  Animation *animation		= NULL;
+  Animation *animation                  = NULL;
   ThreadProcessor::SchedulingScheme scheduling_scheme = ThreadProcessor::SIMPLE;
-  int total_simulation_threads = 1;
+  int total_simulation_threads          = 1;
+  char *usimm_config_file               = NULL;
 
   // Verify Instruction.h matches Instruction.cc in size.
   if (strncmp(Instruction::Opnames[Instruction::PROF].c_str(), "PROF", 4) != 0) {
     printf("Instruction.h does not match Instruction.cc. Please fix them.\n");
     exit(-1);
+  }
+
+  // If no arguments passed to simulator, print help and exit
+  if (argc == 1) {
+      printf("No parameters specified. Please see more information below:\n");
+      printUsage(argv[0]);
+      return -1;
   }
 
   for (int i = 1; i < argc; i++) {
@@ -393,6 +442,8 @@ int main(int argc, char* argv[]) {
       print_cpi = false;
     } else if (strcmp(argv[i], "--no-png") == 0) {
       print_png = false;
+    } else if (strcmp(argv[i], "--cache-snoop") == 0) {
+      cache_snoop = true;
     } else if (strcmp(argv[i], "--width") == 0) {
       image_width = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--height") == 0) {
@@ -405,10 +456,10 @@ int main(int argc, char* argv[]) {
       num_globals = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--num-thread-procs") == 0) {
       num_thread_procs = atoi(argv[++i]);
-    //} else if (strcmp(argv[i], "--threads-per-proc") == 0) {
-      //threads_per_proc = atoi(argv[++i]);
-    //} else if (strcmp(argv[i], "--simd-width") == 0) {
-      //simd_width = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "--threads-per-proc") == 0) {
+      threads_per_proc = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "--simd-width") == 0) {
+      simd_width = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--num-cores") == 0) {
       num_cores = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--num-l2s") == 0) {
@@ -492,14 +543,22 @@ int main(int argc, char* argv[]) {
       triangles_store_edges = true;
     } else if (strcmp(argv[i], "--subtree-size") == 0) {
       subtree_size = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "--pack-split-axis") == 0) {
+      pack_split_axis = true;
+    } else if (strcmp(argv[i], "--pack-stream-boundaries") == 0) {
+      pack_stream_boundaries = true;
     } else if (strcmp(argv[i], "--scheduling") == 0) {
       i++;
       if(strcmp(argv[i], "simple")==0)
-	scheduling_scheme = ThreadProcessor::SIMPLE;
+        scheduling_scheme = ThreadProcessor::SIMPLE;
       if(strcmp(argv[i], "prestall")==0)
-	scheduling_scheme = ThreadProcessor::PRESTALL;
+        scheduling_scheme = ThreadProcessor::PRESTALL;
       if(strcmp(argv[i], "poststall")==0)
-	scheduling_scheme = ThreadProcessor::POSTSTALL;
+        scheduling_scheme = ThreadProcessor::POSTSTALL;
+    } else if (strcmp(argv[i], "--usimm-config") == 0) {
+      usimm_config_file = argv[++i];
+    } else if (strcmp(argv[i], "--disable-usimm") == 0) {
+      disable_usimm = 1;
     } else {
       printf(" Unrecognized option %s\n", argv[i]);
       printUsage(argv[0]);
@@ -534,14 +593,13 @@ int main(int argc, char* argv[]) {
   MainMemory* memory;
   GlobalRegisterFile globals(num_globals, num_thread_procs * threads_per_proc * num_cores * num_L2s, atominc_report_period);
 
-  if(config_file == NULL)
-    {
-      printf("No configuration sepcified, using default\n");
-      config_file = (char*)"../samples/configs/default.config";
-    }
+  if (config_file == NULL) {
+    config_file = (char*)"configs/default.config";
+    printf("No configuration specified, using default: %s\n", config_file);
+  }
   //if (config_file != NULL) {
   // Set up memory from config (L2 and main memory)
-  ReadConfig config_reader(config_file, L2s, num_L2s, memory, L2_size, memory_trace, l1_off, l2_off, l1_read_copy);
+  ReadConfig config_reader(config_file, L2s, num_L2s, memory, L2_size, disable_usimm, memory_trace, l1_off, l2_off, l1_read_copy);
 
   // loop through the L2s
   for (size_t l2_id = 0; l2_id < num_L2s; ++l2_id) {
@@ -580,6 +638,41 @@ int main(int argc, char* argv[]) {
     core_size += num_regs * num_thread_procs * threads_per_proc * size_of_one_reg;
   }
 
+
+  //} else {
+  //printf("ERROR: No configuration supplied.\n");
+  //return -1;
+  //}
+  
+  // set up L1 snooping if enabled
+  if (cache_snoop) {
+    for (size_t i = 0; i*4 < num_cores * num_L2s; ++i) {
+      L1Cache* L1_0=NULL, *L1_1=NULL, *L1_2=NULL, *L1_3=NULL;
+      L1_0 = cores[i*4]->L1;
+      if (num_cores > i*4+1) {
+	L1_1 = cores[i*4+1]->L1;
+	L1_1->L1_1 = L1_0;
+	L1_0->L1_1 = L1_1;
+      }
+      if (num_cores > i*4+2) {
+	L1_2 = cores[i*4+2]->L1;
+	L1_2->L1_1 = L1_0;
+	L1_2->L1_2 = L1_1;
+	L1_1->L1_2 = L1_2;
+	L1_0->L1_2 = L1_2;
+      }
+      if (num_cores > i*4+3) {
+	L1_3 = cores[i*4+3]->L1;
+	L1_3->L1_1 = L1_0;
+	L1_3->L1_2 = L1_1;
+	L1_3->L1_3 = L1_2;
+	L1_2->L1_3 = L1_3;
+	L1_1->L1_3 = L1_3;
+	L1_0->L1_3 = L1_3;
+      }
+    }
+  }
+
   // find maximum branch delay
   //TODO: Why do we still need this? Compiler should use a base branch delay slot size
   std::vector<FunctionalUnit*> functional_units = cores[0]->functional_units;
@@ -601,6 +694,9 @@ int main(int argc, char* argv[]) {
 			start_matls, start_camera, start_bg_color, start_light, end_memory,
 			light_pos, start_permutation );
     printf("Memory Loaded.\n");
+
+    start_framebuffer = memory->data[7].ivalue;
+
   } else { // (need to skip a lot of these if memory loading really works)
 
     if (custom_mem_loader) {
@@ -647,26 +743,29 @@ int main(int argc, char* argv[]) {
 		 start_camera, start_bg_color, start_light, end_memory,
 		 light_pos, start_permutation, tile_width, tile_height,
 		 ray_depth, num_samples, num_thread_procs * num_cores, num_cores, subtree_size, 
-		 epsilon, duplicate_bvh, triangles_store_edges);
+		 epsilon, duplicate_bvh, triangles_store_edges, pack_split_axis, pack_stream_boundaries);
     }
   } // end else for memory dump file
 
   // Once the model has been loaded and the BVH has been built, set up the animation if there is one
   
-  if(keyframe_file != NULL) {
-    if(duplicate_bvh) {
-      printf("primary bvh starts at %d, secondary at %d\n", bvh->start_nodes, bvh->start_secondary_nodes);
-      printf("primary triangles start at %d, secondary at %d\n", bvh->start_tris, bvh->start_secondary_tris);
-      animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-				&bvh->tri_orders, bvh->inorder_tris.size(), 
-				bvh->start_tris, bvh->start_nodes,
-				bvh->start_secondary_tris, bvh->start_secondary_nodes);
-    }
-    else {
-      animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-				&bvh->tri_orders, bvh->inorder_tris.size(), 
-				bvh->start_tris, bvh->start_nodes);
-    }
+  if(keyframe_file != NULL)
+  {
+      if(duplicate_bvh)
+	{
+	  printf("primary bvh starts at %d, secondary at %d\n", bvh->start_nodes, bvh->start_secondary_nodes);
+	  printf("primary triangles start at %d, secondary at %d\n", bvh->start_tris, bvh->start_secondary_tris);
+	  animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
+				    &bvh->tri_orders, bvh->inorder_tris.size(), 
+				    bvh->start_tris, bvh->start_nodes,
+				    bvh->start_secondary_tris, bvh->start_secondary_nodes);
+	}
+      else
+	{
+	  animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
+				    &bvh->tri_orders, bvh->inorder_tris.size(), 
+				    bvh->start_tris, bvh->start_nodes);
+	}
   }
   
   // Set up incremental output if option is specified
@@ -691,6 +790,18 @@ int main(int argc, char* argv[]) {
     exit(-1);
   }
 
+  // TODO: tmp - set up the main image to look purple! ===============================================================================================
+/*	for (int j = image_height - 1; j >= 0; j--) {
+		for (int i = 0; i < image_width; i++) {
+			int index = start_framebuffer + 3 * (j * image_width + i);
+			memory->getData()[index+0].fvalue = 1.f;
+			memory->getData()[index+1].fvalue = 0.f;
+			memory->getData()[index+2].fvalue = 1.f;
+		}
+	}
+*/
+
+
   // Write memory dump
   if (write_mem_file && mem_file != NULL) {
     // load memory from file
@@ -709,13 +820,13 @@ int main(int argc, char* argv[]) {
 
   if(assem_file!=NULL)
     {
-      int numRegs = Assembler::LoadAssem(assem_file, instructions, regs, jump_table, start_wq, start_framebuffer, start_camera, start_scene, start_light, start_bg_color, start_matls, start_permutation, print_symbols);
+      int numRegs = Assembler::LoadAssem(assem_file, instructions, regs, num_regs, jump_table, start_wq, start_framebuffer, start_camera, start_scene, start_light, start_bg_color, start_matls, start_permutation, print_symbols);
       if(numRegs<=0)
         {
           printf("assembler returned an error, exiting\n");
           exit(-1);
         }
-      printf("using %d registers\n", numRegs);
+      printf("assembly uses %d registers\n", numRegs);
     }
   else
     {
@@ -761,7 +872,10 @@ int main(int argc, char* argv[]) {
 	instructions[i]->op == Instruction::MOVINDRD ||
 	instructions[i]->op == Instruction::MOVINDWR ||
 	instructions[i]->op == Instruction::NOP ||
-	instructions[i]->op == Instruction::PROF ) {
+	instructions[i]->op == Instruction::PROF ||
+	instructions[i]->op == Instruction::SETBOXPIPE ||
+	instructions[i]->op == Instruction::SETTRIPIPE ||
+	instructions[i]->op == Instruction::SLEEP) {
       continue;
     }
     bool op_found = false;
@@ -776,6 +890,17 @@ int main(int argc, char* argv[]) {
       exit(-1);
     }
   }
+
+  if(!disable_usimm)
+    {
+      if (usimm_config_file == NULL) {
+	//usimm_config_file = "configs/usimm_configs/1channel.cfg";
+	//usimm_config_file = "configs/usimm_configs/4channel.cfg";
+	usimm_config_file = (char*)"configs/usimm_configs/gddr5.cfg";
+	printf("No USIMM configuration specified, using default: %s\n", usimm_config_file);
+      }
+      usimm_setup(usimm_config_file);
+    }
   
   // Limit simulation threads to the number of cores
   if (total_simulation_threads > (int)(num_cores * num_L2s)) {
@@ -794,6 +919,8 @@ int main(int argc, char* argv[]) {
   pthread_mutex_init(&memory_mutex, NULL);
   pthread_mutex_init(&sync_mutex, NULL);
   pthread_mutex_init(&global_mutex, NULL);
+  for(int i=0; i < MAX_NUM_CHANNELS; i++)
+    pthread_mutex_init(&(usimm_mutex[i]), NULL);
   pthread_cond_init(&sync_cond, NULL);
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
@@ -821,6 +948,7 @@ int main(int argc, char* argv[]) {
   printf("\t <== Setup time: %12.1f s ==>\n", clockdiff(start_time, setup_time));
   clock_t prev_frame_time;
   clock_t curr_frame_time;
+
 
   while(true)
   {  
@@ -857,6 +985,7 @@ int main(int argc, char* argv[]) {
 	}
 
       
+      //printf("Initial total BVH SAH cost: %f\n", initial_bvh_cost);
       if(animation != NULL && dot_depth > 0)
 	{
 	  char dotfile[80];
@@ -864,6 +993,8 @@ int main(int argc, char* argv[]) {
 	  printf("BVH 1 SAH cost: %f\n", bvh->computeSAHCost(animation->getRotateAddress(), memory->getData()));
 	  bvh->writeDOT(dotfile, animation->getRotateAddress(), memory->getData(), 0, dot_depth);
 	}
+      
+      //printf("BVH 2 SAH cost: %f\n", bvh->computeSAHCost(bvh->start_secondary_nodes, memory->getData()));
       
       if (print_cpi) {
 	long long int L1_hits = 0;
@@ -873,6 +1004,8 @@ int main(int argc, char* argv[]) {
 	long long int L1_bank_conflicts = 0;
 	long long int L1_nearby_hits = 0;
 	long long int L1_same_word_conflicts = 0;
+	long long int L1_bus_transfers = 0;
+	long long int L1_bus_hits = 0;
 	for (size_t i = 0; i < num_cores * num_L2s; ++i) {
 	  printf("<=== Core %d ===>\n", (int)i);
 	  cores[i]->issuer->print();
@@ -889,6 +1022,8 @@ int main(int argc, char* argv[]) {
 	  L1_nearby_hits += cores[i]->L1->nearby_hits;
 	  L1_bank_conflicts += cores[i]->L1->bank_conflicts;
 	  L1_same_word_conflicts += cores[i]->L1->same_word_conflicts;
+	  L1_bus_transfers += cores[i]->L1->bus_transfers;
+	  L1_bus_hits += cores[i]->L1->bus_hits;
 	}
 
 	// get highest cycle count
@@ -907,6 +1042,8 @@ int main(int argc, char* argv[]) {
 	printf("L1 stores: \t%lld\n", L1_stores);
 	printf("L1 near hit: \t%lld\n", L1_nearby_hits);  
 	printf("L1 hit rate: \t%f\n", static_cast<float>(L1_hits)/L1_accesses);
+	printf("L2 -> L1 bus transfers: %lld\n", L1_bus_transfers);
+	printf("L2 -> L1 bus hits: %lld\n", L1_bus_hits);
 	printf("\n");
 
 	// Print L2 stats and gather agregate data
@@ -928,12 +1065,26 @@ int main(int argc, char* argv[]) {
 	int L1_line_size = (int)pow( 2.f, static_cast<float>(cores[0]->L1->line_size) );
 	int L2_line_size = (int)pow( 2.f, static_cast<float>(L2->line_size) );
 	float Hz = 1000000000;
-	printf("Bandwidth numbers for %dMHz clock:\n", static_cast<int>(Hz/1000000));
+	printf("Bandwidth numbers for %dMHz clock (GB/s):\n", static_cast<int>(Hz/1000000));
 	printf("   register to L1 bandwidth: \t %f\n", static_cast<float>(L1_accesses) * word_size * Hz / cycle_count);
-	printf("   L1 to L2 bandwidth: \t %f\n", static_cast<float>(L2_accesses) * word_size * L1_line_size * Hz / cycle_count);
-	printf("   L2 to memory bandwidth: \t %f\n", static_cast<float>(L2_misses) * word_size * L2_line_size * Hz / cycle_count);
+	printf("   L1 to L2 bandwidth: \t\t %f\n", static_cast<float>(L2_accesses) * word_size * L1_line_size * Hz / cycle_count);
+	
+	float DRAM_BW;
+	if(disable_usimm)
+	  {
+	    DRAM_BW = static_cast<float>(L2_misses) * word_size * L2_line_size * Hz / cycle_count;
+	  }
+	else
+	  {
+	    long long int total_lines_transfered = 0;
+	    for(int c=0; c < NUM_CHANNELS; c++)
+	      total_lines_transfered += stats_reads_completed[c];
+	    DRAM_BW = static_cast<float>(total_lines_transfered) * L2_line_size * word_size * Hz / cycle_count;
+	  }
+	printf("   L2 to memory bandwidth: \t %f\n", DRAM_BW);
 
-	// TODO: debug help (print out the atominc counters ==============
+
+	// TODO: debug help (print out the atominc counters =========================================================================================================
 	printf("Final Global Register values: imgSize=%d\n", image_width*image_height);
 	globals.print();
 
@@ -944,11 +1095,45 @@ int main(int argc, char* argv[]) {
 	printf("%d-L2 size: %.4lf\n", num_L2s, L2_size * num_L2s);
 	printf("%d-core chip size: %.4lf\n", num_cores * num_L2s, size_estimate);
 	
+	// needs fixing
+	//int num_tiles = image_width * image_height / 256;
 	printf("FPS Statistics:\n");
 	printf("Total clock cycles: %lld\n", cycle_count);
 	printf("  FPS assuming %dMHz clock: %.4lf\n", (int)Hz / 1000000,
 	       Hz/static_cast<double>(cycle_count));
+
+
+	printf("\n\n");
+
+	
+	// DK: Not sure where to print these stats, just put it at the very end for testing for now.
+	if(!disable_usimm)
+	  printUsimmStats();
+
+
+	/*
+	double fps1024 = Hz/((cycle_count) /
+				    static_cast<double>(image_width * image_height) * (1024*768));
+	printf("  FPS assuming 1024x768: %.4lf\n",
+	       fps1024);
+	// for 20fps at 1024x768
+	printf("  Number of cores for 20fps at 1024x768: %.4lf (%.4lf Threads)\n",
+	       20/fps1024*num_cores, 20/fps1024 * num_cores * num_thread_procs);
+	printf("  Number of cores for 30fps at 1024x768: %.4lf (%.4lf Threads)\n",
+	       30/fps1024*num_cores, 30/fps1024 * num_thread_procs);
+	printf("  Size for %d cores:\t%.4lf mm^2\n", static_cast<int>(ceil(20/fps1024*num_cores)),
+	       ceil(20/fps1024*num_cores)*core_size + L2_size * num_L2s);
+	//jbs: these numbers might need num_L2s in here
+	printf("  FPS for %d cores:\t%.4lf\n", static_cast<int>(ceil(20/fps1024*num_cores)),
+	       ceil(20/fps1024*num_cores)*fps1024/num_cores);
+	printf("  Size for %d cores:\t%.4lf mm^2\n", static_cast<int>(ceil(30/fps1024*num_cores)),
+	       ceil(30/fps1024*num_cores)*core_size + L2_size * num_L2s);
+	printf("  FPS for %d cores:\t%.4lf\n", static_cast<int>(ceil(30/fps1024*num_cores)),
+	       ceil(30/fps1024*num_cores)*fps1024/num_cores);
+	*/
       }
+
+      fflush(stdout);
 
       if (print_png) {
 	char command_buf[512];
@@ -1024,7 +1209,11 @@ int main(int argc, char* argv[]) {
 	  }
 	}
 	pclose(output);
-	  } else {
+      }
+      else
+	exit(0);
+      /*
+      else {
 	for (int j = 0; j < image_height; j++) {
 	  printf("Row %03d: ------\n", j);
 	  for (int i = 0; i < image_width; i++) {
@@ -1034,7 +1223,8 @@ int main(int argc, char* argv[]) {
 	  }
 	  printf("\n");
 	}
-	  }
+      }
+      */
 
       // reset the cores for a fresh frame (enforce "cache coherency" modified scene data)
       // only one section (one L2) of the chip does any scene modification, so this is fine
@@ -1055,7 +1245,7 @@ int main(int argc, char* argv[]) {
 	  bvh->rebuild(memory->getData());
 	  frames_since_rebuild = 0;
 	}
-    }
+  }
   
   // clean up thread stuff
   pthread_attr_destroy(&attr);
@@ -1063,6 +1253,10 @@ int main(int argc, char* argv[]) {
   pthread_mutex_destroy(&memory_mutex);
   pthread_mutex_destroy(&sync_mutex);
   pthread_mutex_destroy(&global_mutex);
+  for(int i=0; i < MAX_NUM_CHANNELS; i++)
+    {
+      pthread_mutex_destroy(&(usimm_mutex[i]));
+    }
   pthread_cond_destroy(&sync_cond);
   
   
@@ -1071,5 +1265,17 @@ int main(int argc, char* argv[]) {
   }
   delete[] L2s;
   printf("\t <== Total time: %12.1f s ==>\n", clockdiff(start_time, clock()));
+
+#if TRACK_LINE_STATS
+  L1Cache* L10 = cores[0]->L1;
+  int numLines = L10->cache_size>>L10->line_size;
+  
+  printf("Average reads per resident line\tAverage cycles resident\tTotal Accesses\tTotal Hits\n");
+  
+  for(int i=0; i < numLines; i++)
+    printf("%f\t%f\t%lld\t%lld\n", (float)(L10->total_reads[i]) / (float)(L10->total_validates[i]), (float)(L10->current_cycle) / (float)(L10->total_validates[i]), L10->line_accesses[i], L10->total_reads[i]);
+#endif
+
+
   return 0;
 }

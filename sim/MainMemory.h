@@ -9,7 +9,7 @@ class L2Cache;
 
 class MainMemory : public MemoryBase {
 public:
-  MainMemory(int _num_blocks, int _latency);
+  MainMemory(int _num_blocks, int _latency, int _max_bandwidth);
   FourByte* getData() {return data;}
   int getSize() {return num_blocks;}
 
@@ -30,6 +30,7 @@ public:
   int GetLatency(Instruction* ins);
 
   int latency;
+  int max_bandwidth;
   // allow only one atomic increment per cycle
   bool issued_atominc;
 

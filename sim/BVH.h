@@ -13,7 +13,7 @@ class Triangle;
 class BVH : public Primitive {
 public:
   ~BVH();
-  BVH(std::vector<Triangle*>* triangles, int _subtree_size, bool duplicate, bool tris_store_edges=false);
+  BVH(std::vector<Triangle*>* triangles, int _subtree_size, bool duplicate, bool tris_store_edges, bool pack_split_axis, bool _pack_stream_boundaries);
 
   void LoadIntoMemory(int &memory_position,
                       int max_memory,
@@ -27,6 +27,9 @@ public:
   void LoadTextureCoords(int &memory_position,
 			    int max_memory,
 			    FourByte* memory);
+  void LoadVertexNormals(int &memory_position,
+			 int max_memory,
+			 FourByte* memory);
   
   float oldComputeNodeCost(int nodeID);
   BVHNode loadNode(int nodeID, int start_scene, FourByte *memory);
@@ -48,8 +51,15 @@ public:
   int computeSubtreeSize(int node_id);
   int assignSubtrees(int subtreeSize);
   int assignSingleSubtree(int subtreeRoot, int currentTreeID, int subtreeSize, std::queue<int>& global_q);
+  void assignTriangleSubtrees();
+  void assignTriangleSubtreesRecursive(int nodeID, int& remainingSpace);
   void reorderNodes();
  
+#if 0
+  void rotateNode(int id);
+  void rotateTree(int id);
+  void swapNodes(int i, int j);
+#endif
 
   int start_costs;
   int start_subtree_sizes;
@@ -57,6 +67,7 @@ public:
   int num_tris;
   int start_tris;
   int start_tex_coords;
+  int start_vertex_normals;
   int start_textures;
   int start_secondary_tris;
   int start_nodes;
@@ -64,7 +75,10 @@ public:
   int start_parent_pointers;
   int start_subtree_ids;
   int num_subtrees;
+  int num_interior_subtrees;
+  int num_triangle_subtrees;
   int subtree_size;
+  int triangle_subtree_size;
   int num_nodes;
   float initial_cost;
   bool duplicate_BVH;
@@ -72,6 +86,8 @@ public:
   std::vector<Triangle*>* triangles;
   std::vector<Triangle*> inorder_tris;
   bool triangles_store_points;
+  bool store_axis;
+  bool pack_stream_boundaries;
   
   std::vector<int> tri_orders;
 
@@ -126,6 +142,8 @@ void ExtendBoundByTriangle(float cur_min[3], float cur_max[3],
 
 void ExtendBoundByBox(float cur_min[3], float cur_max[3],
                       float box_min[3], float box_max[3]);
+
+float BoxArea(const float box_min[3], const float box_max[3]);
 
 int max(int a, int b);
 

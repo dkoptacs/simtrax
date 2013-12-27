@@ -1,10 +1,14 @@
 #include "GlobalRegisterFile.h"
-#include "SimpleRegisterFile.h"
+//#include "SimpleRegisterFile.h"
 #include "IssueUnit.h"
 #include "ThreadState.h"
 #include "WriteRequest.h"
 #include <cassert>
-#include <sys/time.h>
+#ifndef WIN32
+#  include <sys/time.h>
+#else
+#  include <time.h>
+#endif
 
 GlobalRegisterFile::GlobalRegisterFile(int num_regs, unsigned int sys_threads, unsigned int _report_period) :
   FunctionalUnit(0),
@@ -71,7 +75,11 @@ bool GlobalRegisterFile::SupportsOp(Instruction::Opcode op) const {
 
 bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread) {
   static bool first_time = true;
+#ifndef WIN32
   static timeval start_time;
+#else
+  static time_t start_time;
+#endif
   if (issued_this_cycle >= 1) return false;
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
@@ -92,15 +100,26 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
     
     // report if enough cycles have passed
     if (report_period > 0 && last_report_cycle + report_period < issuer->current_cycle) {
+#ifndef WIN32
       timeval current_time;
       gettimeofday( &current_time, NULL );
       if (first_time) {
-	start_time = current_time;
-	first_time = false;
+        start_time = current_time;
+        first_time = false;
       }
       printf("On cycle %lld\tTime(ms)\t%ld\tRegs\t", issuer->current_cycle,
 	     (current_time.tv_sec - start_time.tv_sec)*1000 + (current_time.tv_usec - start_time.tv_usec)/1000 );
       print();
+#else
+      time_t current_time = time( NULL );
+      if (first_time) {
+        start_time = current_time;
+        first_time = false;
+      }
+      const double diffTimeSec = difftime(current_time, start_time);
+      printf("On cycle %lld\tTime(ms)\t%ld\tRegs\t", issuer->current_cycle, static_cast<unsigned long long>(diffTimeSec*1000));
+      print();
+#endif
       fflush(stdout);
       last_report_cycle += report_period;
     }
@@ -148,27 +167,29 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
   };
 
 
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op)) {
-    // pipeline hazzard, undo changes
-    switch (ins.op) {
-    case Instruction::ATOMIC_INC:
-      WriteUint(ins.args[1], result.udata);
-      break;
-    case Instruction::ATOMIC_ADD:
-      result.udata = ReadUint(ins.args[1]) - arg.udata;
-      WriteUint(ins.args[1], result.udata);
-      break;
-    case Instruction::INC_RESET:
-      WriteUint(ins.args[1], result.udata);
-      break;
-    default:
-      break;
-    };
-    
-    //printf("global reg returning false\n");
-    pthread_mutex_unlock(&global_mutex);
-    return false;
+  if(ins.op != Instruction::BARRIER) // barrier doesn't write anything
+    {
+      if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op)) {
+	// pipeline hazzard, undo changes
+	switch (ins.op) {
+	case Instruction::ATOMIC_INC:
+	  WriteUint(ins.args[1], result.udata);
+	  break;
+	case Instruction::ATOMIC_ADD:
+	  result.udata = ReadUint(ins.args[1]) - arg.udata;
+	  WriteUint(ins.args[1], result.udata);
+	  break;
+	case Instruction::INC_RESET:
+	  WriteUint(ins.args[1], result.udata);
+	  break;
+	default:
+	  break;
+	};    
+	pthread_mutex_unlock(&global_mutex);
+	return false;
+      }
     }
+
   pthread_mutex_unlock(&global_mutex);
   issued_this_cycle++;
   //printf("global reg returning true\n");

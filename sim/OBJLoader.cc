@@ -16,13 +16,14 @@ Vector3 GetPosition(int obj_pos_reference, std::vector<Vector3>& positions) {
   }
 }
 
-Vector3 GetTexPosition(int tex_pos_reference, std::vector<Vector3>& tex_coords) {
-  if (tex_pos_reference == INT_MAX)
-    return Vector3();
-  if (tex_pos_reference < 0) {
-    return tex_coords.at(tex_coords.size() + tex_pos_reference);
+// Returns either a vertex normal or a texture coordinate, given an index from a face ('f') command
+Vector3 GetAuxVector(int pos_reference, std::vector<Vector3>& aux_data) {
+  if (pos_reference == INT_MAX)
+    return Vector3(); // somewhat wasteful, replicating a bunch of default vectors if the obj file doesn't use them
+  if (pos_reference < 0) {
+    return aux_data.at(aux_data.size() + pos_reference);
   } else {
-    return tex_coords.at(tex_pos_reference - 1); // obj is 1 based indexing
+    return aux_data.at(pos_reference - 1); // obj is 1-based indexing
   }
 }
 
@@ -39,6 +40,7 @@ void OBJLoader::LoadModel(const char* filename, std::vector<Triangle*>* tris,
 
 
   std::vector<Vector3> texture_coords;
+  std::vector<Vector3> vertex_normals;
   std::vector<Vector3> positions;
   std::vector<std::string> matl_ids;
   int matl_id = 0;
@@ -59,8 +61,8 @@ void OBJLoader::LoadModel(const char* filename, std::vector<Triangle*>* tris,
 
     // read a vertex
     if (sscanf(line_buf, " v %f %f %f", &x, &y, &z) == 3) {
-      
       positions.push_back(Vector3(x, y, z));
+
 
       // keep track of the bounds of the scene
       if (x > max_x) max_x = x;
@@ -70,60 +72,48 @@ void OBJLoader::LoadModel(const char* filename, std::vector<Triangle*>* tris,
       if (y < min_y) min_y = y;
       if (z < min_z) min_z = z;
     }
+
     // read a texture coordinate
     else if (sscanf(line_buf, " vt %f %f %f", &x, &y, &z) == 3 ||
 	     sscanf(line_buf, " vt %f %f", &x, &y) == 2) {
-
-      /*
-      // handle wrapping texture coords (< -1, > 1)
-      if(x != (int)x)
-	x -= (int)x;
-      if(y != (int)y)
-	y -= (int)y;
-      if(z != (int)z)
-	z -= (int)z;
-      
-      // take care of negative texture coordinates
-      if(x < 0)
-	x = 1 - -x;
-      if(y < 0)
-	y = 1 - -y;
-      if(z < 0)
-	z = 1 - -z;
-      */
-
       texture_coords.push_back(Vector3(x, y, z));
     }
+
+    // read a vertex normal
+    else if (sscanf(line_buf, "vn %f %f %f", &x, &y, &z) == 3) {
+      vertex_normals.push_back(Vector3(x, y, z));
+    }
+
     // read a mtllib command (points to a .mtl file)
     // bunch of messy code for handling this below -------------------
     else if (sscanf(line_buf, "mtllib %s", matl_buf) == 1) {
       // Determine mtl filename
       char * tmp = NULL, *tmp2 = NULL;      
-      if(matl_buf[0]=='.'){ // relative path
-	char *matl_buf_2 = matl_buf + 2;
-	strncpy(matl_filename, filename, 256); 
-	tmp2 = strstr(matl_filename, "/");
-	while (tmp2 != NULL) {
-	  tmp = tmp2++;
-	  tmp2 = strstr(tmp2, "/");
-	}
-	strncpy(tmp++, "/", 1);
-	strncpy(tmp, matl_buf_2, strlen(matl_buf_2));
-	tmp[strlen(matl_buf_2)] = '\0';      
+      if(matl_buf[0]=='.') { // relative path
+        char *matl_buf_2 = matl_buf + 2;
+        strncpy(matl_filename, filename, 256); 
+        tmp2 = strpbrk(matl_filename, "/\\");
+        while (tmp2 != NULL) {
+          tmp = tmp2++;
+          tmp2 = strpbrk(tmp2, "/\\");
+        }
+        strncpy(tmp++, "/", 1);
+        strncpy(tmp, matl_buf_2, strlen(matl_buf_2));
+        tmp[strlen(matl_buf_2)] = '\0';      
       }
-      else if (matl_buf[0] == '/') { // absolute path
-	strncpy(matl_filename, matl_buf, strlen(matl_buf));
-	matl_filename[strlen(matl_filename)] = '\0';
+      else if (matl_buf[0] == '/' || matl_buf[0] == '\\') { // absolute path
+        strncpy(matl_filename, matl_buf, strlen(matl_buf));
+        matl_filename[strlen(matl_filename)] = '\0';
       } else { // just filename
-	strncpy(matl_filename, filename, strlen(filename)); 
-	tmp2 = strstr(matl_filename, "/");
-	while (tmp2 != NULL) {
-	  tmp = tmp2++;
-	  tmp2 = strstr(tmp2, "/");
-	}
-	strncpy(tmp++, "/", 1);
-	strncpy(tmp, matl_buf, strlen(matl_buf));
-	tmp[strlen(matl_buf)] = '\0';      
+        strncpy(matl_filename, filename, strlen(filename)); 
+        tmp2 = strpbrk(matl_filename, "/\\");
+        while (tmp2 != NULL) {
+          tmp = tmp2++;
+          tmp2 = strpbrk(tmp2, "/\\");
+        }
+        strncpy(tmp++, "/", 1);
+        strncpy(tmp, matl_buf, strlen(matl_buf));
+        tmp[strlen(matl_buf)] = '\0';      
       }
       
       //printf("MTL file: \"%s\"\n", matl_filename);
@@ -158,13 +148,16 @@ void OBJLoader::LoadModel(const char* filename, std::vector<Triangle*>* tris,
       // found a face command
       int vert_ids[4] = {INT_MAX, INT_MAX, INT_MAX, INT_MAX};
       int tex_ids[4]  = {INT_MAX, INT_MAX, INT_MAX, INT_MAX};
-      // quad vertex/texture/normal IDs
-      if (sscanf(line_buf, "f %d/%d/%*d %d/%d/%*d %d/%d/%*d %d/%d/%*d",
-		 &vert_ids[0], &tex_ids[0], &vert_ids[1], &tex_ids[1],
-		 &vert_ids[2], &tex_ids[2], &vert_ids[3], &tex_ids[3]) == 8 ||
+      int normal_ids[4]  = {INT_MAX, INT_MAX, INT_MAX, INT_MAX};
+
+          // quad vertex/texture/normal IDs
+      if (sscanf(line_buf, "f %d/%d/%d %d/%d/%d %d/%d/%d %d/%d/%d",
+		 &vert_ids[0], &tex_ids[0], &normal_ids[0], &vert_ids[1], &tex_ids[1], &normal_ids[1],
+		 &vert_ids[2], &tex_ids[2], &normal_ids[2], &vert_ids[3], &tex_ids[3], &normal_ids[3]) == 12 ||
 	  // quad vertex//normal IDs
-	  sscanf(line_buf, "f %d//%*d %d//%*d %d//%*d %d//%*d",
-		 &vert_ids[0], &vert_ids[1], &vert_ids[2], &vert_ids[3]) == 4 ||
+	  sscanf(line_buf, "f %d//%d %d//%d %d//%d %d//%d",
+		 &vert_ids[0], &normal_ids[0], &vert_ids[1], &normal_ids[1], 
+		 &vert_ids[2], &normal_ids[2], &vert_ids[3], &normal_ids[3]) == 8 ||
 	  // quad vertex/texture IDs
 	  sscanf(line_buf, "f %d/%d %d/%d %d/%d %d/%d",
 		 &vert_ids[0], &tex_ids[0], &vert_ids[1], &tex_ids[1], 
@@ -173,12 +166,12 @@ void OBJLoader::LoadModel(const char* filename, std::vector<Triangle*>* tris,
 	  sscanf(line_buf, "f %d %d %d %d",
 		 &vert_ids[0], &vert_ids[1], &vert_ids[2], &vert_ids[3]) == 4 ||
 	  // tri vertex/texture/normal IDs
-	  sscanf(line_buf, "f %d/%d/%*d %d/%d/%*d %d/%d/%*d",
-		 &vert_ids[0], &tex_ids[0], &vert_ids[1], &tex_ids[1], 
-		 &vert_ids[2], &tex_ids[2]) == 6 ||
+	  sscanf(line_buf, "f %d/%d/%d %d/%d/%d %d/%d/%d",
+		 &vert_ids[0], &tex_ids[0], &normal_ids[0], &vert_ids[1], &tex_ids[1], &normal_ids[1], 
+		 &vert_ids[2], &tex_ids[2], &normal_ids[2]) == 9 ||
 	  // tri vertex//normal IDs
-	  sscanf(line_buf, "f %d//%*d %d//%*d %d//%*d",
-		 &vert_ids[0], &vert_ids[1], &vert_ids[2]) == 3 ||
+	  sscanf(line_buf, "f %d//%d %d//%d %d//%d",
+		 &vert_ids[0], &normal_ids[0], &vert_ids[1], &normal_ids[1], &vert_ids[2], &normal_ids[2]) == 6 ||
 	  // tri vertex/texture IDs
 	  sscanf(line_buf, "f %d/%d %d/%d %d/%d",
 		 &vert_ids[0], &tex_ids[0], &vert_ids[1], &tex_ids[1], 
@@ -193,25 +186,34 @@ void OBJLoader::LoadModel(const char* filename, std::vector<Triangle*>* tris,
 	  tris->push_back(new Triangle(GetPosition(vert_ids[0], positions),
 				       GetPosition(vert_ids[1], positions),
 				       GetPosition(vert_ids[2], positions),
-				       GetTexPosition(tex_ids[0], texture_coords),
-				       GetTexPosition(tex_ids[1], texture_coords),
-				       GetTexPosition(tex_ids[2], texture_coords),
+				       GetAuxVector(tex_ids[0], texture_coords),
+				       GetAuxVector(tex_ids[1], texture_coords),
+				       GetAuxVector(tex_ids[2], texture_coords),
+				       GetAuxVector(normal_ids[0], vertex_normals),
+				       GetAuxVector(normal_ids[1], vertex_normals),
+				       GetAuxVector(normal_ids[2], vertex_normals),
 				       int(tris->size()), matl_id));
 	} else {
 	  // one quad
 	  tris->push_back(new Triangle(GetPosition(vert_ids[0], positions),
 				       GetPosition(vert_ids[1], positions),
 				       GetPosition(vert_ids[2], positions),
-				       GetTexPosition(tex_ids[0], texture_coords),
-				       GetTexPosition(tex_ids[1], texture_coords),
-				       GetTexPosition(tex_ids[2], texture_coords),
+				       GetAuxVector(tex_ids[0], texture_coords),
+				       GetAuxVector(tex_ids[1], texture_coords),
+				       GetAuxVector(tex_ids[2], texture_coords),
+				       GetAuxVector(normal_ids[0], vertex_normals),
+				       GetAuxVector(normal_ids[1], vertex_normals),
+				       GetAuxVector(normal_ids[2], vertex_normals),
 				       int(tris->size()), matl_id));
 	  tris->push_back(new Triangle(GetPosition(vert_ids[0], positions),
 				       GetPosition(vert_ids[2], positions),
 				       GetPosition(vert_ids[3], positions),
-				       GetTexPosition(tex_ids[0], texture_coords),
-				       GetTexPosition(tex_ids[2], texture_coords),
-				       GetTexPosition(tex_ids[3], texture_coords),
+				       GetAuxVector(tex_ids[0], texture_coords),
+				       GetAuxVector(tex_ids[2], texture_coords),
+				       GetAuxVector(tex_ids[3], texture_coords),
+				       GetAuxVector(normal_ids[0], vertex_normals),
+				       GetAuxVector(normal_ids[2], vertex_normals),
+				       GetAuxVector(normal_ids[3], vertex_normals),
 				       int(tris->size()), matl_id));
 	}
 	if(tris->at(tris->size()-1) == NULL)
@@ -224,6 +226,8 @@ void OBJLoader::LoadModel(const char* filename, std::vector<Triangle*>* tris,
   }
   
   printf("%d total triangles\n", int(tris->size()));
+  printf("%d total vertex normals\n", int(vertex_normals.size()));
   printf("vertex min/max = x: (%f, %f) y: (%f, %f) z: (%f, %f)\n", min_x, max_x, min_y, max_y, min_z, max_z);
+
   fclose(input);
 }

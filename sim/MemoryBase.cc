@@ -40,30 +40,26 @@ void MemoryBase::LoadMemory(const char* file,
 		int& start_matls,
                 int& start_camera, int& start_bg_color, int& start_light,
                 int& end_memory, float *&light_pos, int &start_permutation
-			    ) {
-  light_pos = new float[3];
-  std::ifstream filein(file);
-  // check for errors
-  if (filein.fail()) 
-    { printf( "Error opening memory file '%s' for reading.\n", file ); }
-  
-  filein >> num_blocks;
-  data = new FourByte[num_blocks];
+			    ) 
+{
 
-//   filein >> start_wq ;
-//   filein >> start_framebuffer ;
-//   filein >> start_scene ;
-//   filein >> start_matls ;
-//   filein >> start_camera ; 
-//   filein >> start_bg_color ; 
-//   filein >> start_light ;
-//   filein >> end_memory ;
-//   filein >> light_pos[0] >> light_pos[1] >> light_pos[2] ; 
-//   filein >> start_permutation ;
+  FILE *input = fopen(file, "rb");
+  if(!input)
+    {
+      printf("failed to open memory file %s\n", file);
+      exit(1);
+    }
 
-  for (int i = 0; i < num_blocks; ++i) {
-    filein >> data[i].ivalue;
-  }
+  int numRead = fread(data, sizeof(FourByte), num_blocks, input);
+
+  if(numRead <= 0)
+    {
+      printf("error: could not read memory file %s\n", file);
+      exit(1);
+    }
+
+  printf("Read %d blocks from memory dump (mem size = %d)\n", numRead, num_blocks);
+
 }
 
 // dumps memory to file
@@ -73,25 +69,18 @@ void MemoryBase::WriteMemory(const char* file,
                 int start_camera, int start_bg_color, int start_light,
                 int end_memory, float *light_pos, int start_permutation
 			     ) {
-  std::ofstream fileout(file);
-  // check for errors
-  if (fileout.fail()) 
-    { printf( "Error opening memory file '%s' for writing.\n", file ); }
-  
-  fileout << num_blocks << std::endl;
 
-//   fileout << start_wq << std::endl;
-//   fileout << start_framebuffer << std::endl;
-//   fileout << start_scene << std::endl;
-//   fileout << start_matls << std::endl;
-//   fileout << start_camera << std::endl; 
-//   fileout << start_bg_color << std::endl; 
-//   fileout << start_light << std::endl;
-//   fileout << end_memory << std::endl;
-//   fileout << light_pos[0] << ' ' << light_pos[1] << ' ' << light_pos[2] << std::endl; 
-//   fileout << start_permutation << std::endl;
+  FILE *output = fopen(file, "wb");
+  if(!output)
+    {
+      printf("failed to open memory file %s\n", file);
+      exit(1);
+    }
 
-  for (int i = 0; i < num_blocks; ++i) {
-    fileout << data[i].ivalue << ' ';
-  }
+  printf("Writing %d blocks to memory dump (mem size = %d)\n", end_memory, num_blocks);
+  if(fwrite(data, sizeof(FourByte), end_memory, output) != end_memory)
+    {
+      printf("error: could not write memory file %s\n", file);
+      exit(1);
+    }
 }

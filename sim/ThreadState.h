@@ -7,6 +7,7 @@
 #include "Instruction.h"
 #include "SimpleRegisterFile.h"
 
+
 class Instruction;
 class SimpleRegisterFile;
 class WriteRequest;
@@ -21,9 +22,10 @@ class WriteQueue {
   int size();
   void pop();
   bool empty();
+  bool update(ThreadState* thread, int which_reg, long long int which_cycle, unsigned int val, long long new_cycle, unsigned int new_val, Instruction::Opcode new_op);
   bool CycleUsed(long long int cycle);
   Instruction::Opcode GetOp(int which_reg);
-  bool ReadyBy(int which_reg, long long int which_cycle, reg_value &val, Instruction::Opcode &op);
+  bool ReadyBy(int which_reg, long long int which_cycle, long long int &ready_cycle, reg_value &val, Instruction::Opcode &op);
   void print();
 
   WriteRequest* requests;
@@ -34,6 +36,7 @@ class WriteQueue {
 
 class ThreadState {
 public:
+  long long int end_sleep_cycle;
   long long int instructions_issued;
   long long int program_counter;
   long long int next_program_counter;
@@ -63,6 +66,8 @@ public:
   // Begin new write queue stuff
   bool QueueWrite(int which_reg, reg_value val, long long int which_cycle, Instruction::Opcode op);
   Instruction::Opcode GetFailOp(int which_reg);
+
+  void UpdateWriteCycle(int which_reg, long long int which_cycle, unsigned int val, long long int new_cycle, Instruction::Opcode op);
 
   void Sleep(int num_cycles);
   

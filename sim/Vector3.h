@@ -1,3 +1,4 @@
+
 /*****************************************************************************\
  *                                                                           *
  * filename : Vector3.h                                                      *
@@ -107,26 +108,25 @@ public:
 };
 
 
-inline Vector3::Vector3(const Vector3f& v) {
-    e[0] = v.e[0]; e[1] = v.e[1]; e[2] = v.e[2];
-}
+inline Vector3::Vector3(const Vector3f& v)
+{e[0] = v.e[0]; e[1] = v.e[1]; e[2] = v.e[2];}
 
 inline bool operator==(const Vector3 &t1, const Vector3 &t2) {
-    return ((t1[0]==t2[0])&&(t1[1]==t2[1])&&(t1[2]==t2[2]));
+   return ((t1[0]==t2[0])&&(t1[1]==t2[1])&&(t1[2]==t2[2]));
 }
 
 inline bool operator!=(const Vector3 &t1, const Vector3 &t2) {
-    return ((t1[0]!=t2[0])||(t1[1]!=t2[1])||(t1[2]!=t2[2]));
+   return ((t1[0]!=t2[0])||(t1[1]!=t2[1])||(t1[2]!=t2[2]));
 }
 
 inline std::istream& operator>>(std::istream &is, Vector3 &t) {
-    is >> t[0] >> t[1] >> t[2];
-    return is;
+   is >> t[0] >> t[1] >> t[2];
+   return is;
 }
 
 inline std::ostream& operator<<(std::ostream &os, const Vector3 &t) {
-    os << t[0] << " " << t[1] << " " << t[2];
-    return os;
+   os << t[0] << " " << t[1] << " " << t[2];
+   return os;
 }
 
 inline Vector3 unitVector(const Vector3& v) {
@@ -149,15 +149,15 @@ inline bool containsNan(const Vector3& v)
 
 inline bool containsSingularity(const Vector3& v)
 {
-    for ( int c = 0; c < 3; c++ )
-    {
-        if ( !(v[c] <= 0) && !(v[c] >= 0) )
-            return true;
+   for ( int c = 0; c < 3; c++ )
+   {
+      if ( !(v[c] <= 0) && !(v[c] >= 0) )
+         return true;
 
-        if ( v[c] > FLT_MAX || v[c] < -FLT_MAX )
-            return true;
-    }
-    return false;
+      if ( v[c] > FLT_MAX || v[c] < -FLT_MAX )
+         return true;
+   }
+   return false;
 }
 
 inline double Vector3::makeUnitVector()
@@ -193,7 +193,7 @@ inline Vector3 operator*(const Vector3 &v, double t) {
 }
 
 inline Vector3 operator*(const Vector3 &v1, const Vector3& v2) {
-    return Vector3(v1.e[0] * v2.e[0], v1.e[1] * v2.e[1], v1.e[2] * v2.e[2]);
+  return Vector3(v1.e[0] * v2.e[0], v1.e[1] * v2.e[1], v1.e[2] * v2.e[2]);
 }
 
 inline Vector3 operator/(const Vector3 &v, double t) {
@@ -218,32 +218,32 @@ inline Vector3 cross(const Vector3 &v1, const Vector3 &v2) {
 
 inline int Vector3::indexOfMinAbsComponent() const
 {
-    if (fabs(e[0]) < fabs(e[1]) && fabs(e[0]) < fabs(e[2]))
-        return 0;
-    else if (fabs(e[1]) < fabs(e[2]))
-        return 1;
-    else
-        return 2;
+   if (fabs(e[0]) < fabs(e[1]) && fabs(e[0]) < fabs(e[2]))
+      return 0;
+   else if (fabs(e[1]) < fabs(e[2]))
+      return 1;
+   else
+      return 2;
 }
 
 inline int Vector3::indexOfMaxAbsComponent() const
 {
-    if (fabs(e[0]) > fabs(e[1]) && fabs(e[0]) > fabs(e[2]))
-        return 0;
-    else if (fabs(e[1]) > fabs(e[2]))
-        return 1;
-    else
-        return 2;
+   if (fabs(e[0]) > fabs(e[1]) && fabs(e[0]) > fabs(e[2]))
+      return 0;
+   else if (fabs(e[1]) > fabs(e[2]))
+      return 1;
+   else
+      return 2;
 }
 
-inline Vector3& Vector3::operator=(const Vector3 &v) {
+inline Vector3& Vector3::operator=(const Vector3 &v){
     e[0]  = v.e[0];
     e[1]  = v.e[1];
     e[2]  = v.e[2];
     return *this;
 }
 
-inline Vector3& Vector3::operator+=(const Vector3 &v) {
+inline Vector3& Vector3::operator+=(const Vector3 &v){
     e[0]  += v.e[0];
     e[1]  += v.e[1];
     e[2]  += v.e[2];

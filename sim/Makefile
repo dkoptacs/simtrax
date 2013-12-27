@@ -3,7 +3,7 @@
 EXE=simtrax
 
 CXX ?= g++
-CXXFLAGS ?= -ggdb -Wall -O3 -pthread
+CXXFLAGS ?= -g -Wall -O3 -pthread
 
 LDFLAGS ?=
 

@@ -4,6 +4,20 @@
 // if flag enabled, p1 is point, but p0 = p0-p1, p2 = p2-p1 are edge vectors
 bool Triangle::tri_stores_edges = false;
 
+Triangle::Triangle(const Vector3& p0, const Vector3& p1, const Vector3& p2,
+		   const Vector3& t0, const Vector3& t1, const Vector3& t2,
+		   const Vector3& n0, const Vector3& n1, const Vector3& n2,
+		   int object_id, int shader_id) :
+  p0(p0), p1(p1), p2(p2), t0(t0), t1(t1), t2(t2), n0(n0), n1(n1), n2(n2), object_id(object_id), shader_id(shader_id)
+{
+
+  // do we compute 2 edges to store instead of points?
+  // p0 (edge between p1 and p0), p1 (central point), p2 (edge between p2 and p1)
+  if( Triangle::tri_stores_edges ) {
+    this->p0 -= p1;
+    this->p2 -= p1;
+  }
+}
 
 Triangle::Triangle(const Vector3& p0, const Vector3& p1, const Vector3& p2,
 		   const Vector3& t0, const Vector3& t1, const Vector3& t2,
@@ -73,6 +87,25 @@ void Triangle::LoadTextureCoords(int& memory_position, int max_memory,
   }
   for (int i = 0; i < 3; i++) {
     memory[memory_position].fvalue = static_cast<float>( t2[i] );
+    memory_position++;
+  }  
+}
+
+
+// Load these separately, so they don't have to be loaded if not desired
+void Triangle::LoadVertexNormals(int& memory_position, int max_memory,
+				 FourByte* memory)
+{
+  for (int i = 0; i < 3; i++) {
+    memory[memory_position].fvalue = static_cast<float>( n0[i] );
+    memory_position++;
+  }
+  for (int i = 0; i < 3; i++) {
+    memory[memory_position].fvalue = static_cast<float>( n1[i] );
+    memory_position++;
+  }
+  for (int i = 0; i < 3; i++) {
+    memory[memory_position].fvalue = static_cast<float>( n2[i] );
     memory_position++;
   }  
 }

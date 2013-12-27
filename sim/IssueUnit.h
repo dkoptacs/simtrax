@@ -30,6 +30,7 @@
 
 class IssueUnit : public HardwareModule {
 public:
+  bool printed_single_kernel;
   long long int kernel_instruction_count[Instruction::NUM_OPS];
   long long int kernel_stall_cycles[Instruction::NUM_OPS];
   long long int kernel_fu_dependencies[Instruction::NUM_OPS];
@@ -38,6 +39,7 @@ public:
   int **kernel_calls;
   int **kernel_profiling;
   long long int current_cycle;
+  //long long int end_sleep_cycle;
 /*   long long int total_kernel_stalls; */
 /*   long long int total_kernel_fu_dependencies; */
 /*   long long int start_clock_counter; */

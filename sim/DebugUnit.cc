@@ -29,11 +29,15 @@ bool DebugUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       printf("PRINT: failed to read register\n");
     }
     if(registers == NULL)
-      printf("<%p> Register %u has value %d, %u, %f\n",
-	     thread, ins.args[0], arg.idata, arg.udata, arg.fdata);
+      {
+	printf("<%p> Register %u has value %d, %u, %f\n",
+	       thread, ins.args[0], arg.idata, arg.udata, arg.fdata);
+      }
     else
-      printf("<Thread: %p> Register %u (\"%s\") has value %d, %u, %f\n",
-	     thread, ins.args[0], registers->at(ins.args[0])->names[0], arg.idata, arg.udata, arg.fdata);
+      {
+	printf("<Thread: %p> Register %u (\"%s\") has value %d, %u, %f\n",
+	       thread, ins.args[0], registers->at(ins.args[0])->names[0], arg.idata, arg.udata, arg.fdata);
+      }
   }
   return true;
 }

@@ -38,4 +38,36 @@ public:
   int num_blocks;
 };
 
+class CacheUpdate {
+ public:
+  int index, tag;
+  long long int update_cycle;
+ CacheUpdate(int _index, int _tag, long long int _update_cycle) 
+   :index(_index), tag(_tag), update_cycle(_update_cycle) {};
+};
+
+class RegisterWrite
+{
+ public:
+  int address;
+  int which_reg;
+  ThreadState* thread;
+ RegisterWrite(int _address, int _which_reg, ThreadState* _thread) 
+   :address(_address), which_reg(_which_reg), thread(_thread) {};
+};
+
+class BusTransfer {
+ public:
+  int index, tag;
+  long long int update_cycle;
+  std::vector<RegisterWrite> recipients;
+ BusTransfer(int _index, int _tag, long long int _update_cycle)
+   :index(_index), tag(_tag), update_cycle(_update_cycle) {};
+  void AddRecipient(int _address, int _which_reg, ThreadState* _thread)
+  {
+    recipients.push_back(RegisterWrite(_address, _which_reg, _thread));
+  }
+};
+
+
 #endif // _SIMHWRT_MEMORY_BASE_H_

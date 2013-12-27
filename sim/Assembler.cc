@@ -13,7 +13,7 @@ int Assembler::start_permutation = 0;
 int jtable_size;
 const char *delimeters = ", ()[\t\n"; // includes only left bracket for backwards compatibility with vector registers
 
-int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions, std::vector<symbol*>& regs, std::vector<int>& jump_table, int _start_wq, int _start_framebuffer, int _start_camera, int _start_scene, int _start_light, int _start_bg_color, int start_matls, int start_permutation, bool print_symbols)
+int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions, std::vector<symbol*>& regs, int num_system_regs, std::vector<int>& jump_table, int _start_wq, int _start_framebuffer, int _start_camera, int _start_scene, int _start_light, int _start_bg_color, int start_matls, int start_permutation, bool print_symbols)
 {
   printf("Loading assembly file %s\n", filename);
   Assembler::start_wq = _start_wq;
@@ -112,6 +112,17 @@ int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions
       for(i=0; i < jump_table.size(); i++)
 	printf("%d: %d\n", (i * 4), jump_table[i]);
     }
+
+  // fill in the symbol table for any unnamed registers
+  for(; num_regs < num_system_regs; num_regs++)
+    {
+      symbol* temp = new symbol();      
+      temp->names.push_back((char*)malloc(8));
+      strcpy(temp->names.at(temp->names.size()-1), "unnamed");
+      temp->address = num_regs;
+      regs.push_back(temp);
+    }    
+
   return num_regs;
 }
 

@@ -23,7 +23,7 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
                 int& end_memory, float *light_pos, int& start_permutation,
                 int tile_width, int tile_height, int ray_depth, int num_samples,
 		int num_rotation_threads, int num_TMs, int subtree_size,
-		float epsilon, bool duplicate_BVH = false, bool triangles_store_edges=false);
+		float epsilon, bool duplicate_BVH, bool triangles_store_edges, bool pack_split_axis = false, bool pack_stream_boundaries = false);
 
 
 #endif // _HWRT_LOADMEMORY_H_

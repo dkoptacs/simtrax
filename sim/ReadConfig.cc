@@ -25,8 +25,8 @@
 #include "MainMemory.h"
 #include "TraxCore.h"
 
-ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, MainMemory*& mem, 
-		       double &size_estimate, bool _memory_trace, bool _l1_off, bool _l2_off, bool _l1_read_copy) :
+ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, MainMemory*& mem,
+		       double &size_estimate, bool disable_usimm, bool _memory_trace, bool _l1_off, bool _l2_off, bool _l1_read_copy) :
   input_file(input_file), memory_trace(_memory_trace), l1_off(_l1_off), l2_off(_l2_off), l1_read_copy(_l1_read_copy)
 {
   FILE* input = fopen(input_file, "r");
@@ -45,12 +45,17 @@ ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, Ma
       // load mem
       int latency;
       int num_blocks;
-      if (sscanf(line_buf, "%*s %d %d", &latency, &num_blocks) != 2) {
-	printf("ERROR: MEMORY syntax is MEMORY <latency> <memory size>\n");
+      int max_bandwidth = 256;
+      int scanvalue = sscanf(line_buf, "%*s %d %d %d", &latency, &num_blocks, &max_bandwidth);
+      if(scanvalue < 2 || scanvalue > 3){
+	printf("ERROR: MEMORY syntax is MEMORY <latency> <memory size> <bandwidth (optional)>\n");
 	continue;
       }
-      mem = new MainMemory(num_blocks, latency);
-    } else if (unit_string == "L2") {
+      // Each L2 is allowed this much bandwidth
+      max_bandwidth /= num_L2s;
+      mem = new MainMemory(num_blocks, latency, max_bandwidth);
+    } 
+    else if (unit_string == "L2") {
       // load L2
       int hit_latency;
       int cache_size;
@@ -73,7 +78,7 @@ ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, Ma
       // Insert loop to allocate num_L2s here
       for (size_t i = 0; i < num_L2s; ++i) {
 	L2s[i] = new L2Cache(mem, cache_size, hit_latency,
-			     num_banks, line_size,
+			     disable_usimm, num_banks, line_size,
 			     memory_trace, l2_off, l1_off);
       }
 
@@ -116,16 +121,17 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
     sscanf(line_buf, "%s ", unit_type);
     std::string unit_string(unit_type);
     if (unit_string == "MEMORY" ||
-        unit_string == "L2" ||
-	unit_string == "STREAM") {
+        unit_string == "L2")
+      {
       // already loaded
-    } else if (unit_string == "L1") {
+      } 
+    else if (unit_string == "L1") {
       // load L1
       int hit_latency;
       int cache_size;
       int num_banks;
       int line_size;
-      float unit_area = 0;
+      float unit_area = 0.0;
       float unit_power = 0.0;
       
       int scanvalue = sscanf(line_buf, "%*s %d %d %d %d %f %f", &hit_latency,
@@ -150,8 +156,9 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
       if (!l1_off) {
 	size_estimate += unit_area*1.0e-6;
       }
-    } else {
-      // a simple module taking latency and maybe issue width
+    }     
+    else {
+      // a simple module taking latency and issue width
       int latency;
       int issue_width;
       float unit_area = -1;
@@ -330,7 +337,9 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
 	  size_estimate += .000722 * issue_width;
 	  // didn't have better numbers, chose the size of the compare.
 	}
-      } else if (unit_string == "DEBUG") {
+      }
+            
+      else if (unit_string == "DEBUG") {
         DebugUnit* debug = new DebugUnit(latency);
         modules->push_back(debug);
         functional_units->push_back(debug);

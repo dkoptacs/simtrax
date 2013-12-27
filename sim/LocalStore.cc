@@ -26,6 +26,7 @@ bool LocalStore::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::LW ||
       op == Instruction::lbu ||
       op == Instruction::lbui ||
+      op == Instruction::lhui ||
       op == Instruction::SWI ||
       op == Instruction::SW ||
       op == Instruction::sh ||
@@ -49,7 +50,12 @@ bool LocalStore::IssueLoad(int write_reg, int address, ThreadState* thread, long
   // check for byte loads
   if (ins.op == Instruction::lbu || ins.op == Instruction::lbui) {
     result.udata = ((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue & BITMASK;
-  } else {
+  } 
+  // check for halfword loads
+  else if (ins.op == Instruction::lhui) {
+    result.udata = ((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue & HALFMASK;
+  }
+  else {
     result.udata = ((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue;
   }
   if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op)) {
@@ -111,6 +117,7 @@ bool LocalStore::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
     break;
   case Instruction::LWI:
   case Instruction::lbui:
+  case Instruction::lhui:
     if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
       // something bad
       printf("Error in LocalStore.\n");

@@ -16,7 +16,7 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
                 int& end_memory, float *light_pos, int &start_permutation,
                 int tile_width, int tile_height, int ray_depth, int num_samples,
 		int num_rotation_threads, int num_TMs, int subtree_size,
-		float epsilon, bool duplicate_BVH, bool triangles_store_edges) {
+		float epsilon, bool duplicate_BVH, bool triangles_store_edges, bool pack_split_axis, bool pack_stream_boundaries) {
   int permutation[] = { 151,160,137,91,90,15,
 		    131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,
 		    190, 6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,
@@ -33,8 +33,8 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
 
 #include "Hammersley.h"
 
-  //int tile_width = 16;
-  //int tile_height = 16;
+//   int tile_width = 16;
+//   int tile_height = 16;
 
   // Setup memory for Assignment 1 ;)
   mem[0].uvalue = 0;
@@ -49,27 +49,27 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
 
   
   // Pointers (actually written at the end
-  //mem[7].ivalue = start_fb
-  //mem[8].ivalue = start_scene;
-  //mem[9].uvalue = start_matls;
-  //mem[10].uvalue = start_camera;
-  //mem[11].uvalue = start_bg_color;
-  //mem[12].uvalue = start_light;
-  //mem[13].ivalue = start_permutation;
-  //mem[14].uvalue = end_memory;
-  //mem[15].uvalue = size-1;
+//   mem[7].ivalue = start_fb
+//   mem[8].ivalue = start_scene;
+//   mem[9].uvalue = start_matls;
+//   mem[10].uvalue = start_camera;
+//   mem[11].uvalue = start_bg_color;
+//   mem[12].uvalue = start_light;
+//   mem[13].ivalue = start_permutation;
+//   mem[14].uvalue = end_memory;
+//   mem[15].uvalue = size-1;
   mem[16].ivalue = ray_depth;
   mem[17].ivalue = num_samples;
   mem[18].fvalue = epsilon;
-  //mem[19].ivalue = start_hammersley;
+//   mem[19].ivalue = start_hammersley;
   
-  //mem[20] was used for atomic_inc address, but does not use memory anymore, uses GlobalRegisterFile
-  // keep this memory position free for backwards compatability
+// mem[20] was used for atomic_inc address, but does not use memory anymore, uses GlobalRegisterFile
+// keep this memory position free for backwards compatability
   
-  //mem[21].ivalue = num_nodes;
-  //mem[22].ivalue = start_costs; 
+// mem[21].ivalue = num_nodes;
+// mem[22].ivalue = start_costs; 
   mem[23].ivalue = (int)log2(static_cast<float>(num_rotation_threads)); // + 1 for finer granularity on work assignments
-  //mem[24].ivalue = start_secondary_bvh;
+// mem[24].ivalue = start_secondary_bvh;
   mem[25].ivalue = num_rotation_threads;
   //mem[26].ivalue = start_subtree_sizes;
   //mem[27].ivalue = start_rotated_flags;
@@ -81,30 +81,31 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
   //mem[33].ivalue = start_subtree_ids;
   //mem[34].ivalue = num_subtrees;
   mem[35].ivalue = num_TMs;
-  
+  //mem[36].ivalue = start_vertex_normals;
+  //mem[37].ivalue = num_interior_subtrees;
     
   // Build the work queue
-  start_wq = 36;
+  start_wq = 39;
   printf("Work queue starts at %d (0x%08x)\n", start_wq, start_wq);
-  //int start_queue_storage = start_wq + 2; // need cur_tile and num_tiles
-  //int num_tiles = 0;
-  //for (int y = 0; y < image_height; y += tile_height) {
-  //  for (int x = 0; x < image_width; x += tile_width) {
-  //    int start_x = x;
-  //    int stop_x  = (x+tile_width < image_width) ? x+tile_width : image_width;
-  //    int start_y = y;
-  //    int stop_y  = (y+tile_height < image_height) ? y+tile_height : image_height;
-  //    mem[start_queue_storage + num_tiles * 4 + 0].ivalue = start_x;
-  //    mem[start_queue_storage + num_tiles * 4 + 1].ivalue = stop_x;
-  //    mem[start_queue_storage + num_tiles * 4 + 2].ivalue = start_y;
-  //    mem[start_queue_storage + num_tiles * 4 + 3].ivalue = stop_y;
-  //    num_tiles++;
-  //  }
-  //}
-  //printf("Work queue ends at %d (0x%08x)\n", start_wq + num_tiles * 4 + 2,
-  //        start_wq + num_tiles * 4 + 2);
-  //mem[start_wq + 0].ivalue = num_tiles;
-  //printf("Have %d tiles\n", num_tiles);
+//   int start_queue_storage = start_wq + 2; // need cur_tile and num_tiles
+//   int num_tiles = 0;
+//   for (int y = 0; y < image_height; y += tile_height) {
+//     for (int x = 0; x < image_width; x += tile_width) {
+//       int start_x = x;
+//       int stop_x  = (x+tile_width < image_width) ? x+tile_width : image_width;
+//       int start_y = y;
+//       int stop_y  = (y+tile_height < image_height) ? y+tile_height : image_height;
+//       mem[start_queue_storage + num_tiles * 4 + 0].ivalue = start_x;
+//       mem[start_queue_storage + num_tiles * 4 + 1].ivalue = stop_x;
+//       mem[start_queue_storage + num_tiles * 4 + 2].ivalue = start_y;
+//       mem[start_queue_storage + num_tiles * 4 + 3].ivalue = stop_y;
+//       num_tiles++;
+//     }
+//   }
+//   printf("Work queue ends at %d (0x%08x)\n", start_wq + num_tiles * 4 + 2,
+//          start_wq + num_tiles * 4 + 2);
+//   mem[start_wq + 0].ivalue = num_tiles;
+//   printf("Have %d tiles\n", num_tiles);
 
   // num_pixels
   mem[start_wq + 0].ivalue = image_width * image_height;
@@ -124,7 +125,7 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
   start_scene = start_framebuffer + frame_size + zsize;
   start_permutation = start_scene;
   printf("FB starts at %d (0x%08x)\n", start_framebuffer, start_framebuffer);
-  printf("FB ends at %d (0x%08x)\n", start_scene - 1, start_scene - 1);
+  //printf("FB ends at %d (0x%08x)\n", start_scene - 1, start_scene - 1);
 
 
   // set triangles saving edges rather than points before doing all the loads
@@ -173,7 +174,7 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
       
       Grid* grid = NULL;
       if(grid_dimensions==-1)
-	bvh = new BVH( triangles, subtree_size, duplicate_BVH, triangles_store_edges );
+	bvh = new BVH( triangles, subtree_size, duplicate_BVH, triangles_store_edges, pack_split_axis, pack_stream_boundaries);
       else
 	grid = new Grid(triangles, triangles_store_edges, grid_dimensions);
       mem[21].ivalue = bvh->num_nodes;
@@ -193,7 +194,10 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
       mem[30].ivalue = bvh->start_tex_coords;
       mem[32].ivalue = bvh->start_parent_pointers;
       mem[33].ivalue = bvh->start_subtree_ids;
-      mem[34].ivalue = bvh->num_subtrees;      
+      mem[34].ivalue = bvh->num_subtrees;
+      mem[36].ivalue = bvh->start_vertex_normals;
+      mem[37].ivalue = bvh->num_interior_subtrees;
+      
 
       printf("Triangles start at %d (0x%08x)\n",bvh->start_tris, bvh->start_tris);
       
@@ -259,10 +263,10 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
   mem[11].uvalue = start_bg_color;
   mem[12].uvalue = start_light;
   mem[13].ivalue = start_permutation;
-  mem[14].uvalue = end_memory;              // start free memory
-  mem[15].uvalue = size-1;                  // end free memory
-  mem[end_memory].uvalue = end_memory+2;    // initial head pointer for the queue
-  mem[end_memory+1].uvalue = end_memory+2;  // initial tail pointer for the queue
+  mem[14].uvalue = end_memory; // start free memory
+  mem[15].uvalue = size-1; // end free memory
+  mem[end_memory].uvalue = end_memory+2; // initial head pointer for the queue
+  mem[end_memory+1].uvalue = end_memory+2; // initial tail pointer for the queue
   //mem[16].ivalue = ray_depth
   //mem[17].ivalue = num_samples
   //mem[18].fvalue = epsilon

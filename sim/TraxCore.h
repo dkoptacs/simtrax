@@ -23,7 +23,7 @@ class TraxCore {
 public:
   long long int cycle_num;
   TraxCore(int num_thread_procs, int _threads_per_core, int num_regs, ThreadProcessor::SchedulingScheme ss, 
-	   std::vector<Instruction*>* instructions, L2Cache* L2, 
+	   std::vector<Instruction*>* instructions, L2Cache* L2,
 	   size_t coreid, size_t l2id);
   ~TraxCore();
 
@@ -58,7 +58,6 @@ public:
   std::vector<Instruction*>* instructions;
   std::vector<ThreadProcessor*> thread_procs;
   IssueUnit* issuer;
-/*   NewIssueUnit* issuer; */
 
   // modules from loadConfig
   std::vector<HardwareModule*> modules;

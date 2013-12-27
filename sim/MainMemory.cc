@@ -19,9 +19,10 @@ extern pthread_mutex_t memory_mutex;
 #endif
 
 
-MainMemory::MainMemory(int _num_blocks,  int _latency)
+MainMemory::MainMemory(int _num_blocks,  int _latency, int _max_bandwidth)
  :latency(_latency) {
   num_blocks = _num_blocks;
+  max_bandwidth = _max_bandwidth;
   issued_atominc = false;
   data = new FourByte[num_blocks];
   store_count = 0;

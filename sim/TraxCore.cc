@@ -10,7 +10,7 @@
 
 TraxCore::TraxCore(int _num_thread_procs, int _threads_per_proc, int _num_regs,
 		   ThreadProcessor::SchedulingScheme ss, std::vector<Instruction*>* _instructions, 
-		   L2Cache* _L2, 
+		   L2Cache* _L2,
 		   size_t coreid, size_t l2id)
   :num_thread_procs(_num_thread_procs), threads_per_proc(_threads_per_proc), num_regs(_num_regs) {
 

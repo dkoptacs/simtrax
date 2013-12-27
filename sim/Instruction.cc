@@ -1,5 +1,6 @@
 #include "Instruction.h"
 #include "WriteRequest.h"
+#include <stdlib.h>
 
 Instruction::Instruction(Opcode code,
                          int arg0, int arg1, int arg2,
@@ -43,9 +44,11 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::SUB:
   case Instruction::MUL:
   case Instruction::BITOR:
+  case Instruction::BITXOR:
   case Instruction::BITAND:
   case Instruction::BITSLEFT:
   case Instruction::BITSRIGHT:
+  case Instruction::ANDN:
   case Instruction::FPADD:
   case Instruction::FPSUB:
   case Instruction::FPRSUB:
@@ -71,6 +74,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::ADDK:
   case Instruction::RSUB:
   case Instruction::CMP:
+  case Instruction::CMPU:
   case Instruction::LW:
   case Instruction::lbu:
     // check args[1] and args[2] and choose the first fail_reg if there is a fail.
@@ -92,10 +96,14 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::FPINVSQRT:
   case Instruction::FPINV:
   case Instruction::LOAD:
+  case Instruction::LOADIMM:
   case Instruction::LOADL1:
   case Instruction::MOV:
   case Instruction::sra:
   case Instruction::srl:
+  case Instruction::bslli:
+  case Instruction::bsrli:
+  case Instruction::bsrai:
   case Instruction::brld:
   case Instruction::brald:
   case Instruction::braid:
@@ -108,8 +116,8 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::RSUBI:
   case Instruction::LWI:
   case Instruction::lbui:
+  case Instruction::lhui:
     // check args[1] and select it if it fails
-    //printf("%s:%d ready on: %lld, cur: %lld\n", Instruction::Opnames[op].c_str(), args[1], register_ready[args[1]], cur_cycle);
     if ( register_ready[args[1]] <= cur_cycle )
       return true;
     else {
@@ -191,6 +199,8 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     }
     return true;
     break;
+
+    /*
   case Instruction::TRITEST:
     if (!RayReady(args[2], register_ready, kNoBlock))
       return false;
@@ -204,6 +214,30 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     }
     return true;
     break;
+    */
+
+  case Instruction::BOXTEST:
+    // TODO: this isn't very clean, assuming box registers are 36 - 47
+    for(int i = 36; i < 48; i++)
+      if (register_ready[i] > cur_cycle) 
+	{
+	  *fail_reg = i;
+	  return false;
+	}
+    return true;
+    break;
+
+  case Instruction::TRITEST:
+    // TODO: this isn't very clean, assuming tri registers are 36 - 50
+    for(int i = 36; i < 51; i++)
+      if (register_ready[i] > cur_cycle) 
+	{
+	  *fail_reg = i;
+	  return false;
+	}
+    return true;
+    break;
+
   case Instruction::PRINT:
     if (register_ready[args[0]] <= cur_cycle)
       return true;
@@ -221,16 +255,34 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::GLOBAL_READ:
     return true;
     break;
+
+    // These instructions don't read normal registers, always ready to issue
   case Instruction::ENDSW:
   case Instruction::ENDSR:
   case Instruction::STARTSR:
   case Instruction::STREAMR:
-  default:
+  case Instruction::brlid:
+  case Instruction::brid:
+  case Instruction::NOP:
+  case Instruction::PROF:
+  case Instruction::RAND:
+  case Instruction::HALT:
+  case Instruction::SETBOXPIPE:
+  case Instruction::SETTRIPIPE:
+  case Instruction::LOADPIPEGLB:
+  case Instruction::LOADPIPELOC:
     return true;
+    break;
+  default:
+    printf("Error: Instruction opcode %d has no ReadyToIssue definition\n", op);
+    printf("%s\n", Instruction::Opnames[op].c_str());
+    exit(1);
     break;
   };
 
-  return true;
+  printf("Error, Instruction::ReadyToIssue fell through switch\n");
+  exit(1);
+  return false;
 }
 
 void Instruction::print() {
@@ -361,6 +413,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("FPINV"),
   std::string("FPCONV"),
 
+  // Stream ops
   std::string("STARTSW"), 
   std::string("STREAMW"), 
   std::string("ENDSW"),
@@ -370,6 +423,15 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("STRSIZE"), 
   std::string("STRSCHED"),
   std::string("SETSTRID"),
+  std::string("GETSTRID"),
+
+  // Chained FU pipeline ops
+  std::string("BOXTEST"),
+  std::string("TRITEST"),
+  std::string("SETBOXPIPE"),
+  std::string("SETTRIPIPE"),
+  std::string("LOADPIPEGLB"),
+  std::string("LOADPIPELOC"),
 
   std::string("FPEQ"),
   std::string("FPNE"),
@@ -384,7 +446,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("STORE"),
   std::string("LOADIMM"),
   std::string("SPHERE_TEST"),
-  std::string("TRITEST"),
+  //std::string("TRITEST"),
   std::string("MOV"),
   std::string("MOVINDRD"),
   std::string("MOVINDWR"),
@@ -434,6 +496,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("LWI"), //
   std::string("lbu"),
   std::string("lbui"),
+  std::string("lhui"),
   std::string("SW"), //
   std::string("SWI"), //
   std::string("sh"),
@@ -464,6 +527,10 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("brk"), //
   std::string("brki"), //
   std::string("rtsd"),
+  std::string("bslli"), // barrel shift left logical immediate
+  std::string("bsrli"), // barrel shift right logical immediate
+  std::string("bsrai"), // barrel shift right arithmetical immediate
+
   // End MBlaze stuff
   std::string("FPDIV"),
   std::string("DIV"),
@@ -474,7 +541,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("FPGT"),
   std::string("FPGE"),
 
-
+  std::string("SLEEP"),
   std::string("SYNC"),
   std::string("NOP"),
   std::string("HALT"),

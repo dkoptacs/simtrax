@@ -59,7 +59,7 @@ public:
     FPINV,       // dst, source
     FPCONV,      // dst, source (int->float)
 
-    // Future Stream queue ops
+    // Stream queue ops
     STARTSW,     // source 
     STREAMW,     // source
     ENDSW,
@@ -69,6 +69,16 @@ public:
     STRSIZE,     // dst, source
     STRSCHED,    // dst, source
     SETSTRID,    // source
+    GETSTRID,    // dst
+
+    // Chained FU pipeline ops
+    BOXTEST,     // dst
+    TRITEST,     // dst
+    SETBOXPIPE,  // void
+    SETTRIPIPE,  // void
+    // load special pipeline input registers
+    LOADPIPEGLB, // dst, source (global address)
+    LOADPIPELOC, // dst, source (localstore address)
 
     // implement these
     FPEQ,        // dst, source1, source2
@@ -80,12 +90,11 @@ public:
     LT,          // dst, source1, source2
     LE,          // dst, source1, source2
     BNZ,         // source, unused, jmp_addr(imm)
-    // end new stuff
+
     LOADL1,      // dst, addr(reg), offset(imm)
     STORE,       // addr, value(reg), offset(imm)
     LOADIMM,     // dst, value(imm)
     SPHERE_TEST, // dst(unused), SPHERE, RAY
-    TRITEST,     // dst(unused), TRI, RAY
     MOV,         // dst, source
     MOVINDRD,    // dst, base source, offset reg
     MOVINDWR,    // base dst, source, offset reg
@@ -133,8 +142,9 @@ public:
     // local read/writes
     LW,          // dst, addr(reg), offset(reg)
     LWI,         // dst, addr(reg), offset(imm)
-    lbu,
-    lbui,
+    lbu,         // dst, addr(reg) -- load byte unsigned
+    lbui,        // dst, addr(reg), offset(imm) -- load byte unsigned immediate
+    lhui,        // dst, addr(reg), offset(imm) -- load halfword unsigned immediate
     SW,          // value(reg), addr(reg), offset(reg)
     SWI,         // value(reg), addr(reg), offset(imm)
     sh,
@@ -165,6 +175,9 @@ public:
     brk,
     brki,
     rtsd,
+    bslli,
+    bsrli,
+    bsrai,
     // FP instructions to add
     FPDIV,
     DIV,
@@ -176,6 +189,7 @@ public:
     FPGE,
     // End MBlaze additions
 
+    SLEEP,       // src (num sleep cycles)
     SYNC,        // 
     NOP,         //
     HALT,        //

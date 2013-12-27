@@ -71,6 +71,7 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   case Instruction::FPGE:
     result.idata = (arg1.fdata >= arg2.fdata) ? 1 : 0;
     break;
+    // FPUN (FP "un"defined), checks for NaN, relies on IEEE defining NaN != NaN
   case Instruction::FPUN:
     result.idata = (arg1.fdata != arg1.fdata || arg2.fdata != arg2.fdata) ? 1 : 0;
     break;

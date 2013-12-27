@@ -10,21 +10,50 @@
 
 const float BVH_C_isec = 1.f;
 const float BVH_C_trav = 1.f;
-const int BVHNodeSize = 10; // interior nodes are 10 words with parent pointers and tree IDs
+
+// measured costs including all associated ops (load, stack, etc)
+//const float BVH_C_isec = 146.92f;
+//const float BVH_C_trav = 104.3f;
+
+
+const int BVHNodeSize = 10;  // Box (6), start_child, num_children, parent, subtree
+const int TriangleSize = 11; // 3 Verts (9), material_id, object_id (object ID for backwards compatibility only)
 
 class BVHNode {
 public:
   BVHNode(){}
   float box_min[3];
   float box_max[3];
-  int num_children; // -1 for interior nodes
-  int start_child;  // direct block pointer for list of triangles
+  int start_child;  // child ID or direct block pointer for list of triangles
+  char num_children; // -1 for interior nodes
+  char split_axis;
+  short triangle_subtree;
 
   int total_sub_nodes;
   float cost;
   int parent;
   int subtree;
 
+  float area()
+  {
+    return BoxArea(box_min, box_max);  
+  }
+  
+  void extendByNode(BVHNode n)
+  {
+    ExtendBoundByBox(box_min, box_max, n.box_min, n.box_max);
+  }
+
+  void setBounds(BVHNode n)
+  {
+    for(int i=0; i < 3; i++)
+      {
+	box_min[i] = n.box_min[i];
+	box_max[i] = n.box_max[i];
+      }
+
+  }
+  
   void makeLeaf(int first_child, int count) {
 #ifdef TREE_ROTATIONS
     assert(count == 1);
@@ -33,9 +62,10 @@ public:
     num_children = count;
   }
 
-  void makeInternal(int first_child) {
+  void makeInternal(int first_child, int bestAxis) {
     start_child = first_child;
     num_children = -1;
+    split_axis = bestAxis;
   }
 
   bool isLeaf() const {
@@ -44,7 +74,7 @@ public:
 
   void LoadIntoMemory(int &memory_position,
                       int max_memory,
-                      FourByte* memory) {
+                      FourByte* memory, bool store_axis, bool triangle_subtrees, bool pack_stream_boundaries) {
     // write myself into memory
     for (int i = 0; i < 3; i++) {
       memory[memory_position].fvalue = box_min[i];
@@ -55,7 +85,27 @@ public:
       memory[memory_position].fvalue = box_max[i];
       memory_position++;
     }
-    memory[memory_position].ivalue = num_children;
+
+    // Do leaf nodes need a pointer to the triangles' "treelet"?
+    if(triangle_subtrees && num_children > 0)
+      {
+	int packedData = triangle_subtree & 0xffff;
+	packedData <<= 16;
+	packedData |= (num_children & 0xff);
+	memory[memory_position].uvalue = packedData;
+      }
+    // Are we storing the split axis in one byte of num_children for interior nodes?
+    else if(store_axis && num_children < 0)
+      {
+	int packedData = split_axis & 0xff;
+	packedData <<= 8;
+	packedData |= (num_children & 0xff);
+	memory[memory_position].uvalue = packedData;
+      }
+    else
+      {    
+	memory[memory_position].ivalue = num_children;
+      }
     memory_position++;
 
     memory[memory_position].ivalue = start_child;
@@ -69,9 +119,15 @@ BVH::~BVH()
   delete[] nodes;
 }
 
-BVH::BVH(std::vector<Triangle*>* _triangles, int _subtree_size, bool duplicate, bool tris_store_edges) {
+BVH::BVH(std::vector<Triangle*>* _triangles, int _subtree_size, bool duplicate, bool tris_store_edges, bool pack_split_axis, bool _pack_stream_boundaries) {
   subtree_size = _subtree_size;
+
+  // TODO: Add a separate command line option for this. For now, just use the same size as the node treelets
+  triangle_subtree_size = _subtree_size;
+
   triangles_store_points = !tris_store_edges;
+  store_axis = pack_split_axis;
+  pack_stream_boundaries = _pack_stream_boundaries;
   duplicate_BVH = duplicate;
   triangles = _triangles;
   num_tris = triangles->size();
@@ -85,14 +141,28 @@ BVH::BVH(std::vector<Triangle*>* _triangles, int _subtree_size, bool duplicate, 
   num_nodes = 0;
   build(0, 0, triangles->size(), nextFree, 0);
   updateBounds(0);
+  oldComputeNodeCost(0);
+  printf("before rotations, SAH cost = %f\n", nodes[0].cost);
+  
+  // not gonna get much more benefit after 10 without simulated annealing
+  // Doesn't work with treelets
+  //for(int i=0; i < 10; i++) 
+  //rotateTree(0);
+  
+  //oldComputeNodeCost(0);
+  //printf("after rotations, SAH cost = %f\n", nodes[0].cost);
   computeSubtreeSize(0);
   oldComputeNodeCost(0);
+
   num_subtrees = assignSubtrees(subtree_size);
   // If using subtrees, reorder the nodes so that each subtree is a contiguous block for direct-mapped caching
   if(num_subtrees > 0)
     {
-      printf("assigned %d total subtrees\n", num_subtrees);
+      num_interior_subtrees = num_subtrees;
+      printf("%d interior subtrees\n", num_interior_subtrees);
       reorderNodes();
+      assignTriangleSubtrees();
+      printf("assigned %d total subtrees\n", num_subtrees);
     }
 }
 
@@ -107,9 +177,8 @@ void BVH::LoadIntoMemory(int &memory_position,
 	 nodes[0].box_min[0], nodes[0].box_min[1], nodes[0].box_min[2], 
 	 nodes[0].box_max[0], nodes[0].box_max[1], nodes[0].box_max[2]);
 
-
   // align the BVH to cache line boundaries (root node starts mid-line, so that children are cache line-aligned)
-  // want root node to be 8-word aligned and first child to be 16-word aligned
+  // want root node to be 8-word aligned and first child to be 32-word aligned
   memory_position = memory_position + (8 - (memory_position % 8));
 
   // load the first copy
@@ -119,12 +188,13 @@ void BVH::LoadIntoMemory(int &memory_position,
   LoadTriangles(memory_position, max_memory, memory);
   start_tex_coords = memory_position;
   LoadTextureCoords(memory_position, max_memory, memory);
-  
+  start_vertex_normals = memory_position;
+  LoadVertexNormals(memory_position, INT_MAX, memory);
 
   // load the second copy (if necessary, for animations)
   if(duplicate_BVH)
     {
-      memory_position = memory_position + (8 - (memory_position % 8)); // align to cache-line boundary
+      memory_position = memory_position + (8 - (memory_position % 8)); // cache alignment
       start_secondary_nodes = memory_position;
       LoadNodes(memory_position, max_memory, memory, start_secondary_nodes);
       start_secondary_tris = memory_position;
@@ -177,22 +247,36 @@ void BVH::LoadNodes(int &memory_position,
   
   for (int i = 0; i < num_nodes; i++) 
     {
-      nodes[i].LoadIntoMemory(memory_position, max_memory, memory);
-      // Keep parent pointers and subtree IDs separate from nodes so that they remain 8 words 
-      // (not all ray tracers use them parents and subtrees)
-      memory[start_parent_pointers + i].ivalue = nodes[i].parent;
+      nodes[i].LoadIntoMemory(memory_position, max_memory, memory, store_axis, triangle_subtree_size > 0, pack_stream_boundaries);
       if(subtree_size > 0)
-	memory[start_subtree_ids + i].ivalue = nodes[i].subtree;
-    }
+	{
+	  memory[memory_position++].ivalue = nodes[i].parent;
 
-  // Move free memory pointer to end of the subtree IDs (1 word each for pointers and Ids)
-  if(subtree_size > 0)
-    memory_position += num_nodes * 2;
-  else
-    memory_position += num_nodes; // pointers only
+	  // Store the parent and child subtree IDs instead of my own, so that during traversal, 
+	  // I can switch streams without loading an address outside of the current stream's footprint
+	  if(pack_stream_boundaries)
+	    {
+	      int packedData;
+	      if(i == 0)
+		packedData = 0 & 0xffff;
+	      else
+		packedData = nodes[nodes[i].parent].subtree & 0xffff;
+	      //printf("packeddata1: %d\n", packedData);
+	      packedData <<= 16;
+	      //printf("packeddata2: %d\n", packedData);
+	      if(!nodes[i].isLeaf())
+		packedData |= (nodes[nodes[i].start_child].subtree & 0xffff);
+	      memory[memory_position++].uvalue = packedData;
+	      //printf("node %d, leaf = %d, parent subtree = %d, stream_boundaries = %d\n", i, nodes[i].isLeaf(), nodes[nodes[i].parent].subtree, packedData);
+	    }
+	  else
+	    memory[memory_position++].ivalue = nodes[i].subtree;
+	}
+    }
 
   // after we've loaded all the nodes, go through and fix up the
   // memory references (in memory.. ugh)
+  int node_size = subtree_size > 0 ? 10 : 8;
   int triangle_base_addr = memory_position;
   for (int i = 0; i < num_nodes; i++) 
     {
@@ -200,7 +284,7 @@ void BVH::LoadNodes(int &memory_position,
 	{
 	  // determine fixup and place in memory
 	  int real_addr = triangle_base_addr + 11 * nodes[i].start_child; 
-	  int node_addr = start_node_copy + i * 8;
+	  int node_addr = start_node_copy + i * node_size;
 	  memory[node_addr + 7].ivalue = real_addr; 
 	}
     }
@@ -227,6 +311,16 @@ void BVH::LoadTextureCoords(int &memory_position,
     }
 }
 
+void BVH::LoadVertexNormals(int &memory_position,
+			    int max_memory,
+			    FourByte* memory)
+{
+  for (size_t i = 0; i < inorder_tris.size(); i++) 
+    {
+      inorder_tris[i]->LoadVertexNormals(memory_position, max_memory, memory);
+    }
+}
+
 // Walks the tree and computes the number of children in 
 // (including the node) each subtree
 int BVH::computeSubtreeSize(int node_id)
@@ -245,18 +339,13 @@ int BVH::computeSubtreeSize(int node_id)
 
 /* 
    Groups the BVH in to subtrees. Assigns each node to exactly one subtree. 
-   subtreeSize is size in words. Assign subtrees top down, results in many of the 
-   leaves being their own subtree.
+   subtreeSize is size in words.
    returns number of subtrees assigned
    
    I really just need to read Timo's paper on how to build treelets. 
    For now though, I'm just going to get rid of the code that cuts off subtrees when they bottom out,
    even if they aren't full. This will result in subtrees having nodes that are potentially far apart.
    But I just need a temporary fix to cut the number of trees down for now.
-
-   I think a good solution might be to walk the subtrees in order and coalesce the small ones together.
-   Just try it, see how many 1/2-sized subtrees it ends up generating.
-
 */
 int BVH::assignSubtrees(int subtreeSize)
 {
@@ -264,11 +353,16 @@ int BVH::assignSubtrees(int subtreeSize)
     return 0;
 
   int currentTreeID = 0;
+
+  // Make a sentinel subtree so that we can use 1 and -1 as lastSubtree for the root (can't have -0).
+  if(pack_stream_boundaries)
+    currentTreeID++;
+
   int remainingTreeSpace;
   std::queue<int> global_q;
 
   // Make the top sub-tree
-  remainingTreeSpace = assignSingleSubtree(0, 0, subtreeSize, global_q);
+  remainingTreeSpace = assignSingleSubtree(0, currentTreeID, subtreeSize, global_q);
 
   // By now there should be some leftover nodes in the global queue
   while(!global_q.empty())
@@ -290,7 +384,7 @@ int BVH::assignSubtrees(int subtreeSize)
       half_tree_size += assignSingleSubtree(leftNodeID, currentTreeID, half_tree_size, global_q);
       remainingTreeSpace = assignSingleSubtree(rightNodeID, currentTreeID, half_tree_size, global_q);      
     }
-  
+
   return currentTreeID + 1;
 }
 
@@ -317,19 +411,19 @@ int BVH::assignSingleSubtree(int subtreeRoot, int currentTreeID, int subtreeSize
 	  // If it's an interior node, push its children
 	  if(nodes[nodeID].num_children < 0)
 	    {
-	      q.push(nodes[nodeID].start_child); // only push left child, right will be implied?
+	      q.push(nodes[nodeID].start_child); 
 	      q.push(nodes[nodeID].start_child + 1);
 	      remainingTreeSpace -= BVHNodeSize; 
 	    }
 	  else // leaf node, fill the subtree with node and triangles
 	    {
 	      remainingTreeSpace -= BVHNodeSize; // room for the node itself
-	      remainingTreeSpace -= (nodes[nodeID].num_children * 11); // room for the triangles
+	      
+	      if(triangle_subtree_size < 0)
+		remainingTreeSpace -= (nodes[nodeID].num_children * 11); // room for the triangles
 	    }
-	  
 	  // Siblings must always be assigned to the same subtree, unless they are the root of their own tree
 	  // Subtrees must always end on a right child (even ID)
-
 	  if(remainingTreeSpace <= 0 && (nodeID & 1) == 0)
 	    {
 	      fullTree = true;
@@ -342,6 +436,38 @@ int BVH::assignSingleSubtree(int subtreeRoot, int currentTreeID, int subtreeSize
 	}
     }
   return remainingTreeSpace < 0 ? 0 : remainingTreeSpace;
+}
+
+
+void BVH::assignTriangleSubtrees()
+{
+  if(triangle_subtree_size <= 0)
+    return;
+  int remainingSpace = triangle_subtree_size;
+  assignTriangleSubtreesRecursive(0, remainingSpace);
+  num_subtrees += 1;
+}
+
+void BVH::assignTriangleSubtreesRecursive(int nodeID, int& remainingSpace)
+{
+  if(nodes[nodeID].num_children < 0) // interior node
+    {
+      assignTriangleSubtreesRecursive(nodes[nodeID].start_child, remainingSpace);
+      assignTriangleSubtreesRecursive(nodes[nodeID].start_child + 1, remainingSpace);  
+    }
+  else // leaf node
+    {
+      if(remainingSpace - (nodes[nodeID].num_children * TriangleSize) < 0)
+	{
+	  // create a new triangle subtree
+	  remainingSpace = triangle_subtree_size;
+	  num_subtrees++;
+	}
+      
+      remainingSpace -= (nodes[nodeID].num_children * TriangleSize);
+      nodes[nodeID].triangle_subtree = num_subtrees;
+      //printf("(node %d): assigned %d triangles at %d to treelet %d\n", nodeID, nodes[nodeID].num_children, nodes[nodeID].start_child, num_subtrees);
+    }
 }
 
 // Rearranges nodes so that each treelet is a contiguous block of memory for direct-mapped caching
@@ -433,7 +559,7 @@ void BVH::writeDOT(const char *filename, int start_scene, FourByte *memory, int 
   unsigned char red = 127;
   unsigned char green = 127;
   BVHNode root = loadNode(0, start_scene, memory);
-  //  char isLeaf = root.num_children >=0 ? 'L' : 'I';
+//   char isLeaf = root.num_children >=0 ? 'L' : 'I';
   if(verbosity)
     fprintf(output, "Node0 [label=\"0, %d, %d\"];\n", root.start_child, root.subtree);
   else
@@ -462,8 +588,8 @@ void BVH::writeDOTNode(FILE *output, int nodeID, int start_scene, FourByte *memo
     return;
   BVHNode left = loadNode(node.start_child, start_scene, memory);
   BVHNode right = loadNode(node.start_child+1, start_scene, memory);
-  //char isLLeaf = left.num_children >=0 ? 'L' : 'I';
-  //char isRLeaf = right.num_children >=0 ? 'L' : 'I';
+//   char isLLeaf = left.num_children >=0 ? 'L' : 'I';
+//   char isRLeaf = right.num_children >=0 ? 'L' : 'I';
 
 
   // char leftClass = 'L', rightClass = 'L';
@@ -476,8 +602,16 @@ void BVH::writeDOTNode(FILE *output, int nodeID, int start_scene, FourByte *memo
   unsigned char red, green; 
   if(verbosity)
     {
-      fprintf(output, "Node%d [label=\"%d, %d, %d\"];\n", node.start_child, node.start_child, left.start_child, left.subtree);
-      fprintf(output, "Node%d [label=\"%d, %d, %d\"];\n", node.start_child + 1, node.start_child + 1, right.start_child, right.subtree);
+      if(pack_stream_boundaries)
+	{
+	  fprintf(output, "Node%d [label=\"%d, %d, (%d, %d)\"];\n", node.start_child, node.start_child, left.start_child, (left.subtree & 0xffff0000) >> 16, (left.subtree & 0xffff));
+	  fprintf(output, "Node%d [label=\"%d, %d, (%d, %d)\"];\n", node.start_child + 1, node.start_child + 1, right.start_child, (right.subtree & 0xffff0000) >> 16, (right.subtree & 0xffff));
+	}
+      else
+	{
+	  fprintf(output, "Node%d [label=\"%d, %d, %d\"];\n", node.start_child, node.start_child, left.start_child, left.subtree);
+	  fprintf(output, "Node%d [label=\"%d, %d, %d\"];\n", node.start_child + 1, node.start_child + 1, right.start_child, right.subtree);
+	}
       fprintf(output, "Node%d -- Node%d;\n", nodeID, node.start_child);
       fprintf(output, "Node%d -- Node%d;\n", nodeID, node.start_child+1);
     }
@@ -594,7 +728,8 @@ int BVH::verifyNodeCounts(int start_scene, FourByte *memory, int nodeID)
 BVHNode BVH::loadNode(int nodeID, int start_scene, FourByte *memory)
 {
   BVHNode retVal;
-  int node_addr = start_scene + nodeID * 8;
+  int node_size = subtree_size > 0 ? 10 : 8;
+  int node_addr = start_scene + nodeID * node_size;
   for(int i=0; i < 3; i++)
     {
       retVal.box_min[i] = memory[node_addr + i].fvalue;
@@ -606,7 +741,7 @@ BVHNode BVH::loadNode(int nodeID, int start_scene, FourByte *memory)
   retVal.cost = memory[start_costs + nodeID].fvalue;
   retVal.parent = memory[start_parent_pointers + nodeID].ivalue;
   if(subtree_size > 0)
-    retVal.subtree = memory[start_subtree_ids + nodeID].ivalue;
+    retVal.subtree = memory[node_addr + 9].ivalue;
   else
     retVal.subtree = 0;
   
@@ -711,7 +846,8 @@ void BVH::rebuild(FourByte *memory)
   LoadTriangles(memory_position, INT_MAX, memory);
   start_tex_coords = memory_position;
   LoadTextureCoords(memory_position, INT_MAX, memory);
-
+  start_vertex_normals = memory_position;
+  LoadVertexNormals(memory_position, INT_MAX, memory);
 }
 
 void BVH::build(int nodeID, int tri_begin, int tri_end,
@@ -743,7 +879,7 @@ void BVH::build(int nodeID, int tri_begin, int tri_end,
   else {
     //int split = tri_begin + num_tris/2;
     // make internal node
-    node.makeInternal(nextFree);
+    node.makeInternal(nextFree, bestAxis);
     nextFree += 2;
 
     // Set children nodes' parent to current node
@@ -754,7 +890,7 @@ void BVH::build(int nodeID, int tri_begin, int tri_end,
     build(node.start_child + 1,split,tri_end,nextFree,depth+1);
   }
 
-  if (depth > 31) printf("Uh oh, BVH depth just hit %d\n", depth);
+  if (depth > 63) printf("Uh oh, BVH depth just hit %d\n", depth);
   
   if (depth == 0) {
     for(size_t i=0; i < inorder_tris.size(); i++)      
@@ -782,42 +918,55 @@ void ExtendBoundByBox(float cur_min[3], float cur_max[3],
 
 void ExtendBoundByTriangle(float cur_min[3], float cur_max[3],
                            const Triangle& tri, const bool &tri_store_pts ) {
-  if (tri_store_pts) {
-    for (int i = 0; i < 3; i++) {
-      if (tri.p0[i] < cur_min[i])
-        cur_min[i] = static_cast<float>(tri.p0[i]);
-      if (tri.p1[i] < cur_min[i])
-        cur_min[i] = static_cast<float>(tri.p1[i]);
-      if (tri.p2[i] < cur_min[i])
-        cur_min[i] = static_cast<float>(tri.p2[i]);
 
-      if (tri.p0[i] > cur_max[i])
-        cur_max[i] = static_cast<float>(tri.p0[i]);
-      if (tri.p1[i] > cur_max[i])
-        cur_max[i] = static_cast<float>(tri.p1[i]);
-      if (tri.p2[i] > cur_max[i])
-        cur_max[i] = static_cast<float>(tri.p2[i]);
-    }
+  if( tri_store_pts ) {
+	  for (int i = 0; i < 3; i++) {
+		if (tri.p0[i] < cur_min[i]) {
+		  cur_min[i] = static_cast<float>( tri.p0[i] );
+		}
+		if (tri.p1[i] < cur_min[i]) {
+		  cur_min[i] = static_cast<float>( tri.p1[i] );
+		}
+		if (tri.p2[i] < cur_min[i]) {
+		  cur_min[i] = static_cast<float>( tri.p2[i] );
+		}
+
+		if (tri.p0[i] > cur_max[i]) {
+		  cur_max[i] = static_cast<float>( tri.p0[i] );
+		}
+		if (tri.p1[i] > cur_max[i]) {
+		  cur_max[i] = static_cast<float>( tri.p1[i] );
+		}
+		if (tri.p2[i] > cur_max[i]) {
+		  cur_max[i] = static_cast<float>( tri.p2[i] );
+		}
+	  }
   }
   else {
-    for (int i = 0; i < 3; i++) {
-      const float tmp0 = static_cast<float>(tri.p0[i] + tri.p1[i]);
-      if (tmp0 < cur_min[i])
-        cur_min[i] = tmp0;
-      if (tmp0 > cur_max[i])
-        cur_max[i] = tmp0;
+	 for (int i = 0; i < 3; i++) {
+		const float tmp0 = static_cast<float>( tri.p0[i] + tri.p1[i] );
+		if (tmp0 < cur_min[i]) {
+		  cur_min[i] = tmp0;
+		}
+		if (tmp0 > cur_max[i]) {
+		  cur_max[i] = tmp0;
+		}
 
-      if (tri.p1[i] < cur_min[i])
-        cur_min[i] = static_cast<float>(tri.p1[i]);
-      if (tri.p1[i] > cur_max[i])
-        cur_max[i] = static_cast<float>(tri.p1[i]);
+		if (tri.p1[i] < cur_min[i]) {
+		  cur_min[i] = static_cast<float>( tri.p1[i] );
+		}
+		if (tri.p1[i] > cur_max[i]) {
+		  cur_max[i] = static_cast<float>( tri.p1[i] );
+		}
 
-      const float tmp2 = static_cast<float>(tri.p2[i] + tri.p1[i]);
-      if (tmp2 < cur_min[i])
-        cur_min[i] = tmp2;
-      if (tmp2 > cur_max[i])
-        cur_max[i] = tmp2;
-    }
+		const float tmp2 = static_cast<float>( tri.p2[i] + tri.p1[i] );
+		if (tmp2 < cur_min[i]) {
+		  cur_min[i] = tmp2;
+		}
+		if (tmp2 > cur_max[i]) {
+		  cur_max[i] = tmp2;
+		}
+	  }
   }
 }
 
@@ -831,7 +980,7 @@ void BVH::updateBounds(int ID) {
       ExtendBoundByTriangle(node.box_min,
                             node.box_max,
                             *inorder_tris[child_id],
-                            triangles_store_points);
+							triangles_store_points);
     }
   } else {
     int left_son = node.start_child;
@@ -852,82 +1001,83 @@ void BVH::updateBounds(int ID) {
 
 int BVH::partitionSAH(int objBegin, int objEnd, int& output_axis)
 {
-  int num_objects = objEnd - objBegin;
-  if ( num_objects == 1 )
-  {
-    output_axis = -1;
-    return -1;
-  }
-
-  BVHCostEval best_cost;
-  best_cost.event = 0;
-#ifdef TREE_ROTATIONS
-  best_cost.cost = FLT_MAX;
-#else
-  best_cost.cost = BVH_C_isec * num_objects;
-#endif
-  best_cost.axis = -1;
-
-  for ( int axis = 0; axis < 3; axis++ )
-  {
-    BVHCostEval new_cost;
-    if ( buildEvents(objBegin,objEnd,axis,new_cost) )
+    int num_objects = objEnd - objBegin;
+    if ( num_objects == 1 )
     {
-      if ( new_cost.cost < best_cost.cost )
-      {
-        best_cost = new_cost;
-      }
-    }
-  }
-
-  output_axis = best_cost.axis;
-  if ( output_axis != -1 )
-  {
-    // build the events and sort them
-    std::vector<BVHSAHEvent> events;
-    for ( int i = objBegin; i < objEnd; i++ )
-    {
-      float tri_box_min[3];
-      float tri_box_max[3];
-      ResetBound(tri_box_min, tri_box_max);
-      ExtendBoundByTriangle(tri_box_min, tri_box_max,
-                            *triangles->at(i), triangles_store_points);
-
-      BVHSAHEvent new_event;
-      new_event.position = .5f*(tri_box_min[output_axis] +
-                                tri_box_max[output_axis]);
-      new_event.obj_id   = i;
-      events.push_back(new_event);
-    }
-    std::sort(events.begin(), events.end(), CompareBVHSAHEvent());
-    std::vector<Triangle*> copied_tris;
-    for (size_t i = 0; i < events.size(); i++) {
-      copied_tris.push_back(triangles->at(events.at(i).obj_id));
-    }
-
-    for (int i = objBegin; i < objEnd; i++) {
-      triangles->at(i) = copied_tris.at(i-objBegin);
-    }
-
-    int result = objBegin + best_cost.event;
-
-    if ( result == objBegin || result == objEnd )
-    {
-      if ( num_objects < 8 )
-      {
         output_axis = -1;
-        return 0;
-      }
-      result = objBegin + num_objects/2;
-      return result;
+        return -1;
+    }
+
+    BVHCostEval best_cost;
+    best_cost.event = 0;
+#ifdef TREE_ROTATIONS
+    best_cost.cost = FLT_MAX;
+#else
+    best_cost.cost = BVH_C_isec * num_objects;
+#endif
+    best_cost.axis = -1;
+
+    for ( int axis = 0; axis < 3; axis++ )
+    {
+        BVHCostEval new_cost;
+        if ( buildEvents(objBegin,objEnd,axis,new_cost) )
+        {
+            if ( new_cost.cost < best_cost.cost )
+            {
+                best_cost = new_cost;
+            }
+        }
+    }
+
+    output_axis = best_cost.axis;
+    if ( output_axis != -1 )
+    {
+        // build the events and sort them
+        std::vector<BVHSAHEvent> events;
+        for ( int i = objBegin; i < objEnd; i++ )
+        {
+          float tri_box_min[3];
+          float tri_box_max[3];
+          ResetBound(tri_box_min, tri_box_max);
+          ExtendBoundByTriangle(tri_box_min, tri_box_max,
+                                *triangles->at(i), triangles_store_points);
+
+          BVHSAHEvent new_event;
+          new_event.position = .5f*(tri_box_min[output_axis] +
+                                    tri_box_max[output_axis]);
+          new_event.obj_id   = i;
+          events.push_back(new_event);
+        }
+        std::sort(events.begin(), events.end(), CompareBVHSAHEvent());
+        std::vector<Triangle*> copied_tris;
+        for (size_t i = 0; i < events.size(); i++) {
+          copied_tris.push_back(triangles->at(events.at(i).obj_id));
+        }
+
+        for (int i = objBegin; i < objEnd; i++) {
+          triangles->at(i) = copied_tris.at(i-objBegin);
+        }
+
+        int result = objBegin + best_cost.event;
+
+        if ( result == objBegin || result == objEnd )
+        {
+            if ( num_objects < 8 )
+            {
+                output_axis = -1;
+                return 0;
+            }
+            result = objBegin + num_objects/2;
+            return result;
+        }
+        else
+            return result;
     }
     else
-      return result;
-  }
-  else
-  {
-    return 0; // making a leaf anyway
-  }
+    {
+        return 0; // making a leaf anyway
+    }
+
 }
 
 bool BVH::buildEvents(int first,
@@ -963,66 +1113,293 @@ bool BVH::buildEvents(int first,
   float left_box_max[3];
   ResetBound(left_box_min, left_box_max);
 
-  int num_left  = 0;
+  int num_left = 0;
   int num_right = num_events;
 
-  for ( size_t i = 0; i < events.size(); i++ )
-  {
-    events[i].num_left = num_left;
-    events[i].num_right = num_right;
-    events[i].left_area = BoxArea(left_box_min, left_box_max);
-
-    float tri_box_min[3];
-    float tri_box_max[3];
-    ResetBound(tri_box_min, tri_box_max);
-    ExtendBoundByTriangle(tri_box_min, tri_box_max,
-                          *triangles->at(events[i].obj_id), triangles_store_points);
-    ExtendBoundByBox(left_box_min, left_box_max,
-                     tri_box_min, tri_box_max);
-
-    num_left++;
-    num_right--;
-  }
-
-  float right_box_min[3];
-  float right_box_max[3];
-  ResetBound(right_box_min, right_box_max);
-
-  best_eval.cost = FLT_MAX;
-  best_eval.event = -1;
-
-  for ( int i = num_events - 1; i >= 0; i-- )
-  {
-    float tri_box_min[3];
-    float tri_box_max[3];
-    ResetBound(tri_box_min, tri_box_max);
-    ExtendBoundByTriangle(tri_box_min, tri_box_max,
-                          *triangles->at(events[i].obj_id), triangles_store_points);
-    ExtendBoundByBox(right_box_min, right_box_max,
-                     tri_box_min, tri_box_max);
-
-    if ( events[i].num_left > 0 && events[i].num_right > 0 )
+    for ( size_t i = 0; i < events.size(); i++ )
     {
-      events[i].right_area = BoxArea(right_box_min, right_box_max);
+        events[i].num_left = num_left;
+        events[i].num_right = num_right;
+        events[i].left_area = BoxArea(left_box_min, left_box_max);
 
-      float this_cost = (events[i].num_left * events[i].left_area +
-                         events[i].num_right * events[i].right_area);
-      this_cost /= BoxArea(overall_box_min,
-                           overall_box_max);
-      this_cost *= BVH_C_isec;
-      this_cost += BVH_C_trav;
+        float tri_box_min[3];
+        float tri_box_max[3];
+        ResetBound(tri_box_min, tri_box_max);
+        ExtendBoundByTriangle(tri_box_min, tri_box_max,
+                              *triangles->at(events[i].obj_id), triangles_store_points);
+        ExtendBoundByBox(left_box_min, left_box_max,
+                         tri_box_min, tri_box_max);
 
-      events[i].cost = this_cost;
-      if ( this_cost < best_eval.cost )
+        num_left++;
+        num_right--;
+    }
+
+    float right_box_min[3];
+    float right_box_max[3];
+    ResetBound(right_box_min, right_box_max);
+
+    best_eval.cost = FLT_MAX;
+    best_eval.event = -1;
+
+    for ( int i = num_events - 1; i >= 0; i-- )
+    {
+        float tri_box_min[3];
+        float tri_box_max[3];
+        ResetBound(tri_box_min, tri_box_max);
+        ExtendBoundByTriangle(tri_box_min, tri_box_max,
+                              *triangles->at(events[i].obj_id), triangles_store_points);
+        ExtendBoundByBox(right_box_min, right_box_max,
+                         tri_box_min, tri_box_max);
+
+        if ( events[i].num_left > 0 && events[i].num_right > 0 )
+        {
+            events[i].right_area = BoxArea(right_box_min,
+                                           right_box_max);
+
+            float this_cost = (events[i].num_left * events[i].left_area +
+                               events[i].num_right * events[i].right_area);
+            this_cost /= BoxArea(overall_box_min,
+                                 overall_box_max);
+            this_cost *= BVH_C_isec;
+            this_cost += BVH_C_trav;
+
+            events[i].cost = this_cost;
+            if ( this_cost < best_eval.cost )
+            {
+                best_eval.cost       = this_cost;
+                best_eval.position   = events[i].position;
+                best_eval.axis       = axis;
+                best_eval.event      = i;
+                best_eval.num_left   = events[i].num_left;
+                best_eval.num_right  = events[i].num_right;
+
+            }
+        }
+    }
+    return best_eval.event != -1;
+}
+
+#if 0
+void BVH::rotateNode(int nodeID)
+{
+  const int leftID = nodes[ nodeID ].start_child;
+  const int rightID = nodes[ nodeID ].start_child + 1;
+  const int leftLeftID = nodes[ leftID ].start_child;
+  const int leftRightID = nodes[ leftID ].start_child + 1;
+  const int rightLeftID = nodes[ rightID ].start_child;
+  const int rightRightID = nodes[ rightID ].start_child + 1;
+  float nodeArea = nodes[ nodeID ].area();
+  float leftArea = nodes[ leftID ].area();
+  float rightArea = nodes[ rightID ].area();
+  float leftLeftArea = 0.0;
+  float leftRightArea = 0.0;
+  float rightLeftArea = 0.0;
+  float rightRightArea = 0.0;
+  BVHNode lowerBoxA;
+  BVHNode lowerBoxB;
+  float lowerAreaA = 0.0;
+  float lowerAreaB = 0.0;
+  int best = 0;
+  float bestCost = ( nodeArea * BVH_C_trav +
+                    leftArea * nodes[ leftID ].cost +
+                    rightArea * nodes[ rightID ].cost );
+  // Step 1: Which rotation reduces the cost of this node the most?
+  if ( !nodes[ leftID ].isLeaf() )
+  {
+    leftLeftArea = nodes[ leftLeftID ].area();
+    leftRightArea = nodes[ leftRightID ].area();
+    float partialCost = ( nodeArea * BVH_C_trav +
+                         rightArea * nodes[ rightID ].cost +
+                         leftRightArea * nodes[ leftRightID ].cost +
+                         leftLeftArea * nodes[ leftLeftID ].cost );
+    // (1)    N                     N      //
+    //       / \                   / \     //
+    //      L   R     ----->      L   LL   //
+    //     / \                   / \       //
+    //   LL   LR                R   LR     //
+    BVHNode lowerBox1 = nodes[ rightID ];
+    lowerBox1.extendByNode( nodes[ leftRightID ] );
+    float lowerArea1 = lowerBox1.area();
+    float upperCost1 = lowerArea1 * BVH_C_trav + partialCost;
+    if ( upperCost1 < bestCost )
+    {
+      best = 1;
+      bestCost = upperCost1;
+      lowerBoxA = lowerBox1;
+      lowerAreaA = lowerArea1;
+    }
+    // (2)    N                     N      //
+    //       / \                   / \     //
+    //      L   R     ----->      L   LR   //
+    //     / \                   / \       //
+    //   LL   LR               LL   R      //
+    BVHNode lowerBox2 = nodes[ rightID ];
+    lowerBox2.extendByNode( nodes[ leftLeftID ] );
+    float lowerArea2 = lowerBox2.area();
+    float upperCost2 = lowerArea2 * BVH_C_trav + partialCost;
+    if ( upperCost2 < bestCost )
+    {
+      best = 2;
+      bestCost = upperCost2;
+      lowerBoxA = lowerBox2;
+      lowerAreaA = lowerArea2;
+    }
+  }
+  if ( !nodes[ rightID ].isLeaf() )
+  {
+    rightLeftArea = nodes[ rightLeftID ].area();
+    rightRightArea = nodes[ rightRightID ].area();
+    float partialCost = ( nodeArea * BVH_C_trav +
+                         leftArea * nodes[ leftID ].cost +
+                         rightRightArea * nodes[ rightRightID ].cost +
+                         rightLeftArea * nodes[ rightLeftID ].cost );
+    // (3)    N                     N        //
+    //       / \                   / \       //
+    //      L   R     ----->     RL   R      //
+    //         / \                   / \     //
+    //       RL   RR                L   RR   //
+    BVHNode lowerBox3 = nodes[ leftID ];
+    lowerBox3.extendByNode( nodes[ rightRightID ] );
+    float lowerArea3 = lowerBox3.area();
+    float upperCost3 = lowerArea3 * BVH_C_trav + partialCost;
+    if ( upperCost3 < bestCost )
+    {
+      best = 3;
+      bestCost = upperCost3;
+      lowerBoxA = lowerBox3;
+      lowerAreaA = lowerArea3;
+    }
+    // (4)    N                     N       //
+    //       / \                   / \      //
+    //      L   R     ----->     RR   R     //
+    //         / \                   / \    //
+    //       RL   RR               RL   L   //
+    BVHNode lowerBox4 = nodes[ leftID ];
+    lowerBox4.extendByNode( nodes[ rightLeftID ] );
+    float lowerArea4 = lowerBox4.area();
+    float upperCost4 = lowerArea4 * BVH_C_trav + partialCost;
+    if ( upperCost4 < bestCost )
+    {
+      best = 4;
+      bestCost = upperCost4;
+      lowerBoxA = lowerBox4;
+      lowerAreaA = lowerArea4;
+    }
+    if ( !nodes[ leftID ].isLeaf() )
+    {
+      float partialCost = ( nodeArea * BVH_C_trav +
+                           leftLeftArea * nodes[ leftLeftID ].cost +
+                           leftRightArea * nodes[ leftRightID ].cost +
+                           rightLeftArea * nodes[ rightLeftID ].cost +
+                           rightRightArea * nodes[ rightRightID ].cost );
+      // (5)       N                      N        //
+      //         /   \                  /   \      //
+      //        L     R     ----->     L     R     //
+      //       / \   / \              / \   / \    //
+      //      LL LR RL RR            LL RL LR RR   //
+      BVHNode lowerBox5L = nodes[ leftLeftID ];
+      lowerBox5L.extendByNode( nodes[ rightLeftID ] );
+      float lowerArea5L = lowerBox5L.area();
+      BVHNode lowerBox5R = nodes[ leftRightID ];
+      lowerBox5R.extendByNode( nodes[ rightRightID ] );
+      float lowerArea5R = lowerBox5R.area();
+      float upperCost5 = ( lowerArea5L + lowerArea5R ) * BVH_C_trav + partialCost;
+      if ( upperCost5 < bestCost )
       {
-        best_eval.cost       = this_cost;
-        best_eval.position   = events[i].position;
-        best_eval.axis       = axis;
-        best_eval.event      = i;
-        best_eval.num_left   = events[i].num_left;
-        best_eval.num_right  = events[i].num_right;
+        best = 5;
+        bestCost = upperCost5;
+        lowerBoxA = lowerBox5L;
+        lowerAreaA = lowerArea5L;
+        lowerBoxB = lowerBox5R;
+        lowerAreaB = lowerArea5R;
+      }
+      // (6)       N                      N        //
+      //         /   \                  /   \      //
+      //        L     R     ----->     L     R     //
+      //       / \   / \              / \   / \    //
+      //      LL LR RL RR            LL RR RL LR   //
+      BVHNode lowerBox6L = nodes[ leftLeftID ];
+      lowerBox6L.extendByNode( nodes[ rightRightID ] );
+      float lowerArea6L = lowerBox6L.area();
+      BVHNode lowerBox6R = nodes[ rightLeftID ];
+      lowerBox6R.extendByNode( nodes[ leftRightID ] );
+      float lowerArea6R = lowerBox6R.area();
+      float upperCost6 = ( lowerArea6L + lowerArea6R ) * BVH_C_trav + partialCost;
+      if ( upperCost6 < bestCost )
+      {
+        best = 6;
+        bestCost = upperCost6;
+        lowerBoxA = lowerBox6L;
+        lowerAreaA = lowerArea6L;
+        lowerBoxB = lowerBox6R;
+        lowerAreaB = lowerArea6R;
       }
     }
   }
-  return best_eval.event != -1;
+  // Step 2: Apply that rotation and update all affected costs.
+  nodes[ nodeID ].cost = bestCost / nodeArea;
+  switch( best )
+  {
+    case 0:
+      return;
+    case 1:
+      nodes[ leftID ].setBounds(lowerBoxA);
+      nodes[ leftID ].cost = BVH_C_trav + ( ( leftRightArea * nodes[ leftRightID ].cost +
+                                         rightArea * nodes[ rightID ].cost ) / lowerAreaA );
+      swapNodes(leftLeftID, rightID);
+      break;
+    case 2:
+      nodes[ leftID ].setBounds(lowerBoxA);
+      nodes[ leftID ].cost = BVH_C_trav + ( ( leftLeftArea * nodes[ leftLeftID ].cost +
+                                         rightArea * nodes[ rightID ].cost ) / lowerAreaA );
+      swapNodes(leftRightID,rightID);
+      break;
+    case 3:
+      nodes[ rightID ].setBounds(lowerBoxA);
+      nodes[ rightID ].cost = BVH_C_trav + ( ( rightRightArea * nodes[ rightRightID ].cost +
+                                          leftArea * nodes[ leftID ].cost ) / lowerAreaA );
+      swapNodes(rightLeftID, leftID);
+      break;
+    case 4:
+      nodes[ rightID ].setBounds(lowerBoxA);
+      nodes[ rightID ].cost = BVH_C_trav + ( ( rightLeftArea * nodes[ rightLeftID ].cost +
+                                          leftArea * nodes[ leftID ].cost ) / lowerAreaA );
+      swapNodes(rightRightID,leftID);
+      break;
+    case 5:
+      nodes[ leftID ].setBounds(lowerBoxA);
+      nodes[ rightID ].setBounds(lowerBoxB);
+      nodes[ leftID ].cost = BVH_C_trav + ( ( leftLeftArea * nodes[ leftLeftID ].cost +
+                                         rightLeftArea * nodes[ rightLeftID ].cost ) / lowerAreaA );
+      nodes[ rightID ].cost = BVH_C_trav + ( ( leftRightArea * nodes[ leftRightID ].cost +
+                                          rightRightArea * nodes[ rightRightID ].cost ) / lowerAreaB );
+      swapNodes(leftRightID,rightLeftID);
+      break;
+    case 6:
+      nodes[ leftID ].setBounds(lowerBoxA);
+      nodes[ rightID ].setBounds(lowerBoxB);
+      nodes[ leftID ].cost = BVH_C_trav + ( ( leftLeftArea * nodes[ leftLeftID ].cost +
+                                         rightRightArea * nodes[ rightRightID ].cost ) / lowerAreaA );
+      nodes[ rightID ].cost = BVH_C_trav + ( ( leftRightArea * nodes[ leftRightID ].cost +
+                                          rightLeftArea * nodes[ rightLeftID ].cost ) / lowerAreaB );
+      swapNodes(leftRightID,rightRightID);
+  }
 }
+
+void BVH::swapNodes(int i, int j)
+{
+  BVHNode temp = nodes[i];
+  nodes[i] = nodes[j];
+  nodes[j] = temp;
+}
+
+void BVH::rotateTree(int id)
+{
+  if(!nodes[id].isLeaf())
+    {
+      rotateTree(nodes[id].start_child);
+      rotateTree(nodes[id].start_child + 1);
+      rotateNode(id);
+    }
+}
+#endif

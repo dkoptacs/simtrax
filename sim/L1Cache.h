@@ -6,6 +6,8 @@
 #include "MemoryBase.h"
 #include "MainMemory.h"
 
+#define TRACK_LINE_STATS 0
+
 class L2Cache;
 class MainMemory;
 
@@ -58,16 +60,33 @@ public:
   // Address Storage
   int * tags;
   bool * valid;
-  bool UpdateCache(int address);
+  //long long int * reads_since_validate;
+#if TRACK_LINE_STATS
+  long long int * total_reads;
+  long long int * total_validates;
+  long long int * line_accesses;
+#endif
+  bool UpdateCache(int address, long long int write_cycle);
+  void AddBusTraffic(int address, long long int write_cycle, ThreadState* thread, int which_reg);
+  void UpdateBus(int address, long long int write_cycle);
+  bool PendingUpdate(int address, long long int& temp_latency);
+  long long int IsOnBus(int address, BusTransfer*& transfer);
   int * issued_this_cycle;
   int * read_address;
+  std::vector<CacheUpdate> update_list;
+  std::vector<BusTransfer> bus_traffic;
   //  bool issued_atominc;
+
+  // cycle count
+  long long int current_cycle;
 
   // Hit statistics
   long long int hits, stores, accesses, misses;
   long long int nearby_hits;
   long long int bank_conflicts;
   long long int same_word_conflicts;
+  long long int bus_transfers;
+  long long int bus_hits;
   
 //   // Memory access record
 //   bool memory_trace;

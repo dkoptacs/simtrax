@@ -10,7 +10,7 @@
 
 class Material : public Primitive {
 public:
-  Material(const Vector3& c0, const Vector3& c1, const Vector3& c2, const int& mtl_type = 2);
+  Material(const Vector3& c0, const Vector3& c1, const Vector3& c2, const int& mtl_type = 0);
 
   virtual void LoadIntoMemory(int& memory_position, int max_memory,
                               FourByte* memory);

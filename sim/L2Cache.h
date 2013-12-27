@@ -1,10 +1,17 @@
 #ifndef _SIMHWRT_L2_CACHE_H_
 #define _SIMHWRT_L2_CACHE_H_
 
+#define UNKNOWN_LATENCY 10000000000
+#define DRAM_CLOCK_MULTIPLIER 2
+
+#define UNROLL_HIT 1
+#define UNROLL_MISS 2
+
 // A simple memory that implements one level of direct-mapped cache
 // with parameterized memory size and cache size
 #include "MemoryBase.h"
 #include <pthread.h>
+
 
 class MainMemory;
 class L1Cache;
@@ -18,7 +25,7 @@ public:
   // cache_size is the size of the cache in blocks (words)
   // num_blocks is the size of the memory in blocks (words)
   L2Cache(MainMemory* mem, int cache_size, int hit_latency,
-	  int num_banks, int line_size, bool memory_trace, bool l2_off, bool l1_off);
+	  bool _disable_usimm, int num_banks, int line_size, bool memory_trace, bool l2_off, bool l1_off);
 
   ~L2Cache();
   virtual bool SupportsOp(Instruction::Opcode op) const;
@@ -32,7 +39,8 @@ public:
   virtual double Utilization();
 
   bool IssueInstruction(Instruction* ins, L1Cache* L1, ThreadState* thread, 
-			int &ret_latency, long long int current_cycle);
+			long long int &ret_latency, long long int current_cycle, 
+			int address, int& unroll_type);
   void Reset();
   void Clear();
 
@@ -43,6 +51,7 @@ public:
   pthread_mutex_t cache_mutex;
 
   bool unit_off;
+  bool disable_usimm;
   int hit_latency;
   int cache_size;
   int num_banks;
@@ -50,6 +59,8 @@ public:
   int line_size;
   int processed_this_cycle;
   MainMemory * mem;
+  long long int current_cycle;
+  std::vector<CacheUpdate> update_list;
 
   // need a way to decide when instructions finish
   //InstructionPriorityQueue* instructions;
@@ -61,7 +72,10 @@ public:
   // Address Storage
   int * tags;
   bool * valid;
-  bool UpdateCache(int address);
+  bool UpdateCache(int address, long long int update_cycle);
+  bool PendingUpdate(int address, long long int& temp_latency);
+  bool BankConflict(int address, long long int cycle);
+  long long int traxAddrToUsimm(int address);
   int issued_this_cycle;
   //  bool issued_atominc;
 
