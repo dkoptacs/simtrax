@@ -21,7 +21,8 @@ SIMDIR=../../../sim
 LLVM_TRAXDIR=../../../llvm_trax
 
 # Directories that should be in LLVM_Trax
-BINDIR=${LLVM_TRAXDIR}/bin
+#BINDIR=${LLVM_TRAXDIR}/bin
+BINDIR=/Users/danielkopta/llvm-3.1.src/Release+Asserts/bin
 LIBDIR=${LLVM_TRAXDIR}/lib
 INCLUDEDIR=${LLVM_TRAXDIR}/include
 LINKERDIR=${LLVM_TRAXDIR}/linker
@@ -29,9 +30,14 @@ LINKERDIR=${LLVM_TRAXDIR}/linker
 # Scene setup
 SCENEDIR=../../scenes
 # Cornell Scene
-VIEWFILE=\"${SCENEDIR}/cornell/cornell.view\"
-MODELFILE=\"${SCENEDIR}/cornell/CornellBox.obj\"
-LIGHTFILE=\"${SCENEDIR}/cornell/cornell.light\"
+#VIEWFILE=\"${SCENEDIR}/cornell/cornell.view\"
+#MODELFILE=\"${SCENEDIR}/cornell/CornellBox.obj\"
+#LIGHTFILE=\"${SCENEDIR}/cornell/cornell.light\"
+
+# Luxmark Room Scene
+VIEWFILE=\"/Users/danielkopta/HWRT/SimHWRT/trunk/views/luxroom_wide.view\"
+MODELFILE=\"/Users/danielkopta/HWRT/SimHWRT/trunk/test_models/luxroom/luxroom.objl\"
+LIGHTFILE=\"/Users/danielkopta/HWRT/SimHWRT/trunk/lights/cube.light\"
 
 # If you want to load memory dumps instead of rebuilding the BVH
 # use trax_setup(true)
@@ -47,10 +53,16 @@ CXXLIBS=${LIBDIR}/trax_cpp.cpp
 
 # Front end compiler to use for trax target
 # For the default mac build
-TRAXC=llvm-gcc
-# If you prefer clang it might work.
-# TRAXC=clang
+#TRAXC=llvm-gcc
+TRAXC=/Developer/Platforms/iPhoneOS.platform/Developer/usr/llvm-gcc-4.2/bin/llvm-gcc-4.2
 TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR}
+
+# If you prefer clang it might work.
+#TRAXC=/Users/danielkopta/clang+llvm-3.1-x86_64-apple-darwin11/bin/clang
+#TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR} -target mblaze -S
+#LLCARGS=
+
+#TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR}
 
 all: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
 default: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
@@ -82,12 +94,20 @@ objs/%.bc: %${CSUFFIX} mkdirs
 
 OBJS := $(addprefix objs/, $(notdir $(SOURCES:${CSUFFIX}=.bc))) objs/trax_trax.bc
 
+
 rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
-	${BINDIR}/llvm-ld ${OBJS} -b rt.bc
-	${BINDIR}/llvm-dis rt.bc -o pre.ll
-	${BINDIR}/opt rt.bc -O3 -inline-threshold 200000000 -o rt.bc
-	${BINDIR}/llvm-dis rt.bc -o post.ll
-	${BINDIR}/llc rt.bc -o rt.s -march=trax
+	@${BINDIR}/llvm-ld ${OBJS} -b rt.bc
+	@${BINDIR}/llvm-dis rt.bc -o pre.ll
+	@${BINDIR}/opt rt.bc -O3 -inline-threshold 200000000 -o rt.bc
+	@${BINDIR}/llvm-dis rt.bc -o post.ll
+	@${BINDIR}/llc rt.bc -o rt.s -march=trax
+
+#rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
+#${BINDIR}/llvm-ld ${OBJS} -b rt.bc
+#${BINDIR}/llvm-dis rt.bc -o pre.ll
+#${BINDIR}/opt rt.bc -O3 -o rt.bc
+#${BINDIR}/llvm-dis rt.bc -o post.ll
+#${BINDIR}/llc rt.bc -o rt.s -march=trax
 
 clean:
 	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ *.dSYM a.out

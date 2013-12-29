@@ -380,54 +380,61 @@ int usimm_setup(char* config_filename)
 
   read_config_file(config_file);
 
+  //TODO: Get rid of this "switch" statement, and just leave the .vi file up to the user.
 
 	/* Find the appropriate .vi file to read*/
+  /*
 	if (NUM_CHANNELS == 1 && NUMCORES == 1) {
-  		vi_file = fopen("configs/usimm_configs/1Gb_x4.vi", "r"); 
+  		vi_file = fopen("../samples/configs/usimm_configs/1Gb_x4.vi", "r"); 
 		chips_per_rank= 16;
   		printf("Reading vi file: 1Gb_x4.vi\t\n%d Chips per Rank\n",chips_per_rank); 
 	} else if (NUM_CHANNELS == 1 && NUMCORES == 2) {
-  		vi_file = fopen("configs/usimm_configs/2Gb_x4.vi", "r");
+  		vi_file = fopen("../samples/configs/usimm_configs/2Gb_x4.vi", "r");
 		chips_per_rank= 16;
   		printf("Reading vi file: 2Gb_x4.vi\t\n%d Chips per Rank\n",chips_per_rank);
 	} else if (NUM_CHANNELS == 1 && (NUMCORES > 2) && (NUMCORES <= 4)) {
-  		vi_file = fopen("configs/usimm_configs/4Gb_x4.vi", "r");
+  		vi_file = fopen("../samples/configs/usimm_configs/4Gb_x4.vi", "r");
 		chips_per_rank= 16;
   		printf("Reading vi file: 4Gb_x4.vi\t\n%d Chips per Rank\n",chips_per_rank);
 	} else if (NUM_CHANNELS == 4 && NUMCORES == 1) {
-  		vi_file = fopen("configs/usimm_configs/1Gb_x16.vi", "r");
+  		vi_file = fopen("../samples/configs/usimm_configs/1Gb_x16.vi", "r");
 		chips_per_rank= 4;
   		printf("Reading vi file: 1Gb_x16.vi\t\n%d Chips per Rank\n",chips_per_rank);
 	} else if (NUM_CHANNELS == 4 && NUMCORES == 2) {
-  		vi_file = fopen("configs/usimm_configs/1Gb_x8.vi", "r");
+  		vi_file = fopen("../samples/configs/usimm_configs/1Gb_x8.vi", "r");
 		chips_per_rank= 8;
   		printf("Reading vi file: 1Gb_x8.vi\t\n%d Chips per Rank\n",chips_per_rank);
 	} else if (NUM_CHANNELS == 4 && (NUMCORES > 2) && (NUMCORES <= 4)) {
-  		vi_file = fopen("configs/usimm_configs/2Gb_x8.vi", "r");
+  		vi_file = fopen("../samples/configs/usimm_configs/2Gb_x8.vi", "r");
 		chips_per_rank= 8;
   		printf("Reading vi file: 2Gb_x8.vi\t\n%d Chips per Rank\n",chips_per_rank);
 	} else if (NUM_CHANNELS == 4 && (NUMCORES > 4) && (NUMCORES <= 8)) {
-  		vi_file = fopen("configs/usimm_configs/4Gb_x8.vi", "r");
+  		vi_file = fopen("../samples/configs/usimm_configs/4Gb_x8.vi", "r");
 		chips_per_rank= 8;
   		printf("Reading vi file: 4Gb_x8.vi\t\n%d Chips per Rank\n",chips_per_rank);
 	} else if (NUM_CHANNELS == 4 && (NUMCORES > 8) && (NUMCORES <= 16)) {
-  		vi_file = fopen("configs/usimm_configs/4Gb_x4.vi", "r");
+  		vi_file = fopen("../samples/configs/usimm_configs/4Gb_x4.vi", "r");
 		chips_per_rank= 16;
   		printf("Reading vi file: 4Gb_x4.vi\t\n%d Chips per Rank\n",chips_per_rank);
-	}  else if (NUM_CHANNELS > 4) {
-	  vi_file = fopen("configs/usimm_configs/1Gb_x16_amd2GHz.vi", "r");
-	  chips_per_rank= 16;
-	  printf("Reading vi file: 1Gb_x16_amd2GHz.vi\t\n%d Chips per Rank\n",chips_per_rank);
-	}
-	else {
-	  printf ("PANIC:: Channel - Core configuration not supported\n");
-	  assert (-1);
-	}
-	
-  	if (!vi_file) {
- 	  printf("Missing DRAM chip parameter file.  Quitting. \n");
-  	  return -5;
-  	}
+
+	} 
+	else */
+
+  //if (NUM_CHANNELS > 4) {
+  if (NUM_CHANNELS >= 4) {
+    vi_file = fopen("../samples/configs/usimm_configs/1Gb_x16_amd2GHz.vi", "r");
+    chips_per_rank= 16;
+    printf("Reading vi file: 1Gb_x16_amd2GHz.vi\t\n%d Chips per Rank\n",chips_per_rank);
+  }
+  else {
+    printf ("PANIC:: Channel - Core configuration not supported\n");
+    assert (-1);
+  }
+  
+  if (!vi_file) {
+    printf("Missing DRAM chip parameter file.  Quitting. \n");
+    return -5;
+  }
 
 
 

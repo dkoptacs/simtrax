@@ -594,7 +594,7 @@ int main(int argc, char* argv[]) {
   GlobalRegisterFile globals(num_globals, num_thread_procs * threads_per_proc * num_cores * num_L2s, atominc_report_period);
 
   if (config_file == NULL) {
-    config_file = (char*)"configs/default.config";
+    config_file = (char*)"../samples/configs/default.config";
     printf("No configuration specified, using default: %s\n", config_file);
   }
   //if (config_file != NULL) {
@@ -896,7 +896,7 @@ int main(int argc, char* argv[]) {
       if (usimm_config_file == NULL) {
 	//usimm_config_file = "configs/usimm_configs/1channel.cfg";
 	//usimm_config_file = "configs/usimm_configs/4channel.cfg";
-	usimm_config_file = (char*)"configs/usimm_configs/gddr5.cfg";
+	usimm_config_file = (char*)"../samples/configs/usimm_configs/gddr5.cfg";
 	printf("No USIMM configuration specified, using default: %s\n", usimm_config_file);
       }
       usimm_setup(usimm_config_file);
