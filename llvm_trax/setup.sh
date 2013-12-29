@@ -8,7 +8,8 @@ NUM_CORES=4
 
 PWD=`pwd`
 
-tar zxvf llvm-3.1.tar.gz
+echo Extracting llvm-3.1...
+tar zxf llvm-3.1.tar.gz
 
 LLVMDIR=$PWD/llvm-3.1
 
