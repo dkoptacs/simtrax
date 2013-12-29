@@ -20,6 +20,7 @@ public:
   bool IssueStore(reg_value write_val, int address, ThreadState* thread, long long int write_cycle, Instruction& ins);
   void LoadJumpTable(std::vector<int> jump_table);
 
+  int jtable_size;
   int width;
   int issued_this_cycle;
 

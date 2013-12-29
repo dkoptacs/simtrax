@@ -7,6 +7,7 @@ LocalStore::LocalStore(int _latency, int _width) :
   FunctionalUnit(_latency){
   issued_this_cycle = 0;
   width = _width;
+  jtable_size = 0;
   
   storage = new FourByte*[width];
   for (int i = 0; i < width; ++i) {
@@ -67,13 +68,16 @@ bool LocalStore::IssueLoad(int write_reg, int address, ThreadState* thread, long
 
 bool LocalStore::IssueStore(reg_value write_val, int address, ThreadState* thread, long long int write_cycle, Instruction& ins) {
   if (address < 0 || address > LOCAL_SIZE) {
-    printf("Error Issuing load in LocalStore. 0x%8x not in [0x%8x, 0x%8x].\n", address, 0, LOCAL_SIZE);
+    printf("Error Issuing store in LocalStore. 0x%8x not in [0x%8x, 0x%8x].\n", address, 0, LOCAL_SIZE);
+    exit(1);
+  }
+  if (address < jtable_size) {
+    printf("Error Issuing store in LocalStore. Address 0x%8x overwrites jump table entries (stack overflow)\n", address);
+    exit(1);
   }
   static int max_addr = 0;
   if (address > max_addr) {
     max_addr = address;
-    // This is not as interesting as I'd initially thought since stacks grow down and not up.
-    //printf("Max LocalStore Address: 0x%8x\n", max_addr);
   }
   // write write_val to mem[address] for thread
   if (ins.op == Instruction::sb || ins.op == Instruction::sbi) {
@@ -182,10 +186,10 @@ double LocalStore::Utilization() {
   return static_cast<double>(issued_this_cycle)/static_cast<double>(width);
 }
 
-// load jump table in to low order words of stack (top of stack space)
-//TODO: Add error checking for stomping on these values
+// load jump table in to low order words of stack ("top" of stack space)
 void LocalStore::LoadJumpTable(std::vector<int> jump_table)
 {
+  jtable_size = jump_table.size();
   for(int i=0; i < width; i++)
     for(size_t j=0; j < jump_table.size(); j++)
       {
