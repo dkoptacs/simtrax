@@ -69,15 +69,15 @@ ${TRAXOUTPUT}: rt.s
 mkdirs:
 	@mkdir -p objs;
 
-objs/%.o: ${SIMDIR}/%.cc mkdirs
+objs/%.o: ${SIMDIR}/%.cc
 	@echo "Building $<"
 	@${CXX} ${CXXFLAGS} -o $@ -c $<
 
-objs/trax_trax.bc: ${LIBDIR}/trax_trax.cpp mkdirs
+objs/trax_trax.bc: ${LIBDIR}/trax_trax.cpp
 	@echo "Building $<"
 	@${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
 
-objs/%.bc: %${CSUFFIX} mkdirs
+objs/%.bc: %${CSUFFIX}
 	@echo "Building $<"
 	@${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
 
