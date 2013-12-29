@@ -46,11 +46,12 @@ CXXSIMFILES=${SIMDIR}/LoadMemory.cc ${SIMDIR}/OBJLoader.cc ${SIMDIR}/OBJListLoad
 CXXLIBS=${LIBDIR}/trax_cpp.cpp
 
 # Front end compiler to use for trax target
-# For the default mac build
-TRAXC=llvm-gcc
-# If you prefer clang it might work.
-# TRAXC=clang
-TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR}
+# For old systems
+#TRAXC=llvm-gcc
+
+# clang is preferred.
+TRAXC=clang
+TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR} -target mblaze -S
 
 all: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
 default: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
@@ -83,11 +84,9 @@ objs/%.bc: %${CSUFFIX} mkdirs
 OBJS := $(addprefix objs/, $(notdir $(SOURCES:${CSUFFIX}=.bc))) objs/trax_trax.bc
 
 rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
-	@${BINDIR}/llvm-ld ${OBJS} -b rt.bc
-	@${BINDIR}/llvm-dis rt.bc -o pre.ll
+	@${BINDIR}/llvm-link ${OBJS} -o rt.bc
 	@${BINDIR}/opt rt.bc -O3 -inline-threshold 200000000 -o rt.bc
-	@${BINDIR}/llvm-dis rt.bc -o post.ll
-	@${BINDIR}/llc rt.bc -o rt.s -march=trax
+	@${BINDIR}/llc rt.bc -o rt.s -march=trax -mattr=fpu,mul,div,barrel
 
 clean:
 	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ *.dSYM a.out
