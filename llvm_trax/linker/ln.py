@@ -15,7 +15,8 @@ def main():
     sys.stdout.write('\tLOADIMM\tr0, 0\n')
     # change this value if the stack needs to be bigger
     sys.stdout.write('\tADDI\tr1, r0, %d\n'%STACK_OFFSET)
-    sys.stdout.write('start:\tbrlid\tr15, main\n')
+    # Compiler generates _Z9trax_mainv as main label. Set up a jump and return to it
+    sys.stdout.write('start:\tbrlid\tr15, _Z9trax_mainv\n')
     sys.stdout.write('\tNOP\n')
     sys.stdout.write('\tHALT\n')
     # the abort library call
