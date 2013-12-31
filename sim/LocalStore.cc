@@ -1,5 +1,6 @@
 #include "LocalStore.h"
 #include "IssueUnit.h"
+#include <stdlib.h> // for gcc (exit)
 
 #define LOCAL_SIZE 16384
 

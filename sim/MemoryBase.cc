@@ -1,4 +1,5 @@
 #include <fstream>
+#include <stdlib.h> // for gcc (exit)
 
 #include "MemoryBase.h"
 #include "IssueUnit.h"
