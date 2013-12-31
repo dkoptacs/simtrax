@@ -583,8 +583,9 @@ int main(int argc, char* argv[]) {
   // Keep track of register names
   std::vector<symbol*> regs;
 
-  // Assembler needs somewhere to store the jump table, to be loaded in to local stores after assembly
+  // Assembler needs somewhere to store the jump table and string literals, to be loaded in to local stores after assembly
   std::vector<int> jump_table;
+  std::vector<std::string> ascii_literals;
 
   // Instruction Memory
   std::vector<Instruction*> instructions;
@@ -820,7 +821,7 @@ int main(int argc, char* argv[]) {
 
   if(assem_file!=NULL)
     {
-      int numRegs = Assembler::LoadAssem(assem_file, instructions, regs, num_regs, jump_table, start_wq, start_framebuffer, start_camera, start_scene, start_light, start_bg_color, start_matls, start_permutation, print_symbols);
+      int numRegs = Assembler::LoadAssem(assem_file, instructions, regs, num_regs, jump_table, ascii_literals, start_wq, start_framebuffer, start_camera, start_scene, start_light, start_bg_color, start_matls, start_permutation, print_symbols);
       if(numRegs<=0)
         {
           printf("assembler returned an error, exiting\n");
@@ -859,7 +860,7 @@ int main(int argc, char* argv[]) {
 
   // initialize the cores
   for (size_t i = 0; i < cores.size(); ++i) {
-    cores[i]->initialize(issue_verbosity, num_icaches, icache_banks, simd_width, jump_table);
+    cores[i]->initialize(issue_verbosity, num_icaches, icache_banks, simd_width, jump_table, ascii_literals);
   }
 
   // Check that there are units for each instruction in the program

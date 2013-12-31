@@ -48,7 +48,7 @@ TraxCore::~TraxCore(){
   }
 }
 
-void TraxCore::initialize(int issue_verbosity, int num_icaches, int icache_banks, int simd_width, std::vector<int> jump_table) {
+void TraxCore::initialize(int issue_verbosity, int num_icaches, int icache_banks, int simd_width, std::vector<int> jump_table, std::vector<std::string> ascii_literals) {
   // set up thread states
   for (int i = 0; i < num_thread_procs; i++) {
     ThreadProcessor *tp = new ThreadProcessor(threads_per_proc, num_regs, i, schedule, instructions, modules, &functional_units, (size_t)i, core_id, l2_id);
@@ -70,6 +70,16 @@ void TraxCore::initialize(int issue_verbosity, int num_icaches, int icache_banks
     LocalStore* ls_unit = dynamic_cast<LocalStore*>(modules[i]);
     if (ls_unit) {
       ls_unit->LoadJumpTable(jump_table);
+      ls_unit->LoadAsciiLiterals(ascii_literals);
+
+      // While we have a pointer to the local store, loop through units again to find DebugUnit (ugh)
+      // DebugUnit needs pointer to stack for PRINTF instruction to work
+      for (size_t i = 0; i < functional_units.size(); i++) {
+	DebugUnit* debug = dynamic_cast<DebugUnit*>(functional_units[i]);
+	if(debug)
+	  debug->setLocalStore(ls_unit);
+      }
+
     }
     utilizations.push_back(0.0);
   }

@@ -117,6 +117,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::LWI:
   case Instruction::lbui:
   case Instruction::lhui:
+  case Instruction::sext8:
     // check args[1] and select it if it fails
     if ( register_ready[args[1]] <= cur_cycle )
       return true;
@@ -239,6 +240,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     break;
 
   case Instruction::PRINT:
+  case Instruction::PRINTF:
     if (register_ready[args[0]] <= cur_cycle)
       return true;
     else
@@ -477,6 +479,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("MULHU"),
   std::string("sra"),
   std::string("srl"),
+  std::string("sext8"),
   // immediates
   std::string("ADDI"), //
   std::string("ADDIC"),
@@ -546,6 +549,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("NOP"),
   std::string("HALT"),
   std::string("PRINT"),
+  std::string("PRINTF"),
   std::string("PROF"),
 };
 

@@ -19,6 +19,7 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::ANDN ||
       op == Instruction::sra ||
       op == Instruction::srl ||
+      op == Instruction::sext8 ||
       op == Instruction::ORI ||
       op == Instruction::XORI ||
       op == Instruction::ANDI ||
@@ -56,6 +57,7 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     break;
   case Instruction::sra:
   case Instruction::srl:
+  case Instruction::sext8:
   case Instruction::bslli:
   case Instruction::bsrli:
   case Instruction::bsrai:
@@ -103,6 +105,9 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   case Instruction::sra:
   case Instruction::srl:
     result.udata = arg1.udata >> 1;
+    break;
+  case Instruction::sext8:
+    result.udata = ((arg1.udata << 24) >> 24);
     break;
   case Instruction::BITSLEFT:
     result.udata = arg1.udata << arg2.udata;

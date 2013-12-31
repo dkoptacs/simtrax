@@ -11,9 +11,11 @@ int Assembler::start_matls = 0;
 int Assembler::start_permutation = 0;
 
 int jtable_size;
+int ascii_table_size;
+
 const char *delimeters = ", ()[\t\n"; // includes only left bracket for backwards compatibility with vector registers
 
-int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions, std::vector<symbol*>& regs, int num_system_regs, std::vector<int>& jump_table, int _start_wq, int _start_framebuffer, int _start_camera, int _start_scene, int _start_light, int _start_bg_color, int start_matls, int start_permutation, bool print_symbols)
+int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions, std::vector<symbol*>& regs, int num_system_regs, std::vector<int>& jump_table, std::vector<std::string>& ascii_literals, int _start_wq, int _start_framebuffer, int _start_camera, int _start_scene, int _start_light, int _start_bg_color, int start_matls, int start_permutation, bool print_symbols)
 {
   printf("Loading assembly file %s\n", filename);
   Assembler::start_wq = _start_wq;
@@ -34,6 +36,7 @@ int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions
 
   num_instructions = 0;
   jtable_size = 0;
+  ascii_table_size = 0;
 
   /* reserve 4 special purpose registers
      0 -- when used as argument to PRINT, prints a tab (\t)
@@ -74,7 +77,7 @@ int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions
   // 1st pass
   while(!feof(input))
     {
-      if(!handleLine(input, 1, instructions, labels, regs, jump_table))
+      if(!handleLine(input, 1, instructions, labels, regs, jump_table, ascii_literals))
 	{
 	  printf("line %d\n", lineCount);
 	  return 0;
@@ -82,19 +85,29 @@ int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions
       lineCount++;
     }
   fclose(input);
+
+  // Fix up the ascii literal labels' addresses now that the jtable size is known.
+  // Ascii literals will go right after the jtable on the stack
+  // This is sort of like pass 1.5
+  for(i=0; i<labels.size(); i++)
+    if(labels.at(i)->isAscii)
+      labels.at(i)->address += jtable_size;
+  
+
   input = fopen(filename, "r");
   lineCount = 1;
   // 2nd pass
   //jtable_size = 0; // reset jump table counter
   while(!feof(input))
     {
-      if(!handleLine(input, 2, instructions, labels, regs, jump_table))
+      if(!handleLine(input, 2, instructions, labels, regs, jump_table, ascii_literals))
 	{
 	  printf("line %d\n", lineCount);
 	  return 0;
 	}
       lineCount++;
     }
+
   if(print_symbols)
     {
       printf("Symbol table:\n");
@@ -126,7 +139,7 @@ int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions
   return num_regs;
 }
 
-int Assembler::handleLine(FILE *input, int pass, std::vector<Instruction*>& instructions, std::vector<symbol*>& labels, std::vector<symbol*>& regs, std::vector<int>& jump_table)
+int Assembler::handleLine(FILE *input, int pass, std::vector<Instruction*>& instructions, std::vector<symbol*>& labels, std::vector<symbol*>& regs, std::vector<int>& jump_table, std::vector<std::string>& ascii_literals)
 {
   char line[1000];
   if(!fgets(line, 1000, input))
@@ -189,6 +202,7 @@ int Assembler::handleLine(FILE *input, int pass, std::vector<Instruction*>& inst
     {
       if(pass==1)
 	{
+	  // Jump tables
 	  if(strcmp(token, ".long") == 0)
 	    {
 	      // if this is the first .long, set the address of the jump table
@@ -197,7 +211,31 @@ int Assembler::handleLine(FILE *input, int pass, std::vector<Instruction*>& inst
 		  labels[labels.size()-1]->isJumpTable = true;
 		  labels[labels.size()-1]->address = jtable_size;
 		}
+	      // Make space for the entry
 	      jtable_size += 4; // local store is byte-addressed, assign 1 word for each entry
+
+	      // We will add the entry to the table on the 2nd pass once all label addresses are known
+	    }
+	  // String literals
+	  else if(strcmp(token, ".asciz") == 0)
+	    {
+	      // if this is the first .asciz, set the address of the string
+	      // string addresses will be offset once the full jump table size is known
+	      if(!labels[labels.size()-1]->isAscii)
+		{
+		  labels[labels.size()-1]->isAscii = true;
+		  labels[labels.size()-1]->address = ascii_table_size;
+		}
+	      // Get the next token which will be the string itself
+	      // Don't use normal delimeters since strings can contain them
+	      token = strtok(NULL, "\t\"");
+	      std::string newString(token);
+	      // Convert "\n" to '\n' and so-forth
+	      newString = escapedToAscii(newString);
+	      // Add it to the table (string literals handled completely by first pass)
+	      ascii_literals.push_back(newString);
+	      // Make space for it
+	      ascii_table_size += newString.length() + 1;
 	    }
 	  else
 	    num_instructions++;
@@ -214,9 +252,12 @@ int Assembler::handleLine(FILE *input, int pass, std::vector<Instruction*>& inst
 		  printf("WARNING: failed to add jump table entry: %s. This likely means the source uses inheritance, which is not supported, and will fail.\n", token);
 		  return 1;
 		}
-
 	      jump_table.push_back(args[0]); // add the label's address to the jump table
-
+	    }
+	  else if(strcmp(token, ".asciz") == 0)
+	    {
+	      // .asciz directives are all handled by the first pass
+	      return 1;
 	    }
 	  else
 	    {
@@ -395,6 +436,73 @@ int Assembler::isKeyword(char *token, int& value)
       return 1;
     }
   return 0;
+}
+
+// Converts strings containing literally escaped characters to their actual ascii equivalent,
+// such as: 
+// "a\nb" 
+// becomes 
+// "a
+//  b"
+std::string Assembler::escapedToAscii(std::string input)
+{
+  std::string retval;
+  std::string::iterator it = input.begin();
+  while (it != input.end())
+    {
+      if (*it == '\\')
+	{
+	  it++;
+	  if(it == input.end())
+	    break;
+	  switch (*it) 
+	    {
+	    case '\'': 
+	      retval += '\''; 
+	      break;
+	    case '\"': 
+	      retval += '\"'; 
+	      break;
+	    case '?': 
+	      retval += '?'; 
+	      break;
+	    case '\\': 
+	      retval += '\\'; 
+	      break;
+	    case '0': 
+	      retval += '\0'; 
+	      break;
+	    case 'a': 
+	      retval += '\a'; 
+	      break;
+	    case 'b': 
+	      retval += '\b'; 
+	      break;
+	    case 'f': 
+	      retval += '\f'; 
+	      break;
+	    case 'n': 
+	      retval += '\n'; 
+	      break;
+	    case 'r': 
+	      retval += '\r'; 
+	      break;
+	    case 't': 
+	      retval += '\t'; 
+	      break;
+	    case 'v': 
+	      retval += '\v'; 
+	      break;
+	    default: 
+	      continue;
+	    }
+	}
+      else
+	retval += *it;
+
+      it++;
+    }
+  return retval;
 }
 
 

@@ -50,14 +50,14 @@ bool LocalStore::IssueLoad(int write_reg, int address, ThreadState* thread, long
 
   // check for byte loads
   if (ins.op == Instruction::lbu || ins.op == Instruction::lbui) {
-    result.udata = ((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue & BITMASK;
+    result.udata = ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue & BITMASK;
   } 
   // check for halfword loads
   else if (ins.op == Instruction::lhui) {
-    result.udata = ((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue & HALFMASK;
+    result.udata = ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue & HALFMASK;
   }
   else {
-    result.udata = ((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue;
+    result.udata = ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue;
   }
   if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op)) {
     // pipeline hazzard
@@ -81,16 +81,16 @@ bool LocalStore::IssueStore(reg_value write_val, int address, ThreadState* threa
   }
   // write write_val to mem[address] for thread
   if (ins.op == Instruction::sb || ins.op == Instruction::sbi) {
-    ((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue = 
-      (((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue & ~(BITMASK)) +
+    ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue = 
+      (((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue & ~(BITMASK)) +
       (write_val.udata & BITMASK);
   } else if (ins.op == Instruction::sh || ins.op == Instruction::shi) {
-    ((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue = 
-      (((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue & ~(HALFMASK)) +
+    ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue = 
+      (((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue & ~(HALFMASK)) +
       (write_val.udata & HALFMASK);
   } else {
     //     storage[thread->thread_id][address].uvalue = write_val.udata;
-    ((FourByte *)((char *)(storage[thread->thread_id])) + address)->uvalue = write_val.udata;
+    ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue = write_val.udata;
   }
   return true;
 }
@@ -189,10 +189,58 @@ double LocalStore::Utilization() {
 // load jump table in to low order words of stack ("top" of stack space)
 void LocalStore::LoadJumpTable(std::vector<int> jump_table)
 {
-  jtable_size = jump_table.size();
+  jtable_size = jump_table.size() * 4; // convert from num words to num bytes
   for(int i=0; i < width; i++)
     for(size_t j=0; j < jump_table.size(); j++)
       {
-	((FourByte *)((char *)(storage[i])) + (j*4))->uvalue = jump_table[j];
+	//storage[i][j].uvalue = jump_table[j];
+	((FourByte *)((char *)(storage[i]) + (j*4)))->uvalue = jump_table[j];
       }
+}
+
+// load data segment (only ascii literals supported) to stack right after jump table
+void LocalStore::LoadAsciiLiterals(std::vector<std::string> ascii_literals)
+{
+  // TODO: rename jtable_size to data_size
+
+  int byteNum = 0;
+  int wordNum = jtable_size / 4;
+  FourByte tempWord;
+  tempWord.uvalue = 0;
+
+  for(int i=0; i < width; i++)
+    {
+      wordNum = jtable_size / 4;
+      for(size_t j=0; j < ascii_literals.size(); j++)
+	{
+	  // <= length here so that we get the null terminating char
+	  for(int k = 0; k <= ascii_literals.at(j).length(); k++)
+	    {
+	      // build a word out of up to 4 chars
+	      unsigned letter = (unsigned)(ascii_literals.at(j)[k]);
+	      int shift = byteNum * 8;
+	      letter <<= shift;
+	      tempWord.uvalue |= letter;
+	      byteNum = (byteNum + 1) % 4;
+	      
+	      // Check if the word is full
+	      if(byteNum == 0)
+		{
+		  ((FourByte *)((char *)(storage[i]) + (wordNum * 4)))->uvalue = tempWord.uvalue;
+		  tempWord.uvalue = 0;
+		  wordNum++;
+		}
+	    }
+	}
+      // Check if we ended mid-word, write the remaining bytes
+      if(byteNum != 0)
+	{
+	  ((FourByte *)((char *)(storage[i]) + (wordNum * 4)))->uvalue = tempWord.uvalue;      
+	}
+    }
+  
+  // Add size of string literals to protected space size
+  for(size_t i = 0; i < ascii_literals.size(); i++)
+    jtable_size += ascii_literals.at(i).length() + 1;
+  
 }

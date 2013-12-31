@@ -19,6 +19,7 @@ public:
   bool IssueLoad(int write_reg, int address, ThreadState* thread, long long int write_cycle, Instruction& ins);
   bool IssueStore(reg_value write_val, int address, ThreadState* thread, long long int write_cycle, Instruction& ins);
   void LoadJumpTable(std::vector<int> jump_table);
+  void LoadAsciiLiterals(std::vector<std::string> ascii_literals);
 
   int jtable_size;
   int width;

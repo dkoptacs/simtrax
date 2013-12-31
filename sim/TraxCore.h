@@ -28,7 +28,7 @@ public:
   ~TraxCore();
 
   // sets up issue unit and thread states
-  void initialize(int issue_verbosity, int num_icaches, int icache_banks, int simd_width, std::vector<int> jump_table);
+  void initialize(int issue_verbosity, int num_icaches, int icache_banks, int simd_width, std::vector<int> jump_table, std::vector<std::string> ascii_literals);
   void EnableRegisterDump(int proc_num);
   void Reset();
   void SetSymbols(std::vector<symbol*> *regs);

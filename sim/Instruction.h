@@ -125,6 +125,7 @@ public:
     MULHU,
     sra,
     srl,
+    sext8, // sign extend byte
     // immediate versions of ops
     ADDI,  //mblaze addik
     ADDIC, //mblaze addick
@@ -178,7 +179,7 @@ public:
     bslli,
     bsrli,
     bsrai,
-    // FP instructions to add
+    // extra FP instructions
     FPDIV,
     DIV,
     FPUN,
@@ -194,6 +195,7 @@ public:
     NOP,         //
     HALT,        //
     PRINT,       // which_reg
+    PRINTF,      // src (containing addr to format string)
     PROF,        // kernel_id, unused, unused
     // end profiling instructions
     NUM_OPS      //
