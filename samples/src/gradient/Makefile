@@ -51,7 +51,7 @@ CXXLIBS=${LIBDIR}/trax_cpp.cpp
 
 # clang is preferred.
 TRAXC=clang
-TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR} -target mblaze -S
+TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR} -target mblaze -S -O3
 
 all: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
 default: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
@@ -64,7 +64,7 @@ ${BINARYOUTPUT}: ${SOURCES} ${COBJS}
 
 ${TRAXOUTPUT}: rt.s
 	@echo "Writing ${TRAXOUTPUT}"
-	@${LINKERDIR}/ln.py rt.s > ${TRAXOUTPUT}
+	@${LINKERDIR}/ln.py rt.s ${LIBDIR}/memset.s ${LIBDIR}/__extendsfdf2.s > ${TRAXOUTPUT}
 
 mkdirs:
 	@mkdir -p objs;
@@ -82,10 +82,12 @@ objs/%.bc: %${CSUFFIX}
 	@${TRAXC} -emit-llvm ${TRAXCFLAGS} -o $@ -c $<
 
 OBJS := $(addprefix objs/, $(notdir $(SOURCES:${CSUFFIX}=.bc))) objs/trax_trax.bc
+#OBJS := $(addprefix objs/, $(notdir $(SOURCES:${CSUFFIX}=.bc)))
 
 rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
 	@${BINDIR}/llvm-link ${OBJS} -o rt.bc
 	@${BINDIR}/opt rt.bc -O3 -inline-threshold 200000000 -o rt.bc
+#@${BINDIR}/opt rt.bc -O3 -o rt.bc
 	@${BINDIR}/llc rt.bc -o rt.s -march=trax -mattr=fpu,mul,div,barrel
 
 clean:
