@@ -2,6 +2,7 @@
 #define TRAX_TRAX_H
 
 
+// Trax Intrinsics
 extern "C"
 {
   // Global Memory
@@ -46,9 +47,15 @@ extern "C"
   // Debug
   extern void profile( int prof_id ) asm("llvm.trax.profile");
   extern int loadl1( int base, int offset = 0 ) __attribute__ ((pure));
-  extern void trax_printi(int value) asm("llvm.trax.printi");
-  extern void trax_printf( float value ) asm("llvm.trax.printf");
+  extern void trax_printi(int value) asm("llvm.trax.printi");      // print integer
+  extern void trax_printf( float value ) asm("llvm.trax.printf");  // print float (unfortunately this uses the "printf" name)
+  extern void trax_printformat(int string_addr) asm("llvm.trax.printformat"); // 'equivalent' to stdio::printf
+
 }
+
+// simplified printf for trax
+extern int printf ( const char * format, ... );
+
 
 inline void barrier( int reg_num = 5 ) {
   trax_inc_reset( reg_num );
@@ -60,8 +67,8 @@ inline float trax_noise( float x, float y, float z ) {
   return trax_callnoise();
 }
 
-// main function the user must define
-void trax_main();
+// main function the user must define instead of "main"
+void trax_main()__attribute__((noinline));
 
 // the main function (in trax_trax.cpp just calls trax_main())
 int main();

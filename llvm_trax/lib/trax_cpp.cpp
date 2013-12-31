@@ -13,19 +13,6 @@
 #include "CustomLoadMemory.h"
 #include "ReadLightfile.h"
 #include "ReadViewfile.h"
-// #include "LoadMemory.cc"
-// #include "OBJLoader.cc"
-// #include "IWLoader.cc"
-// #include "BVH.cc"
-// #include "Grid.cc"
-// #include "Camera.cc"
-// #include "ReadLightfile.cc"
-// #include "ReadViewfile.cc"
-// #include "Material.cc"
-// #include "Triangle.cc"
-// #include "MTLLoader.cc"
-// #include "PPM.cc"
-
 
 
 // Windows pipe stuff for trax_cleanup (needs stdio.h)
@@ -133,6 +120,7 @@ float invsqrt( float value ) {
   return 1.f / sqrt(value);
 }
 
+
 float trax_rand() {
   return drand48();
 }
@@ -164,6 +152,7 @@ void profile( int prof_id ) {}
 int loadl1( int base, int offset ) {return 0;}
 void trax_printi(int value) { printf("Value is %d.\n", value);}
 void trax_printf( float value ) { printf("Value is %f.\n", value);}
+// printf for trax_cpp is defined in stdio
 
 int start_framebuffer;
 
@@ -186,8 +175,6 @@ void trax_setup( runrtParams_t &opts ) {
     // load memory from dump
 	  printf( "Attempting to load memory file '%s'.\n", opts.mem_file_name.c_str() );
     float *light_pos = new float[3];
-    //int start_wq, start_scene, start_matls, start_camera;
-    //int start_bg_color, start_light, end_memory, start_permutation;
     int num_blocks;
 	  std::ifstream filein( opts.mem_file_name.c_str() );
     // check for errors                                                                                                                                                                                                                                                                                                      
