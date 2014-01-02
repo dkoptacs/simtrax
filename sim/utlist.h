@@ -306,7 +306,7 @@ do {                                                                            
 
 #define LL_APPEND(head,add)                                                                    \
 do {                                                                                           \
-  LDECLTYPE(head) _tmp;                                                                        \
+  LDECLTYPE(head) _tmp=head;                                                                   \
   (add)->next=NULL;                                                                            \
   if (head) {                                                                                  \
     _tmp = head;                                                                               \
@@ -319,7 +319,7 @@ do {                                                                            
 
 #define LL_DELETE(head,del)                                                                    \
 do {                                                                                           \
-  LDECLTYPE(head) _tmp;                                                                        \
+  LDECLTYPE(head) _tmp=head;                                                                   \
   if ((head) == (del)) {                                                                       \
     (head)=(head)->next;                                                                       \
   } else {                                                                                     \
