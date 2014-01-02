@@ -1,12 +1,14 @@
-project(SimHWRT)
+project(simtrax)
 cmake_minimum_required(VERSION 2.8)
 
+set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
+
 # Find pthreads
-include( FindPthreads.cmake )
-if( NOT PTHREADS_FOUND )
-	message( "- Build Error: pthread libraries not found!" )
-endif( NOT PTHREADS_FOUND )
-include_directories( ${PTHREADS_INCLUDE_DIR} )
+include(FindPthreads.cmake)
+if(NOT PTHREADS_FOUND)
+	message( "- Build Error: pthread libraries not found!")
+endif(NOT PTHREADS_FOUND)
+include_directories(${PTHREADS_INCLUDE_DIR})
 
 set(simHdr
 	Animation.h
@@ -123,7 +125,7 @@ set(simSrc
 	main.cc
 )
 
-add_executable(SimHWRT ${simSrc} ${simHdr})
-target_link_libraries(SimHWRT ${PTHREADS_LIBRARIES})
+add_executable(simtrax ${simSrc} ${simHdr})
+target_link_libraries(simtrax ${PTHREADS_LIBRARIES})
 
-install(TARGETS SimHWRT DESTINATION bin)
+install(TARGETS simtrax DESTINATION bin)
