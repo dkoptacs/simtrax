@@ -19,6 +19,9 @@ IssueUnit::IssueUnit(std::vector<ThreadProcessor*>& _thread_procs,
 //   memset(kernel_stall_cycles, 0, sizeof(long long int) * Instruction::NUM_OPS);
 //   memset(kernel_fu_dependencies, 0, sizeof(long long int) * Instruction::NUM_OPS);
   
+  // flag denoting stats have not been calculated yet
+  issue_stats.avg_issue = -1.0;
+
   num_halted = 0;
   halted = false;
   vector_stats = false;
@@ -777,73 +780,23 @@ void IssueUnit::ClockFall() {
   current_cycle++;
 }
 
-void IssueUnit::print() {
-  double total_issued = 0.;
-  for (size_t i = 0; i < thread_procs.size(); i++) {
-    for(size_t j = 0; j < thread_procs[i]->thread_states.size(); j++){
-      printf("---- Thread %02d ----\n", 
-	     int(i*thread_procs[i]->num_threads + (int)j));
-      ThreadState* thread = thread_procs[i]->thread_states[j];
-      printf("\tPC %lld:  ", thread->program_counter);
-      if (NULL == thread->issued_this_cycle) {
-	printf("Stalled");
-      } else {
-	thread->issued_this_cycle->print();
-      }
-      printf(" ----- %d in-flight ", thread->instructions_in_flight);
-      printf(" CPI %.4lf -- Total Cycles %lld\n",
-	     static_cast<double>(current_cycle+1)/static_cast<double>(thread->instructions_issued),
-	     current_cycle);
-      total_issued += static_cast<double>(thread->instructions_issued);
-    }
-  }
-  printf(" Total CPI %.4lf , IPC %.4lf -- Total Cycles %lld\n",
-         static_cast<double>(current_cycle+1)/static_cast<double>(total_issued),
-         static_cast<double>(total_issued)/static_cast<double>(current_cycle+1),
-         current_cycle);
+void IssueUnit::print()
+{
+  print(-1);
+}
 
-  // statistics on how many threads issued
-  double average_issue = 0;
-  double total_issue = 0;
-  for (size_t i = 0; i < thread_procs.size()+1; ++i) {
-    average_issue += thread_issue_count[i]/static_cast<double>(current_cycle+1) * i;
-    total_issue += static_cast<double>(thread_issue_count[i]) * i;
-  }
-
-//   for (std::map<int, int>::iterator i = thread_issue_count.begin();
-//        i != thread_issue_count.end(); ++i) {
-// //     printf("   %d threads issued %.4lf percent of the time.\n", i->first, 
-// //      i->second/static_cast<double>(current_cycle+1) );
-//     average_issue += i->second/static_cast<double>(current_cycle+1) * i->first;
-//     total_issue += static_cast<double>(i->second) * i->first;
-//   }
-
-  // print kernel profiling
-  /*
-  printf("kernel\tcalled\tcycles\n");
-  for (int i = 0; i < MAX_NUM_KERNELS; ++i) {
-    int k_calls = 0;
-    long long int k_cycles = 0;
-    for(size_t j = 0; j < thread_procs.size(); j++)
-      {
-	k_calls += kernel_calls[i][j];
-	k_cycles += kernel_cycles[i][j];
-      }
-    if (k_calls > 0) {
-      printf("%d\t%d\t%lld\n", i, k_calls, k_cycles);
-    }
-  }
-  */
-
+void IssueUnit::print(int total_system_TMs = -1) 
+{ 
   printf("profile data:\n");
   printf("kernel\ttotal calls\ttotal cycles\n");
   
+
   // print machine-wide kernel stats
   for (int i = 0; i < MAX_NUM_KERNELS; ++i) 
     {
       long long int total_calls = 0;
       long long int total_cycles = 0;
-      for(size_t j = 0; j < thread_procs.size(); j++)           
+      for(size_t j = 0; j < thread_procs.size(); j++)
 	if(kernel_calls[i][j] > 0)
 	  {
 	    total_calls += kernel_calls[i][j];
@@ -851,56 +804,11 @@ void IssueUnit::print() {
 	  }
       if(total_calls == 0)
 	continue;
+      
       printf("%d\t%lld\t%lld\n", i, total_calls, total_cycles);
     }
   
-  // TODO: The format of this data is pretty ugly. Just take it out for now since it's rarely needed
-#if 0
-  // print per-thread kernel stats
-  printf("kernel\ttotal calls\ttotal cycles\n");
-  for(size_t i = 0; i < thread_procs.size(); i++)
-    printf("%d\t", (int)i);
-  printf("\n");
-  for (int i = 0; i < MAX_NUM_KERNELS; ++i) {
-    bool used_kernel = false;
-    for(size_t j = 0; j < thread_procs.size(); j++)           
-      if(kernel_calls[i][j] > 0)
-	{
-	  used_kernel = true;
-	  break;
-	}
-    if(!used_kernel)
-      continue;
-    printf("%d\t", i);
-    for(size_t j = 0; j < thread_procs.size(); j++)           
-      printf("%d, %lld\t", kernel_calls[i][j], kernel_cycles[i][j]);
-    printf("\n");
-  }
-#endif
   
-//   // instruction mix statistics
-//   printf("kernel ran %lld times\n", profile_num_kernels);
-//   printf("total kernel cycles: %lld\n", total_kernel_cycles);
-//   //  printf("average kernel cycles: %lld\n", total_kernel_cycles / profile_num_kernels);
-//   printf("kernel executions by # cycles\n");
-//   printf("cycles:\texecutions\t%%\n");
-// //   for(int i=0; i< MAX_KERNEL_CYCLES; i++)
-// //     if(kernel_executions[i]!=0)
-// //       printf("%d\t%lld\t%2.2f\n", i, 
-// // 	     kernel_executions[i], 
-// // 	     (float)kernel_executions[i] / (float)profile_num_kernels * 100.0f);
-
-//   printf("kernel stalls\n");
-//   printf("Op\tCaused stalls\tFU stalls\n");
-//   for(int i=0; i < Instruction::NUM_OPS; i++)
-//     {
-//       printf("%s:\t%lld (%2.2f%%)\t%lld (%2.2f%%)\n", Instruction::Opnames[i].c_str(),
-// 	     kernel_stall_cycles[i], 
-// 	     (float)kernel_stall_cycles[i] / (float)total_kernel_stalls * 100.0f,
-// 	     kernel_fu_dependencies[i],
-// 	     (float)kernel_fu_dependencies[i] / (float)total_kernel_fu_dependencies * 100.0f);
-//     }
-
   printf("Data dependence stalls (caused by):\n");
   for ( size_t i = 0; i < Instruction::NUM_OPS; i++) {
     if (data_depend_bins[i] != 0) {
@@ -909,11 +817,14 @@ void IssueUnit::print() {
 	     static_cast<float>(data_depend_bins[i])/data_dependence*100);
     }
   }
+  
+
   long long int total = 0;
   for ( size_t i = 0; i < Instruction::NUM_OPS; i++) {
     total += unit_contention[i];
   }
-  printf("Number of thread-cycles contention found when issuing:\n");
+  
+  printf("Number of thread-cycles resource conflicts found when issuing:\n");
   for ( size_t i = 0; i < Instruction::NUM_OPS; i++) {
     if (unit_contention[i] != 0) {
       printf("   %-12s\t%lld\t(%.3f %%)\n", Instruction::Opnames[i].c_str(), 
@@ -921,11 +832,13 @@ void IssueUnit::print() {
 	     static_cast<float>(unit_contention[i]) / total * 100);
     }
   }
+    
 
   total = 0;
   for ( size_t i = 0; i < Instruction::NUM_OPS; i++) {
     total += instruction_bins[i];
   }
+  
   printf("Dynamic Instruction Mix: (%lld total)\n", total);
   // switch to reporting everything
   for ( size_t i = 0; i < Instruction::NUM_OPS; i++) {
@@ -935,75 +848,95 @@ void IssueUnit::print() {
 	     static_cast<float>(instruction_bins[i]) / total * 100);
     }
   }
+    
 
+  if(issue_stats.avg_issue < 0.0)
+    CalculateIssueStats();
 
-  printf(" --Average #threads Issuing each cycle: %.4lf\n", average_issue);
-  printf(" --Total thread-cycles: %.0lf\n", static_cast<double>(current_cycle)*thread_procs.size());
-  printf(" --total thread-cycles issued: %.0lf (%f%%)\n", total_issue,
-	 static_cast<float>(total_issue)/thread_procs.size()/current_cycle*100);
-  printf(" --iCache conflicts: %lld (%f%%)\n", iCache_conflicts,
-	 static_cast<float>(iCache_conflicts)/thread_procs.size()/current_cycle*100);
-  printf(" --thread*cycles of FU dependence: %lld (%f%%)\n", fu_dependence,
-	 static_cast<float>(fu_dependence)/thread_procs.size()/current_cycle*100);
-  printf(" --thread*cycles of data dependence: %lld (%f%%)\n", data_dependence,
-	 static_cast<float>(data_dependence)/thread_procs.size()/current_cycle*100);
-  printf(" --thread*cycles halted: %lld (%f%%)\n", halted_count,
-	 static_cast<float>(halted_count)/thread_procs.size()/current_cycle*100);
-  printf("iCache details:\n");
-  printf(" --iCache cycles*banks: %lld (%f%% used)\n", total_bank_cycles,
-	 static_cast<float>(bank_cycles_used)/(total_bank_cycles)*100);
-  printf("Issue breakdown:\n");
-  printf(" --thread*cycles of issue worked: %lld (%f%%)\n", instructions_issued,
-	 static_cast<float>(instructions_issued)/thread_procs.size()/current_cycle*100);
-  printf(" --thread*cycles of issue failed: %lld (%f%%)\n", instructions_stalled,
-	 static_cast<float>(instructions_stalled)/thread_procs.size()/current_cycle*100);
-  printf(" --thread*cycles of issue NOP/other: %lld (%f%%)\n", instructions_misc,
-	 static_cast<float>(instructions_misc)/thread_procs.size()/current_cycle*100);
-
-
-  // not ready/fetched
-  printf("Number of thread-cycles not ready:\t%lld\n", not_ready);
-  printf("Number of thread-cycles not fetched:\t%lld\n", not_fetched);
-
-  // SIMD stuff
-  printf("SIMD stalls when issuing:\t%lld\n", simd_stalls);
-  printf("SIMD issues:\t%lld\n", simd_issue);
-  printf("SIMD fetches beyond the first:\t%lld\n", simd_bonus_fetches);
-
-  printf("ATOMIC_INC called by threads:\n");
-  for (int i = 0; i < (int)thread_procs.size(); ++i) {
-    printf("\t %d: %d\n", i, atominc_bins[i]);
-  }
-  
-  FILE *profile_file = fopen("profile.txt", "w");
-  if(!profile_file)
+  int total_system_threads = 0;
+  float divisor = 0.f;
+  if(total_system_TMs == -1)
     {
-      printf("unable to open profile.txt\n");
-      exit(1);
-    }  
-  fprintf(profile_file, "Program Counter\tInstruction\tCount\tCycles\n");
-  size_t instruction_count = thread_procs[0]->GetActiveThread()->instructions.size();
-  for (size_t i = 0; i < instruction_count; i++) {
-    fprintf(profile_file, "%d\t", (int)i);
-    Instruction* instr = thread_procs[0]->GetActiveThread()->instructions[i];
-    fprintf(profile_file, "%s %d %d %d", Instruction::Opnames[instr->op].c_str(),
-	    instr->args[0], instr->args[1], instr->args[2]);
-    fprintf(profile_file, "\t%lld\t%lld\n", profile_instruction_count[i], profile_instruction_cycle_count[i]);
-  }
-  fclose(profile_file);
+      total_system_threads = thread_procs.size();
+      divisor = 1.f;
+    }
+  else
+    {
+      total_system_threads = thread_procs.size() * total_system_TMs;
+      divisor = static_cast<float>(total_system_TMs);
+    }
 
-//   if(vector_stats)
-//     {
-//       printf("%d-way vectorizable ops\n", VECTOR_WIDTH);
-//       printf("op\t\ttotal\t\tsaved\t\tpercent total\n");
-//       for(int i=0; i < 14; i++)
-// 	printf("%s:\t\t%lld\t\t%lld\t\t%.2f\n", 
-// 	       Instruction::Opnames[i].c_str(), total_vector_ops[i], 
-// 	       total_vector_ops[i]*(VECTOR_WIDTH - 1), 
-// 	       (total_vector_ops[i] * (float)VECTOR_WIDTH) / (float)instruction_bins[i] * 100.0);
-// 	//printf("%s:\t\t%lld,%lld,%lld\n", Instruction::Opnames[i].c_str(), total_vector_ops[i][1], total_vector_ops[i][2], total_vector_ops[i][3]);
-//     }
+  printf("Issue statistics:\n");
+  printf(" --Average #threads Issuing each cycle: %.4lf\n", issue_stats.avg_issue);
+  printf(" --Issue Rate: %.2f\n", issue_stats.avg_issue / static_cast<float>(total_system_threads));
+  printf(" --iCache conflicts: %lld (%f%%)\n", iCache_conflicts, issue_stats.avg_iCache_conflicts / divisor);
+  printf(" --thread*cycles of FU dependence: %lld (%f%%)\n", fu_dependence, issue_stats.avg_fu_dependence / divisor);
+  printf(" --thread*cycles of data dependence: %lld (%f%%)\n", data_dependence, issue_stats.avg_data_dependence / divisor);
+  printf(" --thread*cycles halted: %lld (%f%%)\n", halted_count, issue_stats.avg_halted_count / divisor);
+  printf(" --thread*cycles of issue NOP/other: %lld (%f%%)\n", instructions_misc, issue_stats.avg_misc_count / divisor);
 
 }
 
 
+// This function is for stats-tracking only.
+// We will use one core to hold the sums of all other cores' stats
+void IssueUnit::AddStats(IssueUnit* otherIssuer)
+{
+  if(issue_stats.avg_issue < 0.0)
+    CalculateIssueStats();
+  if(otherIssuer->issue_stats.avg_issue < 0.0)
+    otherIssuer->CalculateIssueStats();  
+  issue_stats.AddStats(otherIssuer->issue_stats);
+  
+  fu_dependence += otherIssuer->fu_dependence;
+  data_dependence += otherIssuer->data_dependence;
+  iCache_conflicts += otherIssuer->iCache_conflicts;
+  halted_count += otherIssuer->halted_count;
+
+  
+  current_cycle = current_cycle < otherIssuer->current_cycle ? otherIssuer->current_cycle : current_cycle;
+
+  // Per-instruction stats
+  for(int i = 0; i < Instruction::NUM_OPS; i++)
+    {
+      instruction_bins[i] += otherIssuer->instruction_bins[i];
+      unit_contention[i] += otherIssuer->unit_contention[i];
+      data_depend_bins[i] += otherIssuer->data_depend_bins[i];
+    }  
+
+  // Profiling kernels
+  for (int i = 0; i < MAX_NUM_KERNELS; ++i) 
+    {
+      for(size_t j = 0; j < thread_procs.size(); j++)           
+	{
+	  kernel_calls[i][j] += otherIssuer->kernel_calls[i][j];
+	  kernel_cycles[i][j] += otherIssuer->kernel_cycles[i][j];
+	}
+    }
+
+  // Issue statistics
+  for (size_t i = 0; i < thread_procs.size(); i++) 
+    for(size_t j = 0; j < thread_procs[i]->thread_states.size(); j++)
+      thread_procs[i]->thread_states[j]->instructions_issued += otherIssuer->thread_procs[i]->thread_states[j]->instructions_issued;
+  
+  
+  for(size_t i = 0; i < thread_procs.size() + 1; i++)
+    thread_issue_count[i] += otherIssuer->thread_issue_count[i];
+
+}
+
+// Computes the per-TM issue rate statistics.
+// These can't use chip-wide cycle count since it varies from TM to TM
+void IssueUnit::CalculateIssueStats()
+{
+  issue_stats.avg_issue = 0.0;
+  for (size_t i = 0; i < thread_procs.size()+1; ++i) 
+    issue_stats.avg_issue += thread_issue_count[i]/static_cast<double>(current_cycle+1) * i;
+  
+  issue_stats.avg_iCache_conflicts = static_cast<float>(iCache_conflicts)/thread_procs.size()/current_cycle*100;
+  issue_stats.avg_fu_dependence = static_cast<float>(fu_dependence)/thread_procs.size()/current_cycle*100;
+  issue_stats.avg_data_dependence = static_cast<float>(data_dependence)/thread_procs.size()/current_cycle*100;
+  issue_stats.avg_halted_count = static_cast<float>(halted_count)/thread_procs.size()/current_cycle*100;
+  issue_stats.avg_misc_count = static_cast<float>(instructions_misc)/thread_procs.size()/current_cycle*100;
+
+}

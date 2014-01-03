@@ -9,6 +9,7 @@
 #define N 1000
 #define MAX_STALL_CYCLES 16
 
+
 WriteQueue::WriteQueue() {
   requests = new WriteRequest[N];
   head = 0;

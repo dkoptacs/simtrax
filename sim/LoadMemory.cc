@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <math.h>
 
+
 void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_height,
 		int grid_dimensions,
                 Camera* camera, const char* model_file,
@@ -33,10 +34,8 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
 
 #include "Hammersley.h"
 
-//   int tile_width = 16;
-//   int tile_height = 16;
 
-  // Setup memory for Assignment 1 ;)
+  // Setup memory
   mem[0].uvalue = 0;
   // width, inv_width, fwidth
   mem[1].uvalue = image_width;
@@ -47,7 +46,7 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
   mem[5].fvalue = 1.f/static_cast<float>(image_height);
   mem[6].fvalue = static_cast<float>(image_height);
 
-  
+
   // Pointers (actually written at the end
 //   mem[7].ivalue = start_fb
 //   mem[8].ivalue = start_scene;
@@ -84,28 +83,9 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
   //mem[36].ivalue = start_vertex_normals;
   //mem[37].ivalue = num_interior_subtrees;
     
-  // Build the work queue
+  // Build the work queue (deprecated)
+  // Keep the spot free for backwards compatibility
   start_wq = 39;
-  printf("Work queue starts at %d (0x%08x)\n", start_wq, start_wq);
-//   int start_queue_storage = start_wq + 2; // need cur_tile and num_tiles
-//   int num_tiles = 0;
-//   for (int y = 0; y < image_height; y += tile_height) {
-//     for (int x = 0; x < image_width; x += tile_width) {
-//       int start_x = x;
-//       int stop_x  = (x+tile_width < image_width) ? x+tile_width : image_width;
-//       int start_y = y;
-//       int stop_y  = (y+tile_height < image_height) ? y+tile_height : image_height;
-//       mem[start_queue_storage + num_tiles * 4 + 0].ivalue = start_x;
-//       mem[start_queue_storage + num_tiles * 4 + 1].ivalue = stop_x;
-//       mem[start_queue_storage + num_tiles * 4 + 2].ivalue = start_y;
-//       mem[start_queue_storage + num_tiles * 4 + 3].ivalue = stop_y;
-//       num_tiles++;
-//     }
-//   }
-//   printf("Work queue ends at %d (0x%08x)\n", start_wq + num_tiles * 4 + 2,
-//          start_wq + num_tiles * 4 + 2);
-//   mem[start_wq + 0].ivalue = num_tiles;
-//   printf("Have %d tiles\n", num_tiles);
 
   // num_pixels
   mem[start_wq + 0].ivalue = image_width * image_height;
@@ -124,11 +104,10 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
   }
   start_scene = start_framebuffer + frame_size + zsize;
   start_permutation = start_scene;
-  printf("FB starts at %d (0x%08x)\n", start_framebuffer, start_framebuffer);
-  //printf("FB ends at %d (0x%08x)\n", start_scene - 1, start_scene - 1);
+  
+  //printf("FB starts at %d (0x%08x)\n", start_framebuffer, start_framebuffer);
 
-
-  // set triangles saving edges rather than points before doing all the loads
+  // set triangles saving edges rather than points before doing all the loads?
   Triangle::tri_stores_edges = triangles_store_edges;
   
   std::vector<Triangle*> *triangles = new std::vector<Triangle*>();
@@ -157,18 +136,19 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
       Material* grey = new Material(Vector3(0.78, 0.78, 0.78),
 				    Vector3(0.78, 0.78, 0.78),
 				    Vector3(0.78, 0.78, 0.78));
-      //grey.LoadIntoMemory(start_scene, INT_MAX, mem);
       matls->push_back(grey);
-      printf("Materials start at %d (0x%08x)\n", start_matls, start_matls);
+
+      //printf("Materials start at %d (0x%08x)\n", start_matls, start_matls);
+
       for (size_t i = 0; i < matls->size(); i++) {
 	matls->at(i)->LoadIntoMemory(start_scene, INT_MAX, mem);
       }
       for (size_t i = 0; i < matls->size(); i++) {
 	matls->at(i)->LoadTextureIntoMemory(start_scene, INT_MAX, mem);
       }
-      printf("Materials end at %d (0x%08x)\n", start_scene, start_scene);
+      
+      //printf("Materials end at %d (0x%08x)\n", start_scene, start_scene);
     
-
       //might not need this
       start_scene++;
       
@@ -179,11 +159,14 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
 	grid = new Grid(triangles, triangles_store_edges, grid_dimensions);
       mem[21].ivalue = bvh->num_nodes;
       int scene_data = start_scene;
-      printf("Scene starts at %d (0x%08x)\n", scene_data, scene_data);
+
+      //printf("Scene starts at %d (0x%08x)\n", scene_data, scene_data);
+
       if(grid_dimensions==-1)
 	bvh->LoadIntoMemory(scene_data, INT_MAX, mem);
       else
 	grid->LoadIntoMemory(scene_data, INT_MAX, mem);
+
       start_scene = bvh->start_nodes;
       mem[8].ivalue = bvh->start_nodes;
       mem[22].ivalue = bvh->start_costs;
@@ -199,7 +182,7 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
       mem[37].ivalue = bvh->num_interior_subtrees;
       
 
-      printf("Triangles start at %d (0x%08x)\n",bvh->start_tris, bvh->start_tris);
+      //printf("Triangles start at %d (0x%08x)\n",bvh->start_tris, bvh->start_tris);
       
       // free up some memory we don't need during the simulation (they've already been loaded)
       for(size_t i=0; i < triangles->size(); i++)
@@ -207,25 +190,30 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
       triangles->clear();
       // do not delete the triangles vector, BVH still uses it
       
-      printf("Scene ends at %d (0x%08x)\n", scene_data, scene_data);
+      //printf("Scene ends at %d (0x%08x)\n", scene_data, scene_data);
+
       start_camera = scene_data + 1;
       
       int begin_camera = start_camera;
       if(camera != NULL)
 	{
-	  printf("Starting camera at %d (0x%08x)\n", begin_camera, begin_camera);
+	  //printf("Starting camera at %d (0x%08x)\n", begin_camera, begin_camera);
 	  camera->LoadIntoMemory(begin_camera, INT_MAX, mem);
-	  printf("Camera ended at %d (0x%08x)\n", begin_camera, begin_camera);
+	  //printf("Camera ended at %d (0x%08x)\n", begin_camera, begin_camera);
 	}
       start_bg_color = begin_camera + 1;
-      printf("Background Color 0x%08x to 0x%08x\n", start_bg_color, start_bg_color+2);
+
+      //printf("Background Color 0x%08x to 0x%08x\n", start_bg_color, start_bg_color+2);
+
       float bg_color[3] = {1.0f, 1.0f, 1.0f};
       for (int i = 0; i < 3; i++) {
 	mem[start_bg_color + i].fvalue = bg_color[i];
       }
       
       start_light = start_bg_color + 3;
-      printf("Light at 0x%08x to 0x%08x\n", start_light, start_light+2);
+
+      //printf("Light at 0x%08x to 0x%08x\n", start_light, start_light+2);
+
       for (int i = 0; i < 3; i++) {
 	mem[start_light + i].fvalue = light_pos[i];
       }
@@ -237,23 +225,28 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
 
   // add permutation table
   
-  printf("Permutation table from 0x%08x to 0x%08x\n", start_permutation,
-	 start_permutation + 511);
+  //printf("Permutation table from 0x%08x to 0x%08x\n", start_permutation,
+  // start_permutation + 511);
+
   for (int i = 0; i < 256; i++) {
     mem[start_permutation + i].ivalue = permutation[i];
     mem[start_permutation + i + 256].ivalue = permutation[i];
   }
   int start_hammersley = start_permutation + 512;
-  printf("Hammersley table from 0x%08x to 0x%08x\n", start_hammersley,
-	 start_hammersley + 511);
+  
+  //printf("Hammersley table from 0x%08x to 0x%08x\n", start_hammersley,
+  //	 start_hammersley + 511);
+
   for (int i = 0; i < 512; i++) {
     mem[start_hammersley + i].fvalue = hammersley[i];
   }
   end_memory = start_hammersley + 512;
 
-  printf("\nMemory used: %d (0x%08x)\n", end_memory, end_memory);
+  //printf("\nMemory used: %d (0x%08x)\n", end_memory, end_memory);
+
   int image_size = image_height * image_width * 3;
-  printf("Image size: %d\n", image_size);
+
+  //printf("Image size: %d\n", image_size);
   //  printf("Tile memory size: %d\n", num_tiles * 4);
   //  printf("Memory for everything else: %d\n", end_memory - image_size - num_tiles * 4);
 

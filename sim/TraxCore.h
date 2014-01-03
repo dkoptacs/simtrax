@@ -32,6 +32,7 @@ public:
   void EnableRegisterDump(int proc_num);
   void Reset();
   void SetSymbols(std::vector<symbol*> *regs);
+  void AddStats(TraxCore* otherCore);
 
   // count thread stalls for fairness
   long long int CountStalls();

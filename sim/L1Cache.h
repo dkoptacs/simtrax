@@ -35,6 +35,7 @@ public:
   virtual double Utilization();
   void Clear();
   void Reset();
+  void AddStats(L1Cache* otherL1);
 
   bool snoop(int address);
 

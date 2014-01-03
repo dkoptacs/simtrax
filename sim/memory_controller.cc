@@ -11,6 +11,8 @@
 #include "scheduler.h"
 #include "processor.h"
 
+extern int trax_verbosity;
+
 // ROB Structure, used to release stall on instructions 
 // when the read request completes
 struct robstructure * ROB;
@@ -1149,6 +1151,7 @@ int issue_request_command(request_t * request)
 	  // opened row
 		case ACT_CMD :
 
+		  
 			assert(dram_state[channel][rank][bank].state == PRECHARGING || dram_state[channel][rank][bank].state == IDLE || dram_state[channel][rank][bank].state == REFRESHING);
 
 			//UT_MEM_DEBUG("\nCycle: %lld Cmd:ACT Req:%lld Chan:%d Rank:%d Bank:%d Row:%lld\n", CYCLE_VAL, request->id, channel, rank, bank, row);
@@ -1365,8 +1368,6 @@ int issue_request_command(request_t * request)
 		    total_single_col_reads[channel][rank][bank]++;
 		  
 		  current_col_reads[channel][rank][bank] = 0;
-
-		  total_pre_cmds[channel][rank][bank]++;
 
 			assert(dram_state[channel][rank][bank].state == ROW_ACTIVE || dram_state[channel][rank][bank].state == PRECHARGING || dram_state[channel][rank][bank].state == IDLE || dram_state[channel][rank][bank].state ==  REFRESHING) ;
 
@@ -2018,6 +2019,8 @@ void print_stats()
 				write_cmds += stats_num_write[c][r][b];
 				col_reads += total_col_reads[c][r][b];
 				pre_cmds += total_pre_cmds[c][r][b];
+				if(stats_num_read[c][r][b] > 0) 
+				  pre_cmds = pre_cmds == 0 ? 1 : pre_cmds; // if the 1 open row was never closed, need to count it
 				single_reads += total_single_col_reads[c][r][b];
 
 				// add averages of act/read cmds
@@ -2036,7 +2039,7 @@ void print_stats()
 		printf("Max write queue length:         %d\n"   ,max_write_queue_length[c]);
 		printf("Max read queue length:          %d\n"   ,max_read_queue_length[c]);
 		printf("Average read queue length:      %f\n"   ,(float)accumulated_read_queue_length[c] / CYCLE_VAL);
-		printf("Average column reads per ACT:   %f\n"   ,(float)stats_reads_completed[c] / (float)pre_cmds);
+		printf("Average column reads per ACT:   %f\n"   ,(float)stats_reads_completed[c] / (float)activates_for_reads);
 		printf("Single column reads:            %lld\n" ,single_reads);
 		printf("Single columng reads(%%):       %f\n"   ,((float)single_reads / (float)stats_reads_completed[c]) * 100.f);
 		printf("------------------------------------\n");
@@ -2312,61 +2315,69 @@ void update_memory()
 
 	double time_in_pre_stby = (((double)(CYCLE_VAL - stats_time_spent_in_active_standby[channel][rank]- stats_time_spent_in_precharge_power_down_slow[channel][rank] - stats_time_spent_in_precharge_power_down_fast[channel][rank] - stats_time_spent_in_active_power_down[channel][rank]))/CYCLE_VAL);
 
-	if (print_total_cycles ==0) {
+	if(trax_verbosity)
+	  {
+	    if (print_total_cycles ==0) {
+	      
+	      
+	      printf ("\n#-----------------------------Simulated Cycles Break-Up-------------------------------------------\n");
+	      printf ("Note:  1.(Read Cycles + Write Cycles + Read Other + Write Other) should add up to %% cycles during which\n");
+	      printf ("          the channel is busy. This should be the same for all Ranks on a Channel\n");
+	      printf ("       2.(PRE_PDN_FAST + PRE_PDN_SLOW + ACT_PDN + ACT_STBY + PRE_STBY) should add up to 100%%\n");
+	      printf ("       3.Power Down means Clock Enable, CKE = 0. In Standby mode, CKE = 1\n");
+	      printf ("#-------------------------------------------------------------------------------------------------\n");
+	      printf ("Total Simulation Cycles                      %11lld\n",CYCLE_VAL );
+	      printf ("---------------------------------------------------------------\n\n");
+	      
+	      print_total_cycles = 1;
+	    }
+	  }
 
-
-		printf ("\n#-----------------------------Simulated Cycles Break-Up-------------------------------------------\n");
-		printf ("Note:  1.(Read Cycles + Write Cycles + Read Other + Write Other) should add up to %% cycles during which\n");
-		printf ("          the channel is busy. This should be the same for all Ranks on a Channel\n");
-		printf ("       2.(PRE_PDN_FAST + PRE_PDN_SLOW + ACT_PDN + ACT_STBY + PRE_STBY) should add up to 100%%\n");
-		printf ("       3.Power Down means Clock Enable, CKE = 0. In Standby mode, CKE = 1\n");
-		printf ("#-------------------------------------------------------------------------------------------------\n");
-		printf ("Total Simulation Cycles                      %11lld\n",CYCLE_VAL );
-		printf ("---------------------------------------------------------------\n\n");
-
-		print_total_cycles = 1;
-	}
-
-	if (print_stats_type == 0) {
+	if(trax_verbosity)
+	  {
+	    if (print_stats_type == 0) 
+	      {
 		/*
-		printf ("%3d %6d %13.2f %13.2f %13.2f %13.2f %15.2f %15.2f %15.2f %13.2f %11.2f \n",\
-				channel,\
-				rank,\
-				(double)reads/CYCLE_VAL,\
-				(double)writes/CYCLE_VAL,\
-				psch_termRoth,\
-				psch_termWoth,\
-				((double)stats_time_spent_in_precharge_power_down_fast[channel][rank]/CYCLE_VAL),\
-				((double)stats_time_spent_in_precharge_power_down_slow[channel][rank]/CYCLE_VAL),\
-				((double)stats_time_spent_in_active_power_down[channel][rank]/CYCLE_VAL),\
-				((double)stats_time_spent_in_active_standby[channel][rank]/CYCLE_VAL),\
-				(((double)(CYCLE_VAL - stats_time_spent_in_active_standby[channel][rank]- stats_time_spent_in_precharge_power_down_slow[channel][rank] - stats_time_spent_in_precharge_power_down_fast[channel][rank] - stats_time_spent_in_active_power_down[channel][rank]))/CYCLE_VAL)
-				);
-	*/
+		  printf ("%3d %6d %13.2f %13.2f %13.2f %13.2f %15.2f %15.2f %15.2f %13.2f %11.2f \n", \
+		  channel,						\
+		  rank,							\
+		  (double)reads/CYCLE_VAL,				\
+		  (double)writes/CYCLE_VAL,				\
+		  psch_termRoth,					\
+		  psch_termWoth,					\
+		  ((double)stats_time_spent_in_precharge_power_down_fast[channel][rank]/CYCLE_VAL), \
+		  ((double)stats_time_spent_in_precharge_power_down_slow[channel][rank]/CYCLE_VAL), \
+		  ((double)stats_time_spent_in_active_power_down[channel][rank]/CYCLE_VAL), \
+		  ((double)stats_time_spent_in_active_standby[channel][rank]/CYCLE_VAL), \
+		  (((double)(CYCLE_VAL - stats_time_spent_in_active_standby[channel][rank]- stats_time_spent_in_precharge_power_down_slow[channel][rank] - stats_time_spent_in_precharge_power_down_fast[channel][rank] - stats_time_spent_in_active_power_down[channel][rank]))/CYCLE_VAL)
+		  );
+		*/
 		printf ("Channel %d Rank %d Read Cycles(%%)           %9.2f # %% cycles the Rank performed a Read\n",channel, rank, (double)reads*T_DATA_TRANS/CYCLE_VAL ); 
 		printf ("Channel %d Rank %d Write Cycles(%%)          %9.2f # %% cycles the Rank performed a Write\n",channel, rank, (double)writes*T_DATA_TRANS/CYCLE_VAL ); 
 		printf ("Channel %d Rank %d Read Other(%%)            %9.2f # %% cycles other Ranks on the channel performed a Read\n",channel, rank, \
-					   ((double)stats_time_spent_terminating_reads_from_other_ranks[channel][rank]/CYCLE_VAL) ); 
-		printf ("Channel %d Rank %d Write Other(%%)           %9.2f # %% cycles other Ranks on the channel performed a Write\n",channel, rank,\
-					  ((double)stats_time_spent_terminating_writes_to_other_ranks[channel][rank]/CYCLE_VAL) ); 
+			((double)stats_time_spent_terminating_reads_from_other_ranks[channel][rank]/CYCLE_VAL) ); 
+		printf ("Channel %d Rank %d Write Other(%%)           %9.2f # %% cycles other Ranks on the channel performed a Write\n",channel, rank, \
+			((double)stats_time_spent_terminating_writes_to_other_ranks[channel][rank]/CYCLE_VAL) ); 
 		printf ("Channel %d Rank %d PRE_PDN_FAST(%%)          %9.2f # %% cycles the Rank was in Fast Power Down and all Banks were Precharged\n",channel, rank, \
-						((double)stats_time_spent_in_precharge_power_down_fast[channel][rank]/CYCLE_VAL) ); 
+			((double)stats_time_spent_in_precharge_power_down_fast[channel][rank]/CYCLE_VAL) ); 
 		printf ("Channel %d Rank %d PRE_PDN_SLOW(%%)          %9.2f # %% cycles the Rank was in Slow Power Down and all Banks were Precharged\n",channel, rank, \
-						((double)stats_time_spent_in_precharge_power_down_slow[channel][rank]/CYCLE_VAL) ); 
+			((double)stats_time_spent_in_precharge_power_down_slow[channel][rank]/CYCLE_VAL) ); 
 		printf ("Channel %d Rank %d ACT_PDN(%%)               %9.2f # %% cycles the Rank was in Active Power Down and atleast one Bank was Active\n",channel, rank, \
-						((double)stats_time_spent_in_active_power_down[channel][rank]/CYCLE_VAL) ); 
-		printf ("Channel %d Rank %d ACT_STBY(%%)              %9.2f # %% cycles the Rank was in Standby and atleast one bank was Active\n",channel, rank,\
-						 ((double)stats_time_spent_in_active_standby[channel][rank]/CYCLE_VAL) ); 
+			((double)stats_time_spent_in_active_power_down[channel][rank]/CYCLE_VAL) ); 
+		printf ("Channel %d Rank %d ACT_STBY(%%)              %9.2f # %% cycles the Rank was in Standby and atleast one bank was Active\n",channel, rank, \
+			((double)stats_time_spent_in_active_standby[channel][rank]/CYCLE_VAL) ); 
 		printf ("Channel %d Rank %d PRE_STBY(%%)              %9.2f # %% cycles the Rank was in Standby and all Banks were Precharged\n",channel, rank, time_in_pre_stby ); 
 		printf ("---------------------------------------------------------------\n\n");
-
-
-	} else if (print_stats_type == 1) {
+		
+		
+	      } 
+	    else if (print_stats_type == 1) 
+	      {
 		/*----------------------------------------------------
 		// Total Power is the sum total of all the components calculated above
 		----------------------------------------------------*/
-
-
+		
+		
 		printf ("Channel %d Rank %d Background(mw)          %9.2f # depends only on Power Down time and time all banks were precharged\n",channel, rank, psch_act_pdn+psch_act_stby+psch_pre_pdn_slow+psch_pre_pdn_fast+psch_pre_stby); 
 		printf ("Channel %d Rank %d Act(mW)                 %9.2f # power spend bringing data to the row buffer\n",channel, rank, psch_act); 
 		printf ("Channel %d Rank %d Read(mW)                %9.2f # power spent doing a Read  after the Row Buffer is open\n",channel, rank, psch_rd); 
@@ -2379,43 +2390,44 @@ void update_memory()
 		printf ("---------------------------------------------------------------\n");
 		printf ("Channel %d Rank %d Total Rank Power(mW)    %9.2f # (Sum of above components)*(num chips in each Rank)\n",channel, rank, total_rank_power);
 		printf ("---------------------------------------------------------------\n\n");
-
-
-
-/*
-
- printf("%3d %11d %16.2f %16.2f %17.2f %13.2f %13.2f %20.2f %21.2f %24.2f %12.2f %13.2f\n",\
-				channel,\
-				rank,\
-				total_rank_power, \
-				psch_act_pdn+psch_act_stby+psch_pre_pdn_slow+psch_pre_pdn_fast+psch_pre_stby, \
-				psch_act, \
-				psch_rd, \
-				psch_wr, \
-				psch_dq, \
-				psch_termW, \
-				psch_termRoth, \
-				psch_termWoth, \
-				psch_ref                                                                                  
-
-				);
-*/
-
-/*
-		printf("Channel:%d Rank:%d Total background power : %f mW\n", channel, rank, psch_act_pdn+psch_act_stby+psch_pre_pdn_slow+psch_pre_pdn_fast+psch_pre_stby);
-		printf("Channel:%d, Rank:%d Total activate power : %f,%f,%d,%f mW\n", channel, rank, psch_act,pds_act,T_RC,average_gap_between_activates[channel][rank]);
-		printf("Channel:%d, Rank:%d Total I/O and termination power: %f rd:%f wr:%f dq:%f termW:%f termRoth:%f termWoth:%f mW\n", channel, rank, psch_rd+psch_wr+psch_dq+psch_termW+psch_termRoth+psch_termWoth, psch_rd, psch_wr, psch_dq, psch_termW, psch_termRoth, psch_termWoth);
-
-		printf("Channel:%d, Rank:%d Total refresh power: %f mW\n", channel, rank, psch_ref);
-		printf("Channel:%d, Rank:%d Total Rank power: %f mW\n\n", channel, rank, total_rank_power);
-		printf("------------------------------------------------\n");
+		
+		
+		
+		/*
+		  
+		  printf("%3d %11d %16.2f %16.2f %17.2f %13.2f %13.2f %20.2f %21.2f %24.2f %12.2f %13.2f\n", \
+		  channel,						\
+		  rank,							\
+		  total_rank_power,					\
+		  psch_act_pdn+psch_act_stby+psch_pre_pdn_slow+psch_pre_pdn_fast+psch_pre_stby, \
+		  psch_act,						\
+		  psch_rd,						\
+		  psch_wr,						\
+		  psch_dq,						\
+		  psch_termW,						\
+		  psch_termRoth,					\
+		  psch_termWoth,					\
+		  psch_ref                                                                                  
+		  
+		  );
 		*/
-
-	} else {
+		
+		/*
+		  printf("Channel:%d Rank:%d Total background power : %f mW\n", channel, rank, psch_act_pdn+psch_act_stby+psch_pre_pdn_slow+psch_pre_pdn_fast+psch_pre_stby);
+		  printf("Channel:%d, Rank:%d Total activate power : %f,%f,%d,%f mW\n", channel, rank, psch_act,pds_act,T_RC,average_gap_between_activates[channel][rank]);
+		  printf("Channel:%d, Rank:%d Total I/O and termination power: %f rd:%f wr:%f dq:%f termW:%f termRoth:%f termWoth:%f mW\n", channel, rank, psch_rd+psch_wr+psch_dq+psch_termW+psch_termRoth+psch_termWoth, psch_rd, psch_wr, psch_dq, psch_termW, psch_termRoth, psch_termWoth);
+		  
+		  printf("Channel:%d, Rank:%d Total refresh power: %f mW\n", channel, rank, psch_ref);
+		  printf("Channel:%d, Rank:%d Total Rank power: %f mW\n\n", channel, rank, total_rank_power);
+		  printf("------------------------------------------------\n");
+		*/
+		
+	      }
+	    else 
+	      {
 		printf ("PANIC: FN_CALL_ERROR: In calculate_power(), print_stats_type can only be 1 or 0\n");
 		assert (-1);
-	}
-
+	      }
+	  }
 	return total_rank_power;
-
 }

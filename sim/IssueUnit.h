@@ -13,6 +13,27 @@
 
 #define MAX_NUM_KERNELS 16
 
+struct IssueStats
+{
+  double avg_issue;
+  double avg_iCache_conflicts;
+  double avg_fu_dependence;
+  double avg_data_dependence;
+  double avg_halted_count;
+  double avg_misc_count;
+  
+  void AddStats(IssueStats otherStats)
+  {
+    avg_issue += otherStats.avg_issue;
+    avg_iCache_conflicts += otherStats.avg_iCache_conflicts;
+    avg_fu_dependence += otherStats.avg_fu_dependence;
+    avg_data_dependence += otherStats.avg_data_dependence;
+    avg_halted_count += otherStats.avg_halted_count;
+    avg_misc_count += otherStats.avg_misc_count;
+  }
+
+};
+
 // An IssueUnit takes the current ProgramCounter
 // fetches the next instruction, executes whatever
 // it can, manages dependencies and is notified by
@@ -26,6 +47,7 @@
 // It will first issue LOAD R0, then LOAD R1 and
 // will force ADD to wait until it's dependent values
 // are ready (only after both ins 0 and 1 commit)
+
 
 
 class IssueUnit : public HardwareModule {
@@ -63,6 +85,7 @@ public:
   void ClockRise();
   void ClockFall();
   void print();
+  void print(int total_system_TMs);
 
   void HaltSystem();
 
@@ -71,6 +94,8 @@ public:
   bool Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fetched_instruction, size_t proc_id);
   void MultipleIssueClockFall();
   void SIMDClockFall();
+  void AddStats(IssueUnit* otherIssuer);
+  void CalculateIssueStats();
 
 
   bool vector_stats;
@@ -99,7 +124,8 @@ public:
   long long int unit_contention[Instruction::NUM_OPS];
   long long int data_depend_bins[Instruction::NUM_OPS];
   long long int fu_dependence, data_dependence;
-
+  IssueStats issue_stats;
+  
   // The current read queue for this TM
   int read_queue;
 

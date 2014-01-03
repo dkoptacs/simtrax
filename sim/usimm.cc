@@ -25,6 +25,7 @@ affected threads' ready cycles for the given register.
 
 #define MAXTRACELINESIZE 64
 
+extern int trax_verbosity;
 
 // Tons of globals from params.h
 /********************/
@@ -450,7 +451,8 @@ int usimm_setup(char* config_filename)
   NUM_ROWS = NUM_ROWS * pow_of_2_cores;
 
   read_config_file(vi_file);
-  print_params();
+  if(trax_verbosity)
+    print_params();
 
   for(int i=0; i<NUMCORES; i++)
   {
@@ -465,6 +467,7 @@ int usimm_setup(char* config_filename)
 
 
   //DK: can ignore this for trax (not trace based)
+
   /* Must start by reading one line of each trace file. */
 
 /*
@@ -730,53 +733,62 @@ int usimm_setup(char* config_filename)
 void printUsimmStats()
 {
 
-  printf("-------------Printing Usimm stats-------------\n");
+  printf("-------------DRAM stats-------------\n");
   printf("Cycles %lld\n", CYCLE_VAL);
   total_time_done = 0;
-  for (numc=0; numc < NUMCORES; numc++) {
-    printf("Done: Core %d: Fetched %lld : Committed %lld : At time : %lld\n", numc, fetched[numc], committed[numc], time_done[numc]);
-    total_time_done += time_done[numc];
-  }
-  printf("Sum of execution times for all programs: %lld\n", total_time_done);
-  printf("Num reads merged: %lld\n",num_read_merge);
-  printf("Num writes merged: %lld\n",num_write_merge);
+  if(trax_verbosity)
+    for (numc=0; numc < NUMCORES; numc++) {
+      printf("Done: Core %d: Fetched %lld : Committed %lld : At time  : %lld\n", numc, fetched[numc], committed[numc], time_done[numc]);
+      total_time_done += time_done[numc];
+    }
+  if(trax_verbosity)
+    {
+      printf("Sum of execution times for all programs: %lld\n", total_time_done);
+      printf("Num reads merged: %lld\n",num_read_merge);
+      printf("Num writes merged: %lld\n",num_write_merge);
+    }
+
   /* Print all other memory system stats. */
   scheduler_stats();
   print_stats();  
 
   /*Print Cycle Stats*/
   for(int c=0; c<NUM_CHANNELS; c++)
-	  for(int r=0; r<NUM_RANKS ;r++)
-		  calculate_power(c,r,0,chips_per_rank);
+    for(int r=0; r<NUM_RANKS ;r++)
+      calculate_power(c,r,0,chips_per_rank);
 
-	printf ("\n#-------------------------------------- Power Stats ----------------------------------------------\n");
-	printf ("Note:  1. termRoth/termWoth is the power dissipated in the ODT resistors when Read/Writes terminate \n");
-	printf ("          in other ranks on the same channel\n");
-	printf ("#-------------------------------------------------------------------------------------------------\n\n");
-
+  if(trax_verbosity)
+    {
+      printf ("\n#-------------------------------------- Power Stats ----------------------------------------------\n");
+      printf ("Note:  1. termRoth/termWoth is the power dissipated in the ODT resistors when Read/Writes terminate \n");
+      printf ("          in other ranks on the same channel\n");
+      printf ("#-------------------------------------------------------------------------------------------------\n\n");
+    }
 
   /*Print Power Stats*/
-	float total_system_power =0;
+  float total_system_power =0;
   for(int c=0; c<NUM_CHANNELS; c++)
-	  for(int r=0; r<NUM_RANKS ;r++)
-		  total_system_power += calculate_power(c,r,1,chips_per_rank);
-
-		printf ("\n#-------------------------------------------------------------------------------------------------\n");
-	if (NUM_CHANNELS == 4) {  /* Assuming that this is 4channel.cfg  */
-	  printf ("Total memory system power = %f W\n",total_system_power/1000);
-	  printf("Miscellaneous system power = 40 W  # Processor uncore power, disk, I/O, cooling, etc.\n");
-	  printf("Processor core power = %f W  # Assuming that each core consumes 10 W when running\n",core_power);
-	  printf("Total system power = %f W # Sum of the previous three lines\n", 40 + core_power + total_system_power/1000);
-	  printf("Energy Delay product (EDP) = %2.9f J.s\n", (40 + core_power + total_system_power/1000)*(float)((double)CYCLE_VAL/(double)3200000000) * (float)((double)CYCLE_VAL/(double)3200000000));
-	}
-	else {  /* Assuming that this is 1channel.cfg  */
-	  printf ("Total memory system power = %f W\n",total_system_power/1000);
-	  printf("Miscellaneous system power = 10 W  # Processor uncore power, disk, I/O, cooling, etc.\n");  /* The total 40 W misc power will be split across 4 channels, only 1 of which is being considered in the 1-channel experiment. */
-	  printf("Processor core power = %f W  # Assuming that each core consumes 5 W\n",core_power);  /* Assuming that the cores are more lightweight. */
-	  printf("Total system power = %f W # Sum of the previous three lines\n", 10 + core_power + total_system_power/1000);
-	  printf("Energy Delay product (EDP) = %2.9f J.s\n", (10 + core_power + total_system_power/1000)*(float)((double)CYCLE_VAL/(double)3200000000) * (float)((double)CYCLE_VAL/(double)3200000000));
-	}
-
+    for(int r=0; r<NUM_RANKS ;r++)
+      total_system_power += calculate_power(c,r,1,chips_per_rank);
+  
+  printf ("\n#-------------------------------------------------------------------------------------------------\n");
+  /*
+    if (NUM_CHANNELS == 4) {  
+    printf ("Total memory system power = %f W\n",total_system_power/1000);
+    printf("Miscellaneous system power = 40 W  # Processor uncore power, disk, I/O, cooling, etc.\n");
+    printf("Processor core power = %f W  # Assuming that each core consumes 10 W when running\n",core_power);
+    printf("Total system power = %f W # Sum of the previous three lines\n", 40 + core_power + total_system_power/1000);
+    printf("Energy Delay product (EDP) = %2.9f J.s\n", (40 + core_power + total_system_power/1000)*(float)((double)CYCLE_VAL/(double)3200000000) * (float)((double)CYCLE_VAL/(double)3200000000));
+    }
+  */
+  //else { 
+  printf ("Total memory system power = %f W\n",total_system_power/1000);
+  // printf("Miscellaneous system power = 10 W  # Processor uncore power, disk, I/O, cooling, etc.\n");  /* The total 40 W misc power will be split across 4 channels, only 1 of which is being considered in the 1-channel experiment. */
+  //printf("Processor core power = %f W  # Assuming that each core consumes 5 W\n",core_power);  /* Assuming that the cores are more lightweight. */
+  //printf("Total system power = %f W # Sum of the previous three lines\n", 10 + core_power + total_system_power/1000);
+  //printf("Energy Delay product (EDP) = %2.9f J.s\n", (10 + core_power + total_system_power/1000)*(float)((double)CYCLE_VAL/(double)3200000000) * (float)((double)CYCLE_VAL/(double)3200000000));
+  //}
+  
 }
 
 

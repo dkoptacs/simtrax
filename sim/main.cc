@@ -74,22 +74,30 @@ int BRANCH_DELAY = 0;
 L2Cache** L2s;
 unsigned int num_L2s;
 
+// global verbosity flag
+int trax_verbosity;
+
 // Utility for tracking simulation time
-double clockdiff(clock_t clock1, clock_t clock2) {
+double clockdiff(clock_t clock1, clock_t clock2) 
+{
   double clockticks = clock2-clock1;
   return (clockticks * 1) / CLOCKS_PER_SEC; // time in seconds
 }
 
-void SystemClockRise(std::vector<HardwareModule*>& modules) {
-  for (size_t i = 0; i < modules.size(); i++) {
-    modules[i]->ClockRise();
-  }
+void SystemClockRise(std::vector<HardwareModule*>& modules) 
+{
+  for (size_t i = 0; i < modules.size(); i++) 
+    {
+      modules[i]->ClockRise();
+    }
 }
 
-void SystemClockFall(std::vector<HardwareModule*>& modules) {
-  for (size_t i = 0; i < modules.size(); i++) {
-    modules[i]->ClockFall();
-  }
+void SystemClockFall(std::vector<HardwareModule*>& modules) 
+{
+  for (size_t i = 0; i < modules.size(); i++) 
+    {
+      modules[i]->ClockFall();
+    }
 }
 
 void PrintSystemInfo(long long int& cycle_num,
@@ -97,42 +105,46 @@ void PrintSystemInfo(long long int& cycle_num,
                      std::vector<std::string>& names)
 {
   printf("Cycle %lld:\n", cycle_num++);
-  for (size_t i = 0; i < modules.size(); i++) {
-    printf("\t%s: ", names[i].c_str());
-    modules[i]->print();
-    printf("\n");
-  }
+  for (size_t i = 0; i < modules.size(); i++) 
+    {
+      printf("\t%s: ", names[i].c_str());
+      modules[i]->print();
+      printf("\n");
+    }
   printf("\n");
 }
 
 void TrackUtilization(std::vector<HardwareModule*>& modules,
-                      std::vector<double>& sums) {
-  for (size_t i = 0; i < modules.size(); i++) {
-    sums[i] += modules[i]->Utilization();
-  }
+                      std::vector<double>& sums) 
+{
+  for (size_t i = 0; i < modules.size(); i++) 
+    {
+      sums[i] += modules[i]->Utilization();
+    }
 }
 
-void NormalizeUtilization(long long int cycle_num, std::vector<double>& sums) {
-  for (size_t i = 0; i < sums.size(); i++) {
-    sums[i] /= cycle_num;
-  }
+void NormalizeUtilization(long long int cycle_num, std::vector<double>& sums)
+{
+  for (size_t i = 0; i < sums.size(); i++) 
+    {
+      sums[i] /= cycle_num;
+    }
 }
 
 void PrintUtilization(std::vector<std::string>& module_names,
-                      std::vector<double>& utilization) {
+                      std::vector<double>& utilization, int numCores = 1) 
+{
   printf("Module Utilization\n\n");
-//   for (size_t i = 0; i < utilization.size()-6; i++) {
   for (size_t i = 0; i < module_names.size(); i++) {
-    //printf("i = %d\n", (int)i);
-    //fflush(stdout);
     if (utilization[i] > 0.)
-      printf("\t%20s:  %6.2f\n", module_names[i].c_str(), 100.f * utilization[i]);
+      printf("\t%20s:  %6.2f\n", module_names[i].c_str(), 100.f * (utilization[i] / (float)numCores));
   }
   printf("\n");
 }
 
-// runs cores "start_core" through "end_core - 1"
-struct CoreThreadArgs {
+// Argument struct for running a simulation thread
+struct CoreThreadArgs 
+{
   int start_core;
   int end_core;
   int thread_num;
@@ -141,104 +153,94 @@ struct CoreThreadArgs {
 };
 
 
-void SyncThread( CoreThreadArgs* core_args ) {
+void SyncThread( CoreThreadArgs* core_args ) 
+{
   // synchronizes a thread
   pthread_mutex_lock(&sync_mutex);
   current_simulation_threads--;
-  if (current_simulation_threads > 0) {
-    pthread_cond_wait(&sync_cond, &sync_mutex);
-  }
-  else {
-    // last thread signal the others and sync caches
-    for(size_t i = 0; i < num_L2s; i++)
-      {
-	L2s[i]->ClockRise();
-	L2s[i]->ClockFall();
-      }
-
-    //DK: One thread updates the DRAM
-    // 5 DRAM cycles per trax cycle
-    // (assuming 1GHz trax, 5GHz GDDR5)
-    if(!disable_usimm)
-      {
-	for(int i=0; i < DRAM_CLOCK_MULTIPLIER; i++)
-	  usimmClock();
-      }
-
-    current_simulation_threads = global_total_simulation_threads;
-    pthread_cond_broadcast(&sync_cond);
-  }
+  if (current_simulation_threads > 0) 
+    {
+      pthread_cond_wait(&sync_cond, &sync_mutex);
+    }
+  else 
+    {
+      // Last thread sync caches
+      for(size_t i = 0; i < num_L2s; i++)
+	{
+	  L2s[i]->ClockRise();
+	  L2s[i]->ClockFall();
+	}
+      
+      // Last thread updates the DRAM
+      // Multiple DRAM cycles per trax cycle
+      if(!disable_usimm)
+	{
+	  for(int i=0; i < DRAM_CLOCK_MULTIPLIER; i++)
+	    usimmClock();
+	}
+      
+      // Last thread signal the others to wake up
+      current_simulation_threads = global_total_simulation_threads;
+      pthread_cond_broadcast(&sync_cond);
+    }
   pthread_mutex_unlock(&sync_mutex);
 }
 
-void UsimmUpdate()
+void *CoreThread( void* args ) 
 {
-  pthread_mutex_lock(&sync_mutex);
-  current_simulation_threads--;
-  if (current_simulation_threads > 0) {
-    pthread_cond_wait(&sync_cond, &sync_mutex);
-  }
-  else {
-    //DK: One thread updates the DRAM
-    // 5 DRAM cycles per trax cycle
-    // (assuming 1GHz trax, 5GHz GDDR5)
-    for(int i=0; i < DRAM_CLOCK_MULTIPLIER; i++)
-      usimmClock();
-
-    current_simulation_threads = global_total_simulation_threads;
-    pthread_cond_broadcast(&sync_cond);
-  }
-  pthread_mutex_unlock(&sync_mutex);
-}
-
-
-void *CoreThread( void* args ) {
   CoreThreadArgs* core_args = static_cast<CoreThreadArgs*>(args);
   long long int stop_cycle = core_args->stop_cycle;
   printf("Thread %d running cores\t%d to\t%d ...\n", (int) core_args->thread_num, (int) core_args->start_core, (int) core_args->end_core-1);
   // main loop for this core
-  while (true) {
-    // Choose the first core to issue from
-    int start_core = 0;
-    long long int max_stall_cycles = -1;
-    for (int i = core_args->start_core; i < core_args->end_core; ++i) {
-      long long int stall_cycles = (*core_args->cores)[i]->CountStalls();
-      if (stall_cycles > max_stall_cycles) {
-	start_core = i - core_args->start_core;
-	max_stall_cycles = stall_cycles;
-      }
+  while (true) 
+    {
+      // Choose the first core to issue from
+      int start_core = 0;
+      long long int max_stall_cycles = -1;
+      for (int i = core_args->start_core; i < core_args->end_core; ++i) 
+	{
+	  long long int stall_cycles = (*core_args->cores)[i]->CountStalls();
+	  if (stall_cycles > max_stall_cycles) 
+	    {
+	      start_core = i - core_args->start_core;
+	      max_stall_cycles = stall_cycles;
+	    }
+	}
+      
+      int num_cores = core_args->end_core - core_args->start_core;
+      for (int i = 0; i < num_cores; ++i) 
+	{
+	  int core_id = ((i + start_core) % num_cores) + core_args->start_core;
+	  SystemClockRise((*core_args->cores)[core_id]->modules);
+	  SystemClockFall((*core_args->cores)[core_id]->modules);
+	}
+      SyncThread(core_args);
+      
+      bool all_done = true;
+      for (int i = core_args->start_core; i < core_args->end_core; ++i) 
+	{
+	  TrackUtilization((*core_args->cores)[i]->modules,
+			   (*core_args->cores)[i]->utilizations);
+	  (*core_args->cores)[i]->cycle_num++;
+	  if (!(*core_args->cores)[i]->issuer->halted) 
+	    {
+	      all_done = false;
+	    }
+	}
+      if ((*core_args->cores)[0]->cycle_num == stop_cycle || all_done) 
+	{
+	  break;
+	}
     }
-
-    int num_cores = core_args->end_core - core_args->start_core;
-    for (int i = 0; i < num_cores; ++i) {
-      int core_id = ((i + start_core) % num_cores) + core_args->start_core;
-      SystemClockRise((*core_args->cores)[core_id]->modules);
-      SystemClockFall((*core_args->cores)[core_id]->modules);
-    }
-    SyncThread(core_args);
-
-    //UsimmUpdate();
-    bool all_done = true;
-    for (int i = core_args->start_core; i < core_args->end_core; ++i) {
-      TrackUtilization((*core_args->cores)[i]->modules,
-		       (*core_args->cores)[i]->utilizations);
-      (*core_args->cores)[i]->cycle_num++;
-      if (!(*core_args->cores)[i]->issuer->halted) {
-	all_done = false;
-      }
-    }
-    if ((*core_args->cores)[0]->cycle_num == stop_cycle || all_done) {
-      break;
-    }
-  }
   pthread_mutex_lock(&sync_mutex);
   global_total_simulation_threads--;
   current_simulation_threads--;
-  if (current_simulation_threads == 0) {
-    // if this was the last thread wake the others.
-    current_simulation_threads = global_total_simulation_threads;
-    pthread_cond_broadcast(&sync_cond);
-  }
+  if (current_simulation_threads == 0)
+    {
+      // if this was the last thread wake the others.
+      current_simulation_threads = global_total_simulation_threads;
+      pthread_cond_broadcast(&sync_cond);
+    }
   pthread_mutex_unlock(&sync_mutex);
   return 0;
 }
@@ -248,32 +250,35 @@ void SerialExecution(CoreThreadArgs* core_args, int num_cores)
 {
   printf("Cores 0 through %d running (serial execution mode)\n", num_cores - 1);
 
-  while (true) {
-    bool all_halted = true;
-	//TODO: put the core pointers into a vector (or some kind of collection),
-    // and remove them when they halt, to cut down this loop... (or just swap halted ones to the end of the array?
-    std::vector<TraxCore*>* cores = core_args[0].cores;
-    long long int stop_cycle = core_args[0].stop_cycle;
-    for(int i=0; i < num_cores; i++)
-      {
-	TraxCore* core = (*cores)[i];
-	if(core->issuer->halted)
-	  continue;
-	all_halted = false;
-	SystemClockRise(core->modules);
-	SystemClockFall(core->modules);
-	TrackUtilization(core->modules, core->utilizations);
-	core->cycle_num++;
-	if (core->cycle_num == stop_cycle)
-	  core->issuer->halted = true;
-      }
-    if(all_halted)
-      break;
-  }
+  while (true) 
+    {
+      bool all_halted = true;
+      //TODO: put the core pointers into a vector (or some kind of collection),
+      // and remove them when they halt, to cut down this loop... (or just swap halted ones to the end of the array?
+      std::vector<TraxCore*>* cores = core_args[0].cores;
+      long long int stop_cycle = core_args[0].stop_cycle;
+      for(int i=0; i < num_cores; i++)
+	{
+	  TraxCore* core = (*cores)[i];
+	  if(core->issuer->halted)
+	    continue;
+	  all_halted = false;
+	  SystemClockRise(core->modules);
+	  SystemClockFall(core->modules);
+	  TrackUtilization(core->modules, core->utilizations);
+	  core->cycle_num++;
+	  if (core->cycle_num == stop_cycle)
+	    core->issuer->halted = true;
+	}
+      if(all_halted)
+	break;
+    }
 }
 
 
-void printUsage(char* program_name) {
+// TODO: use popt.h instead of reinventing the wheel
+void printUsage(char* program_name) 
+{
   printf("%s\n", program_name);
   printf("  + Simulator Parameters:\n");
   printf("\t--atominc-report       <number of cycles between reporting number of atomicincs -- default 1000000, 0 means off>\n");
@@ -289,8 +294,10 @@ void printUsage(char* program_name) {
   printf("\t--serial-execution     [use a single pthread to run simulation]\n");
   printf("\t--simulation-threads   <number of simulator threads. -- default 1>\n");
   printf("\t--stop-cycle           <final cycle>\n");
+  printf("\t--verbose              enables output verbosity\n");
   printf("\t--write-dot            <depth> generates dot files for the tree after each frame. Depth should not exceed 8\n");
   printf("\t--write-mem-file       [write memory dump to file]\n");
+  
 
   printf("\n");
   printf("  + TRAX Specification:\n");
@@ -350,7 +357,8 @@ void printUsage(char* program_name) {
 }
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) 
+{
   clock_t start_time                    = clock();
   bool print_system_info                = false;
   bool print_cpi                        = true;
@@ -420,17 +428,19 @@ int main(int argc, char* argv[]) {
   char *usimm_config_file               = NULL;
 
   // Verify Instruction.h matches Instruction.cc in size.
-  if (strncmp(Instruction::Opnames[Instruction::PROF].c_str(), "PROF", 4) != 0) {
-    printf("Instruction.h does not match Instruction.cc. Please fix them.\n");
-    exit(-1);
-  }
+  if (strncmp(Instruction::Opnames[Instruction::PROF].c_str(), "PROF", 4) != 0) 
+    {
+      printf("Instruction.h does not match Instruction.cc. Please fix them.\n");
+      exit(-1);
+    }
 
   // If no arguments passed to simulator, print help and exit
-  if (argc == 1) {
+  if (argc == 1) 
+    {
       printf("No parameters specified. Please see more information below:\n");
       printUsage(argv[0]);
       return -1;
-  }
+    }
 
   for (int i = 1; i < argc; i++) {
     // print simulation details
@@ -504,6 +514,8 @@ int main(int argc, char* argv[]) {
       epsilon = static_cast<float>( atof(argv[++i]) );
     } else if (strcmp(argv[i], "--num-samples") == 0) {
       num_samples = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "--verbose") == 0) {
+      trax_verbosity = 1;
     } else if (strcmp(argv[i], "--write-dot") == 0) {
       dot_depth = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--print-instructions") == 0) {
@@ -569,9 +581,6 @@ int main(int argc, char* argv[]) {
     printf("\n");
   }
 
-  if (print_system_info) {
-    printf("Per cycle information currently not supported.\n");
-  }
 
   if(rebuild_frequency > 0)
     duplicate_bvh = false;
@@ -608,7 +617,8 @@ int main(int argc, char* argv[]) {
     // load the cores
     for (size_t i = 0; i < num_cores; ++i) {
       size_t core_id = i + num_cores * l2_id;
-      printf("Loading core %d.\n", (int)core_id);
+      if(trax_verbosity)
+	printf("Loading core %d.\n", (int)core_id);
       // only one computation is needed... we'll end up with the last one after the loop
       core_size = 0;
       TraxCore *current_core = new TraxCore(num_thread_procs, threads_per_proc, num_regs, scheduling_scheme, &instructions, L2, core_id, l2_id);
@@ -638,12 +648,6 @@ int main(int argc, char* argv[]) {
     float size_of_one_reg = 0.01947f / 128.0f;
     core_size += num_regs * num_thread_procs * threads_per_proc * size_of_one_reg;
   }
-
-
-  //} else {
-  //printf("ERROR: No configuration supplied.\n");
-  //return -1;
-  //}
   
   // set up L1 snooping if enabled
   if (cache_snoop) {
@@ -675,7 +679,7 @@ int main(int argc, char* argv[]) {
   }
 
   // find maximum branch delay
-  //TODO: Why do we still need this? Compiler should use a base branch delay slot size
+  // only for backwards compatability with old trax compilers
   std::vector<FunctionalUnit*> functional_units = cores[0]->functional_units;
   for (size_t i = 0; i < functional_units.size(); i++) {
     BranchUnit* brancher = dynamic_cast<BranchUnit*>(functional_units[i]);
@@ -749,58 +753,46 @@ int main(int argc, char* argv[]) {
   } // end else for memory dump file
 
   // Once the model has been loaded and the BVH has been built, set up the animation if there is one
-  
   if(keyframe_file != NULL)
   {
-      if(duplicate_bvh)
-	{
-	  printf("primary bvh starts at %d, secondary at %d\n", bvh->start_nodes, bvh->start_secondary_nodes);
-	  printf("primary triangles start at %d, secondary at %d\n", bvh->start_tris, bvh->start_secondary_tris);
-	  animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-				    &bvh->tri_orders, bvh->inorder_tris.size(), 
-				    bvh->start_tris, bvh->start_nodes,
-				    bvh->start_secondary_tris, bvh->start_secondary_nodes);
-	}
-      else
-	{
-	  animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-				    &bvh->tri_orders, bvh->inorder_tris.size(), 
-				    bvh->start_tris, bvh->start_nodes);
-	}
+    if(duplicate_bvh)
+      {
+	if(trax_verbosity)
+	  {
+	    printf("primary bvh starts at %d, secondary at %d\n", bvh->start_nodes, bvh->start_secondary_nodes);
+	    printf("primary triangles start at %d, secondary at %d\n", bvh->start_tris, bvh->start_secondary_tris);
+	  }
+	animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
+				  &bvh->tri_orders, bvh->inorder_tris.size(), 
+				  bvh->start_tris, bvh->start_nodes,
+				  bvh->start_secondary_tris, bvh->start_secondary_nodes);
+      }
+    else
+      {
+	animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
+				  &bvh->tri_orders, bvh->inorder_tris.size(), 
+				  bvh->start_tris, bvh->start_nodes);
+      }
   }
   
   // Set up incremental output if option is specified
-  if (incremental_output) {
-    memory->image_width = image_width;
-    memory->image_height = image_height;
-    memory->incremental_output = incremental_output;
-    memory->start_framebuffer = start_framebuffer;
-    memory->stores_between_output = stores_between_output;
-  }
-
-  // to check the memory contents
-  printf( "start_wq: %d\nstart_fb: %d\nstart_scene: %d\nstart_camera: %d\n",
-	  start_wq, start_framebuffer, start_scene, start_camera);
-  printf( "start_matls: %d\nstart_bg_color: %d\nstart_light: %d\nstart_permutation: %d\n",
-	  start_matls, start_bg_color, start_light, start_permutation);
+  if (incremental_output) 
+    {
+      memory->image_width = image_width;
+      memory->image_height = image_height;
+      memory->incremental_output = incremental_output;
+      memory->start_framebuffer = start_framebuffer;
+      memory->stores_between_output = stores_between_output;
+    }
 
   int memory_size = memory->getSize();
 
-  if (end_memory > memory_size) {
-    printf("ERROR: Scene requires %d blocks while memory_size is only %d\n", end_memory, memory_size);
-    exit(-1);
-  }
+  if (end_memory > memory_size) 
+    {
+      printf("ERROR: Scene requires %d blocks while memory_size is only %d\n", end_memory, memory_size);
+      exit(-1);
+    }
 
-  // TODO: tmp - set up the main image to look purple! ===============================================================================================
-/*	for (int j = image_height - 1; j >= 0; j--) {
-		for (int i = 0; i < image_width; i++) {
-			int index = start_framebuffer + 3 * (j * image_width + i);
-			memory->getData()[index+0].fvalue = 1.f;
-			memory->getData()[index+1].fvalue = 0.f;
-			memory->getData()[index+2].fvalue = 1.f;
-		}
-	}
-*/
 
 
   // Write memory dump
@@ -817,7 +809,6 @@ int main(int argc, char* argv[]) {
 
   // Done preparing units, fill in instructions
   // declaration moved above
-  //std::vector<Instruction*> instructions;
 
   if(assem_file!=NULL)
     {
@@ -827,28 +818,22 @@ int main(int argc, char* argv[]) {
           printf("assembler returned an error, exiting\n");
           exit(-1);
         }
-      printf("assembly uses %d registers\n", numRegs);
+      if(trax_verbosity)
+	printf("assembly uses %d registers\n", numRegs);
     }
   else
     {
       printf("Error: no assembly program specified\n");
       return -1;
-    //loadStandardRayTracer(instructions, start_wq, start_framebuffer, start_camera, start_scene, start_light, start_bg_color);
     }
 
   int last_instruction = static_cast<int>(instructions.size());
-  printf("Number of instructions: %d\n\n", last_instruction);
+  if(trax_verbosity)
+    printf("Number of instructions: %d\n\n", last_instruction);
 
-  //float initial_bvh_cost = bvh->computeSAHCost(start_scene, memory->getData());
+  // Write the bvh to a dot file if desired
   if(dot_depth > 0)
     bvh->writeDOT("bvh.dot", start_scene, memory->getData(), 1, dot_depth);
-  // Once the machine finishes this it'll halt
-
-  // icache area estimate
-  // 128, 32-bit registers is 22000um in 65nm lp
-  //float size_of_one_reg = .022/128.;
-  //core_size += static_cast<float>(last_instruction) * num_icaches * size_of_one_reg;
-  // removed in favor of using Cacti cache numbers
 
   if (print_instructions) {
     printf("Instruction listing:\n");
@@ -894,25 +879,27 @@ int main(int argc, char* argv[]) {
 
   if(!disable_usimm)
     {
-      if (usimm_config_file == NULL) {
-	//usimm_config_file = "configs/usimm_configs/1channel.cfg";
-	//usimm_config_file = "configs/usimm_configs/4channel.cfg";
-	usimm_config_file = (char*)"../samples/configs/usimm_configs/gddr5.cfg";
-	printf("No USIMM configuration specified, using default: %s\n", usimm_config_file);
-      }
+      if (usimm_config_file == NULL) 
+	{
+	  //usimm_config_file = "configs/usimm_configs/1channel.cfg";
+	  //usimm_config_file = "configs/usimm_configs/4channel.cfg";
+	  usimm_config_file = (char*)"../samples/configs/usimm_configs/gddr5.cfg";
+	  printf("No USIMM configuration specified, using default: %s\n", usimm_config_file);
+	}
       usimm_setup(usimm_config_file);
     }
   
-  // Limit simulation threads to the number of cores
-  if (total_simulation_threads > (int)(num_cores * num_L2s)) {
+  // Limit simulation threads to the number of TMs
+  if (total_simulation_threads > (int)(num_cores * num_L2s)) 
     total_simulation_threads = num_cores * num_L2s;
-  }
-  if (total_simulation_threads < 1) {
+
+  // Need at least 1
+  if (total_simulation_threads < 1) 
     total_simulation_threads = 1;
-  }
+
   global_total_simulation_threads = total_simulation_threads;
 
-  // set up thread arguments
+  // set up simulator thread arguments 
   pthread_attr_t attr;
   pthread_t *threadids = new pthread_t[total_simulation_threads];
   CoreThreadArgs *args = new CoreThreadArgs[total_simulation_threads];
@@ -951,9 +938,10 @@ int main(int argc, char* argv[]) {
   clock_t curr_frame_time;
 
 
+  // Now run the simulation
   while(true)
-  {  
-    prev_frame_time = clock();
+    {  
+      prev_frame_time = clock();
       if(serial_execution)
 	SerialExecution(args, num_cores * num_L2s);      
       else
@@ -972,21 +960,24 @@ int main(int argc, char* argv[]) {
       printf("\t <== Frame time: %12.1f s ==>\n", clockdiff(prev_frame_time, curr_frame_time));
       
       
-      // Machine has halted, take a look
+      // After reaching this point, the machine has halted.
+      // Take a look and print relevant stats
+
+
+      // If the scene was animated, make sure the BVH is still valid after all the geometry moved
       if(animation != NULL)
 	{
-	  printf("verifying BVH...\n");
+	  if(trax_verbosity)
+	    printf("verifying BVH...\n");
 	  if(duplicate_bvh)
 	    bvh->verifyTree(animation->getRotateAddress(), memory->getData(), 0);
 	  else
 	    bvh->verifyTree(animation->start_nodes, memory->getData(), 0);
-	  //printf("secondary BVH...\n");
-	  //bvh->verifyTree(bvh->start_secondary_nodes, memory->getData(), 0);
-	  printf("BVH verification complente\n");
+	  if(trax_verbosity)
+	    printf("BVH verification complente\n");
 	}
 
-      
-      //printf("Initial total BVH SAH cost: %f\n", initial_bvh_cost);
+      // Write the BVH for this frame to a dot file if desired
       if(animation != NULL && dot_depth > 0)
 	{
 	  char dotfile[80];
@@ -995,37 +986,57 @@ int main(int argc, char* argv[]) {
 	  bvh->writeDOT(dotfile, animation->getRotateAddress(), memory->getData(), 0, dot_depth);
 	}
       
-      //printf("BVH 2 SAH cost: %f\n", bvh->computeSAHCost(bvh->start_secondary_nodes, memory->getData()));
-      
-      if (print_cpi) {
-	long long int L1_hits = 0;
-	long long int L1_stores = 0;
-	long long int L1_accesses = 0;
-	long long int L1_misses = 0;
-	long long int L1_bank_conflicts = 0;
-	long long int L1_nearby_hits = 0;
-	long long int L1_same_word_conflicts = 0;
-	long long int L1_bus_transfers = 0;
-	long long int L1_bus_hits = 0;
-	for (size_t i = 0; i < num_cores * num_L2s; ++i) {
-	  printf("<=== Core %d ===>\n", (int)i);
-	  cores[i]->issuer->print();
-	}
-	for (size_t i = 0; i < num_cores * num_L2s; ++i) {
-	  printf("\n ## Core %d ##\n", (int)i);
-	  NormalizeUtilization(cores[i]->cycle_num, cores[i]->utilizations);
-	  PrintUtilization(cores[i]->module_names, cores[i]->utilizations);
-	  //cores[i]->L1->PrintStats();
-	  L1_hits += cores[i]->L1->hits;
-	  L1_stores += cores[i]->L1->stores;
-	  L1_accesses += cores[i]->L1->accesses;
-	  L1_misses += cores[i]->L1->misses;
-	  L1_nearby_hits += cores[i]->L1->nearby_hits;
-	  L1_bank_conflicts += cores[i]->L1->bank_conflicts;
-	  L1_same_word_conflicts += cores[i]->L1->same_word_conflicts;
-	  L1_bus_transfers += cores[i]->L1->bus_transfers;
-	  L1_bus_hits += cores[i]->L1->bus_hits;
-	}
+      if (print_cpi)
+	{
+
+	  // Print the resting state of each core? (they should all be halted)
+	  if(trax_verbosity)
+	    for (size_t i = 0; i < num_cores * num_L2s; ++i) 
+	      {
+		printf("<=== Core %d ===>\n", (int)i);
+		cores[i]->issuer->print();
+	      }
+
+	  // Count the system-wide stats, sum/average of all cores
+	  for (size_t i = 0; i < num_cores * num_L2s; ++i) 
+	    {
+	      if(trax_verbosity)
+		printf("\n ## Core %d ##\n", (int)i);
+
+	      NormalizeUtilization(cores[i]->cycle_num, cores[i]->utilizations);
+
+	      if(trax_verbosity)
+		PrintUtilization(cores[i]->module_names, cores[i]->utilizations);
+	      
+	      //if(trax_verbosity)
+	      //cores[i]->L1->PrintStats();
+	      
+	      // After core 0 has been printed, use it to hold the sums of all other cores' stats
+	      if(i != 0)
+		cores[0]->AddStats(cores[i]);
+	      
+	      // TODO: L1 tracking can also be combined with the above
+	      /*
+	      L1_hits += cores[i]->L1->hits;
+	      L1_stores += cores[i]->L1->stores;
+	      L1_accesses += cores[i]->L1->accesses;
+	      L1_misses += cores[i]->L1->misses;
+	      L1_nearby_hits += cores[i]->L1->nearby_hits;
+	      L1_bank_conflicts += cores[i]->L1->bank_conflicts;
+	      L1_same_word_conflicts += cores[i]->L1->same_word_conflicts;
+	      L1_bus_transfers += cores[i]->L1->bus_transfers;
+	      L1_bus_hits += cores[i]->L1->bus_hits;
+	      */
+	    }
+	  // TODO: fix up all relevent numbers (like utilizations need to be divided by num_cores
+
+	  // Print system-wide stats
+	  if((num_cores * num_L2s) > 1 || !trax_verbosity)
+	    {
+	      printf("System-wide instruction stats (sum/average of all cores):\n");
+	      cores[0]->issuer->print(num_cores * num_L2s);
+	      PrintUtilization(cores[0]->module_names, cores[0]->utilizations, num_cores * num_L2s);
+	    }
 
 	// get highest cycle count
 	long long int cycle_count = 0;
@@ -1033,7 +1044,11 @@ int main(int argc, char* argv[]) {
 	  if (cores[i]->cycle_num > cycle_count) 
 	    cycle_count = cores[i]->cycle_num;
 	}
+
+	printf("System-wide L1 stats (sum of all TMs):\n");
+	cores[0]->L1->PrintStats();
 	
+	/*
 	printf("\n");
 	printf("L1 accesses: \t%lld\n", L1_accesses);
 	printf("L1 hits: \t%lld\n", L1_hits);
@@ -1046,6 +1061,7 @@ int main(int argc, char* argv[]) {
 	printf("L2 -> L1 bus transfers: %lld\n", L1_bus_transfers);
 	printf("L2 -> L1 bus hits: %lld\n", L1_bus_hits);
 	printf("\n");
+	*/
 
 	// Print L2 stats and gather agregate data
 	long long int L2_accesses = 0;
@@ -1067,20 +1083,20 @@ int main(int argc, char* argv[]) {
 	int L2_line_size = (int)pow( 2.f, static_cast<float>(L2->line_size) );
 	float Hz = 1000000000;
 	printf("Bandwidth numbers for %dMHz clock (GB/s):\n", static_cast<int>(Hz/1000000));
-	printf("   register to L1 bandwidth: \t %f\n", static_cast<float>(L1_accesses) * word_size * Hz / cycle_count);
-	printf("   L1 to L2 bandwidth: \t\t %f\n", static_cast<float>(L2_accesses) * word_size * L1_line_size * Hz / cycle_count);
+	printf("   register to L1 bandwidth: \t %f\n", static_cast<float>(cores[0]->L1->accesses) * word_size / cycle_count);
+	printf("   L1 to L2 bandwidth: \t\t %f\n", static_cast<float>(L2_accesses) * word_size * L1_line_size / cycle_count);
 	
 	float DRAM_BW;
 	if(disable_usimm)
 	  {
-	    DRAM_BW = static_cast<float>(L2_misses) * word_size * L2_line_size * Hz / cycle_count;
+	    DRAM_BW = static_cast<float>(L2_misses) * word_size * L2_line_size / cycle_count;
 	  }
 	else
 	  {
 	    long long int total_lines_transfered = 0;
 	    for(int c=0; c < NUM_CHANNELS; c++)
 	      total_lines_transfered += stats_reads_completed[c];
-	    DRAM_BW = static_cast<float>(total_lines_transfered) * L2_line_size * word_size * Hz / cycle_count;
+	    DRAM_BW = static_cast<float>(total_lines_transfered) * L2_line_size * word_size / cycle_count;
 	  }
 	printf("   L2 to memory bandwidth: \t %f\n", DRAM_BW);
 

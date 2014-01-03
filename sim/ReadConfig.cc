@@ -74,7 +74,7 @@ ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, Ma
 	printf("ERROR: L2 declared before MEMORY!\n");
 	continue;
       }
-      printf("Found Unit L2 cache with latency %3d issue banks %3d area %8.0f um^2 and power %8.3f mW\n", hit_latency, num_banks, unit_area, unit_power);
+
       // Insert loop to allocate num_L2s here
       for (size_t i = 0; i < num_L2s; ++i) {
 	L2s[i] = new L2Cache(mem, cache_size, hit_latency,
@@ -140,7 +140,7 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
 	printf("ERROR: L1 syntax is L1 <hit latency> <cache size> <num banks> <line size(**2)> <cache area um^2 (optional)> <power mW (optional)>\n");
 	continue;
       }
-      printf("Found Unit L1 cache with latency %3d issue banks %3d area %8.0f um^2 and power %8.3f mW\n", hit_latency, num_banks, unit_area, unit_power);
+
       current_core->L1 = new L1Cache(L2, hit_latency, cache_size,
 				     num_banks, line_size,
 				     memory_trace, l1_off, l1_read_copy);
@@ -177,8 +177,6 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
         // otherwise it worked
       }
 
-      printf("Found Unit %-8s with latency %3d issue width %3d area %8.0f um^2 and power %8.3f mW\n",
-             unit_string.c_str(), latency, issue_width, unit_area, unit_power);
 
       // Add area to count if given
       if (unit_area >= 0) {
@@ -353,7 +351,8 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
 
     }
   }
-  printf(" Size estimate (HW config):\t%.4lf\n", size_estimate);
+  
+  //printf(" Size estimate (HW config):\t%.4lf\n", size_estimate);
 
 
   fclose(input);

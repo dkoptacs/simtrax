@@ -25,23 +25,6 @@ Camera::Camera(const Vector3& c,
   across = uvw_u * (right - left);
   up = uvw_v * (top - bottom);
   radius = aperture;
-
-  std::cout << "Center is " << center << std::endl;
-  std::cout << "Corner is " << corner << std::endl;
-  std::cout << "Across is " << across << std::endl;
-  std::cout << "Up is     " << up << std::endl;
-  std::cout << "gaze is   " << unitgaze << std::endl;
-  std::cout << "U is      " << u << std::endl;
-  std::cout << "V is      " << v << std::endl;
-  std::cout << "Unorm is  " << unitVector(u) << std::endl;
-  std::cout << "Vnorm is  " << unitVector(v) << std::endl;
-  std::cout << "radius is " << radius << std::endl;
-  std::cout << "left is   " << left << std::endl;
-  std::cout << "right is  " << right << std::endl;
-  std::cout << "bottom is " << bottom << std::endl;
-  std::cout << "top is    " << top << std::endl;
-  std::cout << "near is   " << distance << std::endl;
-  std::cout << "far is    " << far << std::endl;
 }
 
 void LoadVector(int& memory_position, int max_memory, FourByte* memory,
@@ -71,62 +54,3 @@ void Camera::LoadIntoMemory(int& memory_position, int max_memory,
   memory[memory_position++].fvalue = near;//+32
   memory[memory_position++].fvalue = far;//+33
 }
-
-/*
-  // From uber.gr
-#if USE_SPHERES || USE_BOXES
-  default_camera.center[0] = -5.f;
-  default_camera.center[1] =  1.f;
-  default_camera.center[2] =  3.f;
-
-  default_camera.corner[0] = -2.341772;
-  default_camera.corner[1] =  2.22045e-16;
-  default_camera.corner[2] = -0.344222;
-
-  default_camera.across[0] = 1.54349;
-  default_camera.across[1] = -0;
-  default_camera.across[2] = 2.57248;
-
-  default_camera.up[0] = 0;
-  default_camera.up[1] = 2.f;
-  default_camera.up[2] = 0.f;
-
-  default_camera.u[0] = 0.514496;
-  default_camera.u[1] = -0.f;
-  default_camera.u[2] = 0.857493;
-
-  default_camera.v[0] = 0.f;
-  default_camera.v[1] = 1.f;
-  default_camera.v[2] = 0.f;
-#else
-  default_camera.center[0] = 278.f;
-  default_camera.center[1] = 273.f;
-  default_camera.center[2] = -550.f;
-
-  default_camera.corner[0] = 279.f;
-  default_camera.corner[1] = 272.f;
-  default_camera.corner[2] = -548.f;
-
-  default_camera.across[0] = -2.f;
-  default_camera.across[1] =  0.f;
-  default_camera.across[2] =  0.f;
-
-  default_camera.up[0] = 0;
-  default_camera.up[1] = 2.f;
-  default_camera.up[2] = 0.f;
-
-  default_camera.u[0] = -1.f;
-  default_camera.u[1] = 0.f;
-  default_camera.u[2] = 0.f;
-
-  default_camera.v[0] = 0.f;
-  default_camera.v[1] = 1.f;
-  default_camera.v[2] = 0.f;
-#endif
-
-  default_camera.radius = 0.f;
-
-  for (int i = 0; i < camera_size; i++) {
-    mem[start_camera + i].fvalue = camera_params[i];
-  }
-*/

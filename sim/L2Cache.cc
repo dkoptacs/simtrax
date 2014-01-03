@@ -438,7 +438,8 @@ void L2Cache::PrintStats() {
   printf("L2 bank conflicts: \t%lld\n", bank_conflicts);
   printf("L2 hit rate: \t%f\n", static_cast<float>(hits)/accesses);
   printf("L2 memory faults: %lld\n", memory_faults);
-  printf("L2 bandwidth limited stalls: %lld\n", bandwidth_stalls);
+  if(disable_usimm)
+    printf("L2 bandwidth limited stalls: %lld\n", bandwidth_stalls);
 }
 
 double L2Cache::Utilization() {

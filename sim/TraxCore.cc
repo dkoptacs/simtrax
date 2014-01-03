@@ -20,24 +20,6 @@ TraxCore::TraxCore(int _num_thread_procs, int _threads_per_proc, int _num_regs,
   schedule = ss;
   core_id = coreid;
   l2_id = l2id;
-  /*
-  for (int i = 0; i < num_threads; i++) {
-    SimpleRegisterFile* simple_regs = new SimpleRegisterFile(num_regs);
-    long long int start_cycle = 0;
-    simple_regs->WriteInt(0, 0, start_cycle);
-
-    //simple_regs->WriteFloat(0, 1);
-    simple_regs->WriteFloat(1, 2, start_cycle);
-    simple_regs->WriteInt(8, 0, start_cycle);
-    simple_regs->WriteInt(9, 10, start_cycle);
-    simple_regs->WriteInt(12, 0, start_cycle);
-    simple_regs->WriteInt(23, 30, start_cycle);
-    register_files.push_back(simple_regs);
-    modules.push_back(simple_regs);
-
-    module_names.push_back("Register File");
-  }
-  */
 }
 
 TraxCore::~TraxCore(){
@@ -56,16 +38,14 @@ void TraxCore::initialize(int issue_verbosity, int num_icaches, int icache_banks
       tp->EnableRegisterDump();
     }
     thread_procs.push_back(tp);
-
-    //threads.push_back(new ThreadState(register_files[i], *instructions));
   }
 
   functional_units.push_back(dynamic_cast<FunctionalUnit*>(L1));
   issuer = new IssueUnit(thread_procs, functional_units, issue_verbosity, num_icaches, icache_banks, simd_width);
-//   issuer = new NewIssueUnit(thread_procs, functional_units, issue_verbosity, num_icaches, icache_banks, simd_width);
   modules.push_back(issuer);
   module_names.push_back(std::string("IssueLogic"));
 
+  // Find the LocalStore (stack) unit and pre-load the .data segment
   for (size_t i = 0; i < modules.size(); i++) {
     LocalStore* ls_unit = dynamic_cast<LocalStore*>(modules[i]);
     if (ls_unit) {
@@ -79,7 +59,6 @@ void TraxCore::initialize(int issue_verbosity, int num_icaches, int icache_banks
 	if(debug)
 	  debug->setLocalStore(ls_unit);
       }
-
     }
     utilizations.push_back(0.0);
   }
@@ -88,6 +67,7 @@ void TraxCore::initialize(int issue_verbosity, int num_icaches, int icache_banks
 
 }
 
+// Resets all gathered statistics
 void TraxCore::Reset()
 {
   cycle_num = 0;
@@ -102,6 +82,7 @@ void TraxCore::EnableRegisterDump(int proc_num){
   enable_proc_trace = proc_num;
 }
 
+// Sets a pointer to the symbol names used in the assembly for better printing info
 void TraxCore::SetSymbols(std::vector<symbol*> *regs)
 {
   for (size_t i = 0; i < functional_units.size(); i++) {
@@ -117,4 +98,20 @@ long long int TraxCore::CountStalls() {
     stall_cycles += issuer->current_cycle - thread_procs[i]->GetActiveThread()->last_issue;
   }
   return stall_cycles;
+}
+
+// This function is for stats-tracking only.
+// We will use one core to hold the sums of all other cores' stats
+void TraxCore::AddStats(TraxCore* otherCore)
+{
+  // Module utilizations
+  for(size_t i = 0; i < utilizations.size(); i++)
+    utilizations[i] += otherCore->utilizations[i];
+  
+  // Per-instruction stats
+  issuer->AddStats(otherCore->issuer);
+  
+  // L1 cache stats
+  L1->AddStats(otherCore->L1);
+
 }

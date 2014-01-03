@@ -790,3 +790,19 @@ void L1Cache::UpdateBus(int address, long long int write_cycle)
 }
 
 
+// This function is for stats-tracking only.
+// We will use one core to hold the sums of all other cores' stats
+void L1Cache::AddStats(L1Cache* otherL1)
+{
+  
+  hits += otherL1->hits;
+  stores += otherL1->stores;
+  accesses += otherL1->accesses;
+  misses += otherL1->misses;
+  nearby_hits += otherL1->nearby_hits;
+  bank_conflicts += otherL1->bank_conflicts;
+  same_word_conflicts += otherL1->same_word_conflicts;
+  bus_transfers += otherL1->bus_transfers;
+  bus_hits += otherL1->bus_hits;
+  
+}

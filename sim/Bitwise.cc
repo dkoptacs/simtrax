@@ -102,9 +102,13 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   case Instruction::ANDNI:
     result.udata = arg1.udata & ~ins.args[2];
     break;
-  case Instruction::sra:
-  case Instruction::srl:
-    result.udata = arg1.udata >> 1;
+  case Instruction::sra: 
+    thread->carry_register = arg1.udata & 1;
+    result.idata = arg1.idata >> 1; // signed data for arithmetic
+    break;
+  case Instruction::srl: 
+    thread->carry_register = arg1.udata & 1;
+    result.udata = arg1.udata >> 1; // unsigned data for logical
     break;
   case Instruction::sext8:
     result.udata = ((arg1.udata << 24) >> 24);
@@ -118,8 +122,10 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   case Instruction::bslli:
     result.udata = arg1.udata << ins.args[2];
     break;
-  case Instruction::bsrli:
-  case Instruction::bsrai:
+  case Instruction::bsrai: // arithmetic
+    result.idata = arg1.idata >> ins.args[2];
+    break;
+  case Instruction::bsrli: // logical
     result.udata = arg1.udata >> ins.args[2];
     break;
   default:
