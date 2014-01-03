@@ -1,7 +1,26 @@
 project(simtrax)
 cmake_minimum_required(VERSION 2.8)
 
-set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
+#
+#  Default Build To Release, If Not Set By User
+#
+set(CMAKE_DEBUG_POSTFIX d)
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE "Release" CACHE string
+	"Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel."
+	FORCE)
+endif(NOT CMAKE_BUILD_TYPE)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	if(UNIX OR APPLE)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+	endif(UNIX OR APPLE)
+endif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+
+# Update install location if it's the default
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+	set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR} CACHE PATH "simtrax install location prefix" FORCE)
+endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
 # Find pthreads
 include(FindPthreads.cmake)

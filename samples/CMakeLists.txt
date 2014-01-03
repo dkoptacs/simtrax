@@ -13,8 +13,8 @@ if(${SYS_IS_WIN})
 	set(LLVM_BINS "${LLVM_BINS}/bin/")
 endif(${SYS_IS_WIN})
 
+set(LLVM_CLANG_LOC "clang${ADD_TO_EXE_NAME}" CACHE STRING "path to clang${ADD_TO_EXE_NAME} used for compilation")
 set(LLVM_BIN_DIR "${LLVM_BINS}/" CACHE PATH "LLVM binaries location")
-set(LLVM_GCC_LOC "llvm-gcc${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of llvm-gcc${ADD_TO_EXE_NAME}")	# --- modify to use clang instead!!!
 set(LLVM_LD_LOC "llvm-ld${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of llvm-ld${ADD_TO_EXE_NAME}")
 set(LLVM_DIS_LOC "llvm-dis${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of llvm-dis${ADD_TO_EXE_NAME}")
 set(LLVM_OPT_LOC "opt${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of opt${ADD_TO_EXE_NAME}")
@@ -51,6 +51,10 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	endif(UNIX OR APPLE)
 endif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 
+# Update install location if it's the default
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+	set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR} CACHE PATH "simtrax install location prefix" FORCE)
+endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
 # Default scene and such... can be easily changed within visual studio
 set(SIMDIR "${CMAKE_SOURCE_DIR}/../sim/" CACHE PATH "Location of the Simulator")
@@ -114,11 +118,15 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend n
 		list(APPEND PRE_TRAX_SRC ${directoryPrePend}${src})
 	endforeach()
 
-	# update pahts for TRAX headers	
+	# update paths for TRAX headers	
 	set(PRE_TRAX_HDR)
 	foreach(hdr ${TRAX_HEADERS})
 		list(APPEND PRE_TRAX_HDR ${directoryPrePend}${hdr})
 	endforeach()
+
+	# get relative path between sample source location and actual example location
+	# to be used as install location
+	file(RELATIVE_PATH TARGET_INSTALL_SUBDIR ${CMAKE_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR})
 
 
 	############
@@ -129,21 +137,31 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend n
 	source_group(TRAX_Sources FILES ${PRE_TRAX_SRC})
 	source_group(TRAX_Headers FILES ${PRE_TRAX_HDR})
 
+	install(TARGETS ${targetName} DESTINATION "bin/${TARGET_INSTALL_SUBDIR}/")
+
+
 
 	############
 	# generate TRAX target
+	set(COMBINED_SOURCES)
+	foreach(_file ${${targetSources}})
+		list(APPEND COMBINED_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/${_file})
+	endforeach(_file ${${targetSources}})
 	foreach(_file ${TRAX_TRAX_SOURCES})
-		list(APPEND ${targetSources} ${directoryPrePend}${_file})
+		list(APPEND COMBINED_SOURCES ${directoryPrePend}${_file})
 	endforeach(_file ${TRAX_TRAX_SOURCES})
 
+	if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/BC/")
+		file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/BC/")
+	endif(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/BC/")
+
 	set(TARGET_BC_FILES)
-	foreach(_file_cc ${${targetSources}})
+	foreach(_file_cc ${COMBINED_SOURCES})
 		get_filename_component(file_cc ${_file_cc} NAME_WE)
-		set(file_bc "BC/${file_cc}.bc")
-#		message( ${directoryPrePend}${LLVM_BIN_DIR}${LLVM_GCC_LOC} -emit-llvm -DTRAX=1 ${addnlDef} -DWIDTH=${SCENE_TRXWIDTH} -DHEIGHT=${SCENE_TRXHEIGHT} -I${directoryPrePend}${TRAX_INCLUDE_DIR} -o ${file_bc} -c ${_file_cc} )
+		set(file_bc "${CMAKE_CURRENT_BINARY_DIR}/BC/${file_cc}.bc")
 		add_custom_command( OUTPUT ${file_bc}
-							COMMAND ${directoryPrePend}${LLVM_BIN_DIR}${LLVM_GCC_LOC} -emit-llvm -DTRAX=1 ${addnlDef} -DWIDTH=${SCENE_TRXWIDTH} -DHEIGHT=${SCENE_TRXHEIGHT} -I${directoryPrePend}${TRAX_INCLUDE_DIR} -o ${file_bc} -c ${_file_cc}
-							DEPENDS ${file_cc})
+							COMMAND ${directoryPrePend}${LLVM_CLANG_LOC} -emit-llvm -DTRAX=1 -target mblaze -S -O3 ${addnlDef} -DWIDTH=${SCENE_TRXWIDTH} -DHEIGHT=${SCENE_TRXHEIGHT} -I${directoryPrePend}${TRAX_INCLUDE_DIR} -o ${file_bc} -c ${_file_cc}
+							DEPENDS ${_file_cc})
 		list(APPEND TARGET_BC_FILES ${file_bc})
 	endforeach()
 
@@ -160,26 +178,48 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend n
 	endif(${needMemset})
 
 	# now, actually do the linking, etc
-	add_custom_command(OUTPUT "BC/${targetName}_rt.bc"    COMMAND ${directoryPrePend}${LLVM_BIN_DIR}${LLVM_LD_LOC} ${TARGET_BC_FILES} -o BC/${targetName}_rt DEPENDS ${TARGET_BC_FILES})
-	add_custom_command(OUTPUT "BC/${targetName}_pre.ll"   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}${LLVM_DIS_LOC} BC/${targetName}_rt${WIN_EXE_POSTPEND}.bc -o BC/${targetName}_pre.ll DEPENDS "BC/${targetName}_rt.bc")
-	add_custom_command(OUTPUT "BC/${targetName}_rtopt.bc" COMMAND ${directoryPrePend}${LLVM_BIN_DIR}${LLVM_OPT_LOC} BC/${targetName}_rt${WIN_EXE_POSTPEND}.bc -O3 -inline-threshold 200000000 -o BC/${targetName}_rt${WIN_EXE_POSTPEND}.bc DEPENDS "BC/${targetName}_rt.bc" "BC/${targetName}_pre.ll")
-	add_custom_command(OUTPUT "BC/${targetName}_post.ll"  COMMAND ${directoryPrePend}${LLVM_BIN_DIR}${LLVM_DIS_LOC} BC/${targetName}_rt${WIN_EXE_POSTPEND}.bc -o BC/${targetName}_post.ll DEPENDS "BC/${targetName}_rtopt.bc")
-	add_custom_command(OUTPUT "BC/${targetName}_rt.s"     COMMAND ${directoryPrePend}${LLVM_BIN_DIR}${LLVM_LLC_LOC} BC/${targetName}_rt${WIN_EXE_POSTPEND}.bc -o BC/${targetName}_rt.s -march=trax DEPENDS "BC/${targetName}_rt.bc" "BC/${targetName}_rtopt.bc" "BC/${targetName}_post.ll")
-	list(APPEND TARGET_BC_FILES ${file_bc} "BC/${targetName}_rt.bc" "BC/${targetName}_pre.ll" "BC/${targetName}_rtopt.bc" "BC/${targetName}_post.ll" "BC/${targetName}_rt.s")
+	set(targetRTbc_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_rt")
+	set(targetPREll_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_pre")
+	set(targetRTOPTbc_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_rtopt")
+	set(targetPOSTll_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_post")
+	set(targetRTs_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_rt")
+
+	add_custom_command(OUTPUT "${targetRTbc_file}.bc"
+					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_LD_LOC} ${TARGET_BC_FILES} -o ${targetRTbc_file}
+					   DEPENDS ${TARGET_BC_FILES})
+	add_custom_command(OUTPUT "${targetPREll_file}.ll"
+					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_DIS_LOC} ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc -o ${targetPREll_file}.ll
+					   DEPENDS "${targetRTbc_file}.bc")
+	add_custom_command(OUTPUT "${targetRTOPTbc_file}.bc"
+					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_OPT_LOC} ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc -O3 -inline-threshold 200000000 -o ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc
+					   DEPENDS "${targetRTbc_file}.bc" "${targetPREll_file}.ll")
+	add_custom_command(OUTPUT "${targetPOSTll_file}.ll"
+					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_DIS_LOC} ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc -o ${targetPOSTll_file}.ll
+					   DEPENDS "${targetRTOPTbc_file}.bc")
+	add_custom_command(OUTPUT "${targetRTs_file}.s"
+					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_LLC_LOC} ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc -o ${targetRTs_file}.s -march=trax -mattr=fpu,mul,div,barrel
+					   DEPENDS "${targetRTbc_file}.bc" "${targetRTOPTbc_file}.bc" "${targetPOSTll_file}.ll")
+	list(APPEND TARGET_BC_FILES ${file_bc} "${targetRTbc_file}.bc" "${targetPREll_file}.ll" "${targetRTOPTbc_file}.bc" "${targetPOSTll_file}.ll" "${targetRTs_file}.s")
 
 	# add the final rt-llvm.s target, which depends on things like memset.s
+	set(targetRTLLVMs_file "${CMAKE_CURRENT_BINARY_DIR}/${targetName}_rt-llvm.s")
 	if(${needMemset})
-		add_custom_command(OUTPUT "${targetName}_rt-llvm.s"   COMMAND python "${directoryPrePend}${TRAX_LN_PY_LOC} " BC/${targetName}_rt.s ${MEMSET_FCNS_ADD} > ${targetName}_rt-llvm.s DEPENDS "BC/${targetName}_rt.s" "${MEMSET_FCNS_ADD}" )	
+		add_custom_command(OUTPUT ${targetRTLLVMs_file}
+						   COMMAND python "${directoryPrePend}${TRAX_LN_PY_LOC}" ${targetRTs_file}.s ${MEMSET_FCNS_ADD} > ${targetRTLLVMs_file}
+						   DEPENDS "${targetRTs_file}.s" "${MEMSET_FCNS_ADD}" )	
 		list(APPEND TARGET_BC_FILES "${MEMSET_FCNS_ADD}")
 	else(${needMemset})
-		add_custom_command(OUTPUT "${targetName}_rt-llvm.s"   COMMAND python "${directoryPrePend}${TRAX_LN_PY_LOC} " BC/${targetName}_rt.s > ${targetName}_rt-llvm.s DEPENDS "BC/${targetName}_rt.s")
+		add_custom_command(OUTPUT ${targetRTLLVMs_file}
+						   COMMAND python "${directoryPrePend}${TRAX_LN_PY_LOC}" ${targetRTs_file}.s > ${targetRTLLVMs_file}
+						   DEPENDS "${targetRTs_file}.s")
 	endif(${needMemset})
-	list(APPEND TARGET_BC_FILES "${targetName}_rt-llvm.s")
+	list(APPEND TARGET_BC_FILES "${targetRTLLVMs_file}")
 
 	# final project target
-	add_custom_target(TRAX_${targetName} DEPENDS ${TARGET_BC_FILES})
-	
-	# TODO: add install targets to copy all executables to some bin directory
+	add_custom_target(TRAX_${targetName} ALL
+					  DEPENDS ${TARGET_BC_FILES})
+
+	install(FILES ${targetRTLLVMs_file} DESTINATION "bin/${TARGET_INSTALL_SUBDIR}/")
 
 endfunction( applyToTarget )
 
