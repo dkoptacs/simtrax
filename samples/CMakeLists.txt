@@ -13,10 +13,9 @@ if(${SYS_IS_WIN})
 	set(LLVM_BINS "${LLVM_BINS}/bin/")
 endif(${SYS_IS_WIN})
 
-set(LLVM_CLANG_LOC "clang${ADD_TO_EXE_NAME}" CACHE STRING "path to clang${ADD_TO_EXE_NAME} used for compilation")
+set(LLVM_CLANG_LOC "clang${ADD_TO_EXE_NAME}" CACHE FILEPATH "path to clang${ADD_TO_EXE_NAME} used for compilation")
 set(LLVM_BIN_DIR "${LLVM_BINS}/" CACHE PATH "LLVM binaries location")
-set(LLVM_LD_LOC "llvm-ld${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of llvm-ld${ADD_TO_EXE_NAME}")
-set(LLVM_DIS_LOC "llvm-dis${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of llvm-dis${ADD_TO_EXE_NAME}")
+set(LLVM_LINK_LOC "llvm-link${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of llvm-link${ADD_TO_EXE_NAME}")
 set(LLVM_OPT_LOC "opt${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of opt${ADD_TO_EXE_NAME}")
 set(LLVM_LLC_LOC "llc${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of llc${ADD_TO_EXE_NAME}")
 set(TRAX_LN_PY_LOC "${TRAX_DIR}/linker/ln.py" CACHE FILEPATH "Trax linker python script 'ln.py'")
@@ -108,9 +107,8 @@ set(TRAX_TRAX_SOURCES ${LIBDIR}/trax_trax.cpp)
 # targetSources    - source files (.cc) that will be compiled with LLVM
 # targetHeaders    - header files (.h) that will be used to create basic executable
 # directoryPrePend - directory to prepend before all exe files... aka prepend='../' for examples/project# files
-# needMemset       - flag whether to include ${LIBDIR}/memset.s into our final assembly files
 # addnlDef		   - additional definitions to append
-function(applyToTarget targetName targetSources targetHeaders directoryPrePend needMemset addnlDef)
+function(applyToTarget targetName targetSources targetHeaders directoryPrePend addnlDef)
 
 	# update paths for TRAX sources
 	set(PRE_TRAX_SRC)
@@ -172,48 +170,31 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend n
 	endif(${SYS_IS_WIN})
 
 	# do we need memory functions?
-	set(MEMSET_FCNS_ADD "")
-	if(${needMemset})
-		set(MEMSET_FCNS_ADD "${directoryPrePend}${LIBDIR}/memset.s")
-	endif(${needMemset})
+	set(MEMSET_FCNS_ADD "${directoryPrePend}${LIBDIR}/memset.s")
+	set(EXTENDS_FDF2_ADD "${directoryPrePend}${LIBDIR}/__extendsfdf2.s")
 
 	# now, actually do the linking, etc
-	set(targetRTbc_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_rt")
 	set(targetPREll_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_pre")
 	set(targetRTOPTbc_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_rtopt")
-	set(targetPOSTll_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_post")
 	set(targetRTs_file "${CMAKE_CURRENT_BINARY_DIR}/BC/${targetName}_rt")
 
-	add_custom_command(OUTPUT "${targetRTbc_file}.bc"
-					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_LD_LOC} ${TARGET_BC_FILES} -o ${targetRTbc_file}
-					   DEPENDS ${TARGET_BC_FILES})
 	add_custom_command(OUTPUT "${targetPREll_file}.ll"
-					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_DIS_LOC} ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc -o ${targetPREll_file}.ll
-					   DEPENDS "${targetRTbc_file}.bc")
+					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_LINK_LOC} ${TARGET_BC_FILES} -o ${targetPREll_file}.ll
+					   DEPENDS ${TARGET_BC_FILES})
 	add_custom_command(OUTPUT "${targetRTOPTbc_file}.bc"
-					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_OPT_LOC} ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc -O3 -inline-threshold 200000000 -o ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc
-					   DEPENDS "${targetRTbc_file}.bc" "${targetPREll_file}.ll")
-	add_custom_command(OUTPUT "${targetPOSTll_file}.ll"
-					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_DIS_LOC} ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc -o ${targetPOSTll_file}.ll
-					   DEPENDS "${targetRTOPTbc_file}.bc")
+					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_OPT_LOC} ${targetPREll_file}.ll -O3 -inline-threshold 200000000 -o ${targetRTOPTbc_file}.bc
+					   DEPENDS "${targetPREll_file}.ll")
 	add_custom_command(OUTPUT "${targetRTs_file}.s"
-					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_LLC_LOC} ${targetRTbc_file}${WIN_EXE_POSTPEND}.bc -o ${targetRTs_file}.s -march=trax -mattr=fpu,mul,div,barrel
-					   DEPENDS "${targetRTbc_file}.bc" "${targetRTOPTbc_file}.bc" "${targetPOSTll_file}.ll")
-	list(APPEND TARGET_BC_FILES ${file_bc} "${targetRTbc_file}.bc" "${targetPREll_file}.ll" "${targetRTOPTbc_file}.bc" "${targetPOSTll_file}.ll" "${targetRTs_file}.s")
+						COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_LLC_LOC} ${targetRTOPTbc_file}.bc -o ${targetRTs_file}.s -march=trax -mattr=fpu,mul,div,barrel
+						DEPENDS "${targetRTOPTbc_file}.bc")
+	list(APPEND TARGET_BC_FILES "${targetPREll_file}.ll" "${targetRTOPTbc_file}.bc" "${targetRTs_file}.s")
 
 	# add the final rt-llvm.s target, which depends on things like memset.s
 	set(targetRTLLVMs_file "${CMAKE_CURRENT_BINARY_DIR}/${targetName}_rt-llvm.s")
-	if(${needMemset})
-		add_custom_command(OUTPUT ${targetRTLLVMs_file}
-						   COMMAND python "${directoryPrePend}${TRAX_LN_PY_LOC}" ${targetRTs_file}.s ${MEMSET_FCNS_ADD} > ${targetRTLLVMs_file}
-						   DEPENDS "${targetRTs_file}.s" "${MEMSET_FCNS_ADD}" )	
-		list(APPEND TARGET_BC_FILES "${MEMSET_FCNS_ADD}")
-	else(${needMemset})
-		add_custom_command(OUTPUT ${targetRTLLVMs_file}
-						   COMMAND python "${directoryPrePend}${TRAX_LN_PY_LOC}" ${targetRTs_file}.s > ${targetRTLLVMs_file}
-						   DEPENDS "${targetRTs_file}.s")
-	endif(${needMemset})
-	list(APPEND TARGET_BC_FILES "${targetRTLLVMs_file}")
+	add_custom_command(OUTPUT ${targetRTLLVMs_file}
+					   COMMAND python "${directoryPrePend}${TRAX_LN_PY_LOC}" ${targetRTs_file}.s ${MEMSET_FCNS_ADD} ${EXTENDS_FDF2_ADD} > ${targetRTLLVMs_file}
+					   DEPENDS "${targetRTs_file}.s" "${MEMSET_FCNS_ADD}" "${EXTENDS_FDF2_ADD}" )	
+	list(APPEND TARGET_BC_FILES "${MEMSET_FCNS_ADD}" "${EXTENDS_FDF2_ADD}" "${targetRTLLVMs_file}")
 
 	# final project target
 	add_custom_target(TRAX_${targetName} ALL

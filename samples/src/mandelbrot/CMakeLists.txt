@@ -12,4 +12,4 @@ set(MANDELBROT_HDR
 )
 
 # get the project set up
-applyToTarget(mandelbrot MANDELBROT_SRC MANDELBROT_HDR "" 1 "")
+applyToTarget(mandelbrot MANDELBROT_SRC MANDELBROT_HDR "" "")

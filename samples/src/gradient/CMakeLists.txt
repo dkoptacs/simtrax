@@ -9,4 +9,4 @@ set(GRADIENT_HDR
 )
 
 # get the project set up
-applyToTarget(gradient GRADIENT_SRC GRADIENT_HDR "" 1 "")
+applyToTarget(gradient GRADIENT_SRC GRADIENT_HDR "" "")
