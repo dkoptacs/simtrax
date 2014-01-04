@@ -1015,18 +1015,6 @@ int main(int argc, char* argv[])
 	      if(i != 0)
 		cores[0]->AddStats(cores[i]);
 	      
-	      // TODO: L1 tracking can also be combined with the above
-	      /*
-	      L1_hits += cores[i]->L1->hits;
-	      L1_stores += cores[i]->L1->stores;
-	      L1_accesses += cores[i]->L1->accesses;
-	      L1_misses += cores[i]->L1->misses;
-	      L1_nearby_hits += cores[i]->L1->nearby_hits;
-	      L1_bank_conflicts += cores[i]->L1->bank_conflicts;
-	      L1_same_word_conflicts += cores[i]->L1->same_word_conflicts;
-	      L1_bus_transfers += cores[i]->L1->bus_transfers;
-	      L1_bus_hits += cores[i]->L1->bus_hits;
-	      */
 	    }
 	  // TODO: fix up all relevent numbers (like utilizations need to be divided by num_cores
 
@@ -1047,32 +1035,24 @@ int main(int argc, char* argv[])
 
 	printf("System-wide L1 stats (sum of all TMs):\n");
 	cores[0]->L1->PrintStats();
-	
-	/*
 	printf("\n");
-	printf("L1 accesses: \t%lld\n", L1_accesses);
-	printf("L1 hits: \t%lld\n", L1_hits);
-	printf("L1 misses: \t%lld\n", L1_misses);
-	printf("L1 bank conflicts: \t%lld\n", L1_bank_conflicts);
-	printf("L1 same word conflicts: \t%lld\n", L1_same_word_conflicts);
-	printf("L1 stores: \t%lld\n", L1_stores);
-	printf("L1 near hit: \t%lld\n", L1_nearby_hits);  
-	printf("L1 hit rate: \t%f\n", static_cast<float>(L1_hits)/L1_accesses);
-	printf("L2 -> L1 bus transfers: %lld\n", L1_bus_transfers);
-	printf("L2 -> L1 bus hits: %lld\n", L1_bus_hits);
-	printf("\n");
-	*/
+
 
 	// Print L2 stats and gather agregate data
 	long long int L2_accesses = 0;
 	long long int L2_misses = 0;
+	double L2_area = 0;
+	double L2_energy = 0;
 	for (size_t i = 0; i < num_L2s; ++i) {
 	  printf(" -= L2 #%d =-\n", (int)i);
 	  L2s[i]->PrintStats();
 	  L2_accesses += L2s[i]->accesses;
 	  L2_misses += L2s[i]->misses;
 	  printf("\n");
+	  L2_area += L2s[i]->area;
+	  L2_energy += L2s[i]->energy * L2s[i]->accesses;
 	}
+	L2_energy /= 1000000000.f;
 
 	// for linesize just use the first L2
 	L2Cache* L2 = L2s[0];
@@ -1084,9 +1064,9 @@ int main(int argc, char* argv[])
 	float Hz = 1000000000;
 	printf("Bandwidth numbers for %dMHz clock (GB/s):\n", static_cast<int>(Hz/1000000));
 	printf("   register to L1 bandwidth: \t %f\n", static_cast<float>(cores[0]->L1->accesses) * word_size / cycle_count);
-	printf("   L1 to L2 bandwidth: \t\t %f\n", static_cast<float>(L2_accesses) * word_size * L1_line_size / cycle_count);
+	printf("   L1 to L2 bandwidth: \t\t %f\n", static_cast<float>(cores[0]->L1->bus_transfers) * word_size * L1_line_size / cycle_count);
 	
-	float DRAM_BW;
+	double DRAM_BW;
 	if(disable_usimm)
 	  {
 	    DRAM_BW = static_cast<float>(L2_misses) * word_size * L2_line_size / cycle_count;
@@ -1101,9 +1081,35 @@ int main(int argc, char* argv[])
 	printf("   L2 to memory bandwidth: \t %f\n", DRAM_BW);
 
 
-	// TODO: debug help (print out the atominc counters =========================================================================================================
-	printf("Final Global Register values: imgSize=%d\n", image_width*image_height);
-	globals.print();
+	if(trax_verbosity)
+	  {
+	    printf("Final Global Register values: imgSize=%d\n", image_width*image_height);
+	    globals.print();
+	  }
+
+	//printf("L1 energy(J) = %f, area(mm2) = %f\n", (cores[0]->L1->energy * cores[0]->L1->accesses) / 1000000000.f, cores[0]->L1->area * num_cores * num_L2s);
+
+	double L1_area = cores[0]->L1->area * num_cores * num_L2s;
+
+	printf("\n");
+
+	//TODO: add other components
+	printf("Chip area (mm2):\n");
+	printf("\tL1 data caches: %f\n", L1_area);
+	printf("\tL2 data caches: %f\n", L2_area);
+	printf("\ttotal: %f\n", L1_area + L2_area);
+
+	printf("\n");
+	
+	// core 0 contains the aggregate accesses
+	double L1_energy = (cores[0]->L1->energy * cores[0]->L1->accesses) / 1000000000.f;
+
+	//TODO: add other components (will need to compute usimm stats first)
+	printf("System-wide energy consumption (J):\n");
+	printf("\tL1 data caches: %f\n", L1_energy);
+	printf("\tL2 data caches: %f\n", L2_energy);
+	printf("\ttotal: %f\n\n", L1_energy + L2_energy);	
+
 
 	// print sizes
 	double size_estimate = L2_size * num_L2s + core_size * num_cores * num_L2s;

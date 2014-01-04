@@ -20,7 +20,7 @@ public:
   // cache_size is the size of the cache in blocks (words)
   // num_blocks is the size of the memory in blocks (words)
   L1Cache(L2Cache* L2, int hit_latency,
-	  int cache_size, int num_banks, int line_size, 
+	  int cache_size, float _area, float _energy, int num_banks, int line_size,
 	  bool memory_trace, bool l1_off, bool l1_read_copy);
 
   ~L1Cache();
@@ -38,6 +38,9 @@ public:
   void AddStats(L1Cache* otherL1);
 
   bool snoop(int address);
+
+  float area;
+  float energy;
 
   bool unit_off;
   bool read_copy;

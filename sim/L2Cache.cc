@@ -13,19 +13,25 @@
 extern pthread_mutex_t usimm_mutex[MAX_NUM_CHANNELS];
 
 L2Cache::L2Cache(MainMemory* _mem, int _cache_size, int _hit_latency,
-		 bool _disable_usimm, int _num_banks = 4, int _line_size = 2,
+		 bool _disable_usimm, float _area, float _energy, int _num_banks = 4, int _line_size = 2,
 		 bool _memory_trace = false, bool _l2_off = false, bool l1_off = false) :
   cache_size(_cache_size), num_banks(_num_banks), line_size(_line_size),
   mem(_mem)
 {
-  // Turn off if turned off
+
+  area = _area;
+  energy = _energy;
+  
+  // Turn off the unit?
   unit_off = _l2_off;
   if (unit_off) {
     hit_latency = 0;
-    if (l1_off) {
+    area = 0;
+    energy = 0;
+    //if (l1_off) {
       // can only turn line size to 0 if l1 is also off for bandwidth reasons
-      line_size = 0;
-    }
+      //line_size = 0;
+    //}
   }
 
   disable_usimm = _disable_usimm;
@@ -158,23 +164,9 @@ void L2Cache::ClockFall() {
 
 bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thread, long long int& ret_latency, long long int issuer_current_cycle, int address, int& unroll_type) {
 
-
-  //TODO: check if issuer_current_cycle matches current_cycle
-
-  //current_cycle = issuer_current_cycle;
-  //  int bank_id = 0;
-//   if (issued_this_cycle >= num_banks)
-//     return false;
-
   // handle loads
   if (ins->op == Instruction::LOAD) {
 
-    //int address = thread->registers->ReadInt(ins->args[1], issuer_current_cycle) + ins->args[2];
-    //if(address != L1_addr)
-    //{
-    //	printf("error, mismatched address\n");
-    //	printf("from instr: %d, from l1: %d\n", address, L1_addr);
-    //}
     int bank_id = address % num_banks;
     if (address < 0 || address >= num_blocks) {
       //printf("ERROR: MEMORY FAULT.  REQUEST FOR LOAD OF ADDRESS %d (not in [0, %d])\n",
@@ -194,18 +186,15 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
     // check for a hit
     int index = (address & index_mask) >> index_shift;
 
-    //printf("L2: address = %d, line = %d\n", address, index);
 
     int tag = address & tag_mask;
     if (tags[index] != tag || !valid[index] || unit_off) 
       {
-      // miss (add main memory latency)
+      // miss (add main memory request)
 
       long long int queued_latency = 0;
       if(PendingUpdate(address, queued_latency)) // check for incoming cache lines (some time in the future)
 	{ 
-	  //if(tag == 917504 && index == 6751)
-	  //printf("cycle %lld, L2 returning pending update\n", current_cycle);
 	  ret_latency = hit_latency + queued_latency;
 	  
 	  if(queued_latency > 0)
@@ -249,19 +238,11 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
 	      
 	      long long int usimmAddr = traxAddrToUsimm(address);
 	      dram_address_t dram_addr = calcDramAddr(usimmAddr);
-
-
-	      //printf("channel = %d\n", dram_addr.channel);
-
-	      //if(tag == 917504 && index == 6751)
-	      //printf("cycle %lld, L2 going to dram\n", current_cycle);
 	      
 	      pthread_mutex_lock(&(usimm_mutex[dram_addr.channel]));
-	      //pthread_mutex_lock(&(usimm_mutex[0]));
-	      // give usimm current_cycle * 5 since it is operating at 5x frequency
+	      // give usimm current_cycle * N since it is operating at Nx frequency
 	      request_t *req = insert_read(dram_addr, address, issuer_current_cycle * DRAM_CLOCK_MULTIPLIER, thread->thread_id, 0, ins->pc_address, ins->args[0], result, ins->op, thread, L1, this);
 	      pthread_mutex_unlock(&(usimm_mutex[dram_addr.channel]));
-	      //pthread_mutex_unlock(&(usimm_mutex[0]));
 	      
 	      if(req == NULL) // read queue was full
 		{
@@ -275,19 +256,10 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
 
 	      if(req->request_served == 1)
 		{
-		  ret_latency = hit_latency + (req->completion_time / DRAM_CLOCK_MULTIPLIER - issuer_current_cycle);
-		  
-		  //if(tag == 917504 && index == 6751)
-		  //printf("cycle %lld, L2 returning serviced request\n", current_cycle);
-
-	  
-		  //UpdateCache(address, req->completion_time / DRAM_CLOCK_MULTIPLIER);
-		  
+		  ret_latency = hit_latency + (req->completion_time / DRAM_CLOCK_MULTIPLIER - issuer_current_cycle);	  
 		}
 	      else
 		{
-		  //if(tag == 917504 && index == 6751)
-		  //printf("cycle %lld, L2 returning unknown latency\n", current_cycle);
 		  
 		  ret_latency = UNKNOWN_LATENCY;
 		}

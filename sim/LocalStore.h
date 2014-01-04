@@ -5,6 +5,11 @@
 #include "ThreadState.h"
 #include "FourByte.h"
 
+// Hard-code these values since we only use one type of localstore
+#define LOCALSTORE_AREA .01396329
+#define LOCALSTORE_ENERGY .00692867
+
+
 class LocalStore : public FunctionalUnit {
 public:
   LocalStore(int latency, int width);

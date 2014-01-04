@@ -8,6 +8,11 @@
 #include "DiskBuffer.h"
 #include <stdint.h>
 
+// Hard-code these values since we only use one type of register file
+#define RF_AREA .0147665
+#define RF_ENERGY .0079
+
+
 struct RegisterTraceV1 {
   uint64_t cycle;
   enum { 

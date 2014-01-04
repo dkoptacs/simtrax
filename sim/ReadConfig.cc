@@ -25,6 +25,8 @@
 #include "MainMemory.h"
 #include "TraxCore.h"
 
+int ReadCacheParams(int capacityBytes, int numBanks, int lineSizeBytes, float& area, float& energy);
+
 ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, MainMemory*& mem,
 		       double &size_estimate, bool disable_usimm, bool _memory_trace, bool _l1_off, bool _l2_off, bool _l1_read_copy) :
   input_file(input_file), memory_trace(_memory_trace), l1_off(_l1_off), l2_off(_l2_off), l1_read_copy(_l1_read_copy)
@@ -62,12 +64,12 @@ ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, Ma
       int num_banks;
       int line_size;
       float unit_area = 0;
-      float unit_power;
+      float unit_energy = 0;
 
       int scanvalue = sscanf(line_buf, "%*s %d %d %d %d %f %f", &hit_latency,
-			     &cache_size, &num_banks, &line_size, &unit_area, &unit_power);
+			     &cache_size, &num_banks, &line_size, &unit_area, &unit_energy);
       if ( scanvalue < 4 || scanvalue > 6 ) {
-	printf("ERROR: L2 syntax is L2 <hit latency> <cache size> <num banks> <line size(**2)> <cache area um^2 (optional)> <power mW (optional)>\n");
+	printf("ERROR: L2 syntax is L2 <hit latency> <cache size> <num banks> <line size(**2)> <cache area mm^2 (optional)> <energy nJ (optional)>\n");
 	continue;
       }
       if (mem == NULL) {
@@ -75,10 +77,17 @@ ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, Ma
 	continue;
       }
 
+      if(scanvalue != 6)
+	{
+	  int line_size_bytes = (1 << line_size) * 4;
+	  if(!ReadCacheParams(cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy))
+	    perror("WARNING: Unable to find area and energy profile for specified L2\nAssuming 0\n");
+	}
+
       // Insert loop to allocate num_L2s here
       for (size_t i = 0; i < num_L2s; ++i) {
 	L2s[i] = new L2Cache(mem, cache_size, hit_latency,
-			     disable_usimm, num_banks, line_size,
+			     disable_usimm, unit_area, unit_energy, num_banks, line_size,
 			     memory_trace, l2_off, l1_off);
       }
 
@@ -132,19 +141,34 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
       int num_banks;
       int line_size;
       float unit_area = 0.0;
-      float unit_power = 0.0;
+      float unit_energy = 0.0;
       
+      // Try to read area and energy if specified in config file
       int scanvalue = sscanf(line_buf, "%*s %d %d %d %d %f %f", &hit_latency,
-			     &cache_size, &num_banks, &line_size, &unit_area, &unit_power);
+			     &cache_size, &num_banks, &line_size, &unit_area, &unit_energy);
       if ( scanvalue < 4 || scanvalue > 6) {
-	printf("ERROR: L1 syntax is L1 <hit latency> <cache size> <num banks> <line size(**2)> <cache area um^2 (optional)> <power mW (optional)>\n");
+	printf("ERROR: L1 syntax is L1 <hit latency> <cache size> <num banks> <line size(**2)> <cache area mm^2 (optional)> <energy nJ (optional)>\n");
 	continue;
       }
 
-      current_core->L1 = new L1Cache(L2, hit_latency, cache_size,
+      if(scanvalue != 6)
+	{
+	  int line_size_bytes = (1 << line_size) * 4;
+	  if(!ReadCacheParams(cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy))
+	    perror("WARNING: Unable to find area and energy profile for specified L1\nAssuming 0\n");
+	}
+      
+      current_core->L1 = new L1Cache(L2, hit_latency, cache_size, unit_area, unit_energy,
 				     num_banks, line_size,
 				     memory_trace, l1_off, l1_read_copy);
       
+      //perror("WARNING: Unable to find area and energy profile for specified L1\n Assuming 0\n");
+
+      //TODO: read dcacheparams.txt to load the L1s energt
+      // current_core->L1->energy = ...
+      //if (!l1_off) {
+      // current_core->L1->area = ...
+
       modules->push_back(current_core->L1);
       // 5/3mm on a side for 8k cache
       //size_estimate += 25./9./8192.*cache_size;
@@ -162,9 +186,9 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
       int latency;
       int issue_width;
       float unit_area = -1;
-      float unit_power = 0;
+      float unit_energy = -1;
 
-      int scanvalue = sscanf(line_buf, "%*s %d %d %f %f", &latency, &issue_width, &unit_area, &unit_power);
+      int scanvalue = sscanf(line_buf, "%*s %d %d %f %f", &latency, &issue_width, &unit_area, &unit_energy);
       // see if everything is provided
       if ( scanvalue < 2 || scanvalue > 4) {
         // only one (or none) provided try again with just one param
@@ -356,4 +380,61 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
 
 
   fclose(input);
+}
+
+
+int ReadCacheParams(int capacityBytes, int numBanks, int lineSizeBytes, float& area, float& energy)
+{
+  FILE* input = fopen("../samples/configs/dcacheparams.txt", "r");
+  if (!input) 
+    {
+      // TODO: Add argument to specify location of this file
+      perror("WARNING: Unable to find dcacheparams.txt (should be in samples/configs/)\n Area and power may be wrong.\n");
+      fclose(input);
+      area = 0;
+      energy = 0;
+      return 0;
+    }
+
+  
+  char line[1000];
+  
+  while(!feof(input))
+    {      
+      if(!fgets(line, 1000, input))
+	{
+	  fclose(input);
+	  area = 0;
+	  energy = 0;
+	  return 0;
+	}
+
+    if(strlen(line) < 1)
+      continue;
+    
+    int capacity = 0;
+    int banks = 0;
+    int linesize = 0;
+    float a = 0;
+    float e = 0;
+
+
+    if (sscanf(line, "%d\t%d\t%d\t%f\t%f", &capacity, &banks, &linesize, &a, &e) != 5) 
+      continue;
+      
+    if(capacity == capacityBytes &&
+       banks == numBanks &&
+       linesize == lineSizeBytes)
+      {
+	area = a;
+	energy = e;
+	fclose(input);
+	return 1;
+      }
+    }
+
+  fclose(input);
+  area = 0;
+  energy = 0;
+  return 0;
 }

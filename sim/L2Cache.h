@@ -25,7 +25,8 @@ public:
   // cache_size is the size of the cache in blocks (words)
   // num_blocks is the size of the memory in blocks (words)
   L2Cache(MainMemory* mem, int cache_size, int hit_latency,
-	  bool _disable_usimm, int num_banks, int line_size, bool memory_trace, bool l2_off, bool l1_off);
+	  bool _disable_usimm, float _area, float _energy, int num_banks, int line_size,
+	  bool memory_trace, bool l2_off, bool l1_off);
 
   ~L2Cache();
   virtual bool SupportsOp(Instruction::Opcode op) const;
@@ -43,6 +44,9 @@ public:
 			int address, int& unroll_type);
   void Reset();
   void Clear();
+
+  float area;
+  float energy;
 
   int outstanding_data;
   int max_outstanding_data;

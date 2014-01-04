@@ -14,21 +14,26 @@ extern pthread_mutex_t atominc_mutex;
 
 
 L1Cache::L1Cache(L2Cache* _L2, int _hit_latency,
-		 int _cache_size, int _num_banks = 4, int _line_size = 2,
+		 int _cache_size, float _area, float _energy, int _num_banks = 4, int _line_size = 2,
 		 bool _memory_trace = false, bool _l1_off = false, bool _l1_read_copy = false) :
   hit_latency(_hit_latency),
   cache_size(_cache_size), num_banks(_num_banks), line_size(_line_size),
   L2(_L2)
 {
+  area = _area;
+  energy = _energy;
+
   // get num_blocks from L2 (total memory)
   num_blocks = L2->num_blocks;
   data = L2->data;
 
-  // Turn off if turned off
+  // Turn off the unit?
   unit_off = _l1_off;
   if (unit_off) {
     hit_latency = 0;
     line_size = 0;
+    area = 0;
+    energy = 0;
   }
   read_copy = _l1_read_copy;
 
@@ -225,98 +230,22 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	issued_this_cycle[bank_id]++;
 	return true;
       }
-      
 
-      //TODO: Need to figure out a solution to the (TODO) below before turning this on at all
-      //      Currently not tracking the L2->L1 bus utilization properly.
-      //      Not all L2 accesses cause a bus transfer
-      //      For example, two consecutive loads to the same cache line, going to the same L1, only 1 bus transfer
-      
-      /*
-      if(PendingUpdate(address, temp_latency)) // check for incoming cache lines (some time in the future)
-	{
-
-
-	// If the L1 tracks its own incoming lines, then it doesn't need to go to the L2, and don't need to check for bank conflict
-
-	  //if(L2->BankConflict(address, issuer->current_cycle))
-	  //{
-	      // L2 stalled
-	  //  return false;
-	  //}
-	  	  
-	  reg_value result;
-	  result.udata = data[address].uvalue;
-	  
-	  long long int write_cycle = hit_latency + temp_latency + issuer->current_cycle;
-	  if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) {	      
-	    // pipeline hazzard
-	    return false;
-	  }
-	  misses++;
-	  accesses++;
-
-	  //TODO: For now I'm considering this an L2 access. The energy consumption is significantly less, however.
-	  //      Will need to track these as "L2_read_hits" or something
-	  //      Also, it's unclear where this cache line is coming from, is it just from the L2, or is it from usimm?
-	  pthread_mutex_lock(&(L2->cache_mutex));
-	  L2->accesses++;
-	  L2->hits++;
-	  pthread_mutex_unlock(&(L2->cache_mutex));
-	 
-	  
-	  read_address[bank_id] = address;
-	  issued_this_cycle[bank_id]++;
-	  return true;
-	}
-*/
-
-
-      //TODO: WORKING HERE:
-      //      Need to run simulations with all this bus stuff turned off.
-      //      Latency and energy will be accurate assuming the HW is simple,
-      //      meaning no bus monitoring (same line can be transfered twice on consecutive cycles)
-
-      // TODO: This needs to track whether the bus traffic is coming from dram or from the L2
-      //       Currently just count it as the L1 having it's own bus queue monitoring HW,
-      //       so it doesn't go out to L2 or DRAM at all if it finds it on the bus
-      //       Figure out where it's reasonable or not to assume each L1 has its own queue
-      
-
-      // Need to tack on this threads request to the existing bus transfer if UNKNOWN_LATENCY, 
-      // so that it can be notified when ready
-
-      
       else if(bus_latency != -1)
 	{
 
 	  if(bus_latency != UNKNOWN_LATENCY)	    
-	    bus_latency += hit_latency;
-	  
-	  //printf("\tfound on bus with latency %lld\n", bus_latency);	  
-	  //printf("here1, temp latency = %lld\n", temp_latency);
-	  
-	  
+	    bus_latency += hit_latency;	  
 	  
 	  reg_value result;
 	  result.udata = data[address].uvalue;
-	  // TODO: Problem here si that this write is never updated if incoming time is UNKNOWN_LATENCY,
-	  //       noramally those are updated by usimm since it has a pointer to all of the threads
-	  //       waiting, but this doesn't add itself to usimm's list
-	  //printf("\tnotifying thread, register %d, cycle %d, result %u\n", ins.args[0], bus_latency, result.udata);
 	  if (!thread->QueueWrite(ins.args[0], result, bus_latency, ins.op))
 	    {
-	      //printf("\tpipeline hazzard\n");
-	      //printf("here2\n");
 	      // pipeline hazzard
 	      return false;
 	    }
 	  
-	  
-	  //printf("\tadding recipient with reg %d to transfer index %d, tag %d, prev size = %d\n", ins.args[0], bus_transfer->index, bus_transfer->tag, bus_transfer->recipients.size());
 	  bus_transfer->AddRecipient(address, ins.args[0], thread);
-	  //printf("\tsize = %d\n", bus_transfer->recipients.size());
-	  //printf("here3\n");
 	  bus_hits++;
 	  misses++;
 	  accesses++;
@@ -337,9 +266,6 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	      // queue write to register
 	      long long int write_cycle = hit_latency + temp_latency + issuer->current_cycle;
 	      
-	      
-	      //printf("queueing write for %lld\n", write_cycle);
-	      //printf("\tnotifying thread, register %d, cycle %d, result %u\n", ins.args[0], write_cycle, result.udata);
 	      if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) {	      
 		// pipeline hazzard
 		pthread_mutex_lock(&(L2->cache_mutex));
@@ -349,23 +275,17 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 		else
 		  L2->hits--;
 		pthread_mutex_unlock(&(L2->cache_mutex));
-		//printf("pipeline hazzard3\n");
 		return false;
 	      }
-	      // TODO: use the bus traffic to avoid unecessary usimm reads
-	      // If a read is coming on the bus from L2, then that line gets invalidated next cycle and read again,
-	      // the second read will go all the way to usimm, when it can just read it off the bus
 	      AddBusTraffic(address, write_cycle, thread, ins.args[0]);
 	      UpdateCache(address, write_cycle);
 	    }
 	  else
 	    {
 	      // Otherwise, enqueue it with unknown latency, usimm will update it's return cycle later
-	      //printf("queueing write for %lld\n", UNKNOWN_LATENCY);
 	      
 	      if (!thread->QueueWrite(ins.args[0], result, UNKNOWN_LATENCY, ins.op)) 
 		{
-		  //printf("L1: queue write failed, reg: %d, val: %u\n", ins.args[0], result.udata);
 		  // pipeline hazzard
 		  pthread_mutex_lock(&(L2->cache_mutex));
 		  L2->accesses--;
@@ -374,15 +294,12 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 		  else
 		    L2->hits--;
 		  pthread_mutex_unlock(&(L2->cache_mutex));
-		  //printf("pipeline hazzard4\n");
 		  return false;
 		}
 	      
-	      //thread->register_ready[ins.args[0]] = UNKNOWN_LATENCY; // set the register not ready, will be updated by usimm
 	      AddBusTraffic(address, UNKNOWN_LATENCY, thread, ins.args[0]);
 	    }
 
-	  //printf("\tmiss\n");
 	  misses++;
 	  accesses++;	  
 	  read_address[bank_id] = address;
@@ -402,7 +319,6 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     } 
     else 
       { // cache hit
-	//printf("\thit\n", address);
 	// queue register write
 	long long int write_cycle = hit_latency + issuer->current_cycle;
 	reg_value result;
@@ -411,11 +327,9 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) 
 	  {
 	    // pipeline hazzard
-	    //printf("pipeline hazzard5\n");
 	    return false;
 	  }
 
-	//printf("\thit\n");
 	hits++;
 	accesses++;
 	read_address[bank_id] = address;
@@ -439,7 +353,6 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       printf("Error in L1Cache LOADL1. Should have passed.\n");
     }    
     int address = arg1.idata + ins.args[2];
-    //printf("Cycle: %lld, LoadL1 address: %d\n", issuer->current_cycle, address);
     int bank_id = address % num_banks;
     if (address < 0 || address >= num_blocks) {
       printf("ERROR: L1 MEMORY FAULT.  REQUEST FOR LOAD OF ADDRESS %d (not in [0, %d])\n",
@@ -467,11 +380,9 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       long long int write_cycle = hit_latency + issuer->current_cycle;
       reg_value result;
       // Fail value
-      //printf("\tloadl1 missed\n");
       result.idata = 0;
       if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) {
 	// pipeline hazzard
-	//printf("pipeline hazzard6\n");
 	return false;
       }
 
@@ -480,7 +391,6 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       //issued_this_cycle[bank_id]++;
       return true;
     } else {
-      //printf("\tloadl1 hit\n");
       //hits++;
       //accesses++;
       // queue register write
@@ -592,15 +502,10 @@ void L1Cache::ClockRise() {
 }
 
 void L1Cache::ClockFall() {
-  // Synchronize current cycle with issuer
-  //current_cycle = issuer->current_cycle;
 
   // Commit all updates that should be completed by now
   for (std::vector<CacheUpdate>::iterator i = update_list.begin(); i != update_list.end();) {
-    //printf("\ti->tag = %d, i->cycle = %lld\n", i->tag, i->update_cycle);
     if (i->update_cycle <= current_cycle) {
-      //if(i->index == 95)
-      //printf("L1 validating on cycle %lld, tag: %d, index: %d\n", current_cycle, i->tag, i->index);
 
 #if TRACK_LINE_STATS
       if(tags[i->index] != i->tag)
@@ -611,7 +516,6 @@ void L1Cache::ClockFall() {
       valid[i->index] = true;
 
       // remove completed cache update from the list
-      //printf("cycle %lld, removing from l1 queue\n", current_cycle);
       update_list.erase(i); // this increments the iterator for some reason
     }
     else ++i; // normal increment
@@ -620,10 +524,7 @@ void L1Cache::ClockFall() {
   // Remove old bus traffic
   
   for (std::vector<BusTransfer>::iterator i = bus_traffic.begin(); i != bus_traffic.end();) {
-    //printf("\ti->tag = %d, i->cycle = %lld\n", i->tag, i->update_cycle);
     if (i->update_cycle <= current_cycle) {
-      //if(i->tag == 1024000 && i->index == 95)
-      //printf("rempving index %d, tag %d from bus\n", i->index, i->tag);
       // remove completed cache update from the list
       bus_traffic.erase(i); // this increments the iterator for some reason
     }
@@ -637,26 +538,21 @@ void L1Cache::ClockFall() {
 
 void L1Cache::print() {
   printf("L1Cache\n");
-//   printf("%d instructions in-flight",
-//          instructions->Size());
 }
 
 void L1Cache::PrintStats() {
   if (unit_off) {
     printf("L1 OFF!\n");
+    return;
   }
   printf("L1 accesses: \t%lld\n", accesses);
   printf("L1 hits: \t%lld\n", hits);
   printf("L1 misses: \t%lld\n", misses);
   printf("L1 bank conflicts: \t%lld\n", bank_conflicts);
   printf("L1 stores: \t%lld\n", stores);
-  printf("L1 near hit: \t%lld\n", nearby_hits);  
   printf("L1 hit rate: \t%f\n", static_cast<float>(hits)/accesses);
-//   printf("  Bandwidth:\t%.4f GB/Sec\n", static_cast<float>(misses)*4.f/current_cycle * 
-// 	 (1<<line_size) * .5);
-//   printf("  Max Bandwidth:%.4f GB/Sec (Theoretical)\n", static_cast<float>(num_banks)*4.f *
-// 	 (1<<line_size) * .5);
-
+  printf("Hit under miss: %lld\n", bus_hits);
+  printf("L2 -> L1 bus transfers: %lld\n", bus_transfers);
 }
 
 double L1Cache::Utilization() {
@@ -675,7 +571,6 @@ bool L1Cache::UpdateCache(int address, long long int write_cycle) {
   int index = (address & index_mask) >> index_shift;
   int tag = address & tag_mask;
   // Schedule cache update
-  //printf("adding address %d on cycle %lld to l1 queue\n", address, write_cycle);
   update_list.push_back(CacheUpdate(index, tag, write_cycle));
   // tags[index] = tag;
   // valid[index] = true;
@@ -707,28 +602,9 @@ void L1Cache::AddBusTraffic(int address, long long int write_cycle, ThreadState*
   int index = (address & index_mask) >> index_shift;
   int tag = address & tag_mask; 
 
-  //printf("\tadding bus traffic: index = %d tag = %d, which_reg = %d\n", index, tag, which_reg);
-
-  //if(tag == 1024000 && index == 95)
-  //{
-  //  printf("thread %d, adding 1024000, 95 on cycle %lld, to be completed: %lld\n", thread->thread_id, current_cycle, write_cycle);
-  //}
-
-  // Check if this cache line is already scheduled to be on the bus
-  //for (std::vector<BusTransfer>::iterator i = bus_traffic.begin(); i != bus_traffic.end(); i++) 
-  //{
-  //  if(i->tag == tag && i->index == index)
-  //	{
-  //	  i->recipients.push_back(RegisterWrite(which_reg, thread));
-  //	  return;
-  //	}
-  //} 
-  //if(tag == 1024000 && index == 95)
-  //printf("\tadded\n");
   bus_transfers++;
   BusTransfer transfer(index, tag, write_cycle);
   transfer.AddRecipient(address, which_reg, thread);
-  //transfer.recipients.push_back(RegisterWrite(which_reg, thread));
   bus_traffic.push_back(transfer);
 }
 
@@ -758,7 +634,6 @@ void L1Cache::UpdateBus(int address, long long int write_cycle)
 
   int index = (address & index_mask) >> index_shift;
   int tag = address & tag_mask; 
-  //printf("\tupdating bus on cycle %lld, address = %d, index = %d, tag = %d\n", current_cycle, address, index, tag);
   
   for (std::vector<BusTransfer>::iterator i = bus_traffic.begin(); i != bus_traffic.end(); i++) 
     {
@@ -770,10 +645,7 @@ void L1Cache::UpdateBus(int address, long long int write_cycle)
 	      RegisterWrite reg_write = i->recipients.at(j);
 	      reg_value result;
 	      result.udata = data[reg_write.address].uvalue;
-	      //printf("\tnotifying thread, register %d, cycle %d, result %u\n", reg_write.which_reg, write_cycle, result.udata);
-	      //reg_write.thread->register_ready[reg_write.which_reg] = write_cycle;
 	      reg_write.thread->UpdateWriteCycle(reg_write.which_reg, UNKNOWN_LATENCY, result.udata, write_cycle, Instruction::LOAD);
-	      //reg_write.thread->QueueWrite(reg_write.which_reg, result, write_cycle, Instruction::LOAD);
 	    }
 	  return;
 	}
