@@ -15,12 +15,15 @@ class FunctionalUnit : public HardwareModule {
  protected:
   int latency;
  public:
+
   FunctionalUnit(int _latency){
     latency = _latency;
   }
-  int GetLatency(){
+  int GetLatency()
+  {
     return latency;
   }
+
   // If the unit supports this opcode, return true else false
   virtual bool SupportsOp(Instruction::Opcode op) const = 0;
   // If you can handle this instruction now, return true else false

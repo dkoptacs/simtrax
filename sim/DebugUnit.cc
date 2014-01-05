@@ -116,7 +116,7 @@ void DebugUnit::PrintFormatString(int format_addr, ThreadState* thread)
       str++;
     }
 
-  printf("%s\n", parsed.c_str());
+  printf("<Thread: %p> %s\n", thread, parsed.c_str());
 
 }
 

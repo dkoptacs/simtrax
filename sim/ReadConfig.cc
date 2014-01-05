@@ -25,7 +25,6 @@
 #include "MainMemory.h"
 #include "TraxCore.h"
 
-int ReadCacheParams(int capacityBytes, int numBanks, int lineSizeBytes, float& area, float& energy);
 
 ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, MainMemory*& mem,
 		       double &size_estimate, bool disable_usimm, bool _memory_trace, bool _l1_off, bool _l2_off, bool _l1_read_copy) :
@@ -80,27 +79,17 @@ ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, Ma
       if(scanvalue != 6)
 	{
 	  int line_size_bytes = (1 << line_size) * 4;
-	  if(!ReadCacheParams(cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy))
+	  if(!ReadCacheParams(cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy, true))
 	    perror("WARNING: Unable to find area and energy profile for specified L2\nAssuming 0\n");
 	}
 
-      // Insert loop to allocate num_L2s here
+      // Loop to allocate num_L2s 
       for (size_t i = 0; i < num_L2s; ++i) {
 	L2s[i] = new L2Cache(mem, cache_size, hit_latency,
 			     disable_usimm, unit_area, unit_energy, num_banks, line_size,
 			     memory_trace, l2_off, l1_off);
       }
 
-      // 5/3mm on a side for 8k cache
-      //size_estimate += 25./9./8192.*cache_size;
-      // 1761578 mm^2 for 2k 16byte ?
-      //size_estimate += 1.761578/8192.*cache_size;
-      // 65nm lp: 804063 mm^2 for 2k 16byte. Divide by 8192 to get area/word
-      //size_estimate += 0.804063/8192.*cache_size;
-      // L2 size removed to use Cacti numbers
-      if (!l2_off) {
-	size_estimate += unit_area*1e-6;
-      }
     } else {
       // a per-core module line (skipped here)
     }
@@ -154,7 +143,7 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
       if(scanvalue != 6)
 	{
 	  int line_size_bytes = (1 << line_size) * 4;
-	  if(!ReadCacheParams(cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy))
+	  if(!ReadCacheParams(cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy, true))
 	    perror("WARNING: Unable to find area and energy profile for specified L1\nAssuming 0\n");
 	}
       
@@ -162,24 +151,9 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
 				     num_banks, line_size,
 				     memory_trace, l1_off, l1_read_copy);
       
-      //perror("WARNING: Unable to find area and energy profile for specified L1\n Assuming 0\n");
-
-      //TODO: read dcacheparams.txt to load the L1s energt
-      // current_core->L1->energy = ...
-      //if (!l1_off) {
-      // current_core->L1->area = ...
 
       modules->push_back(current_core->L1);
-      // 5/3mm on a side for 8k cache
-      //size_estimate += 25./9./8192.*cache_size;
-      // 1761578 mm^2 for 2k 16byte ?
-      //size_estimate += 1.761578/8192.*cache_size;
-      // 65nm lp: 804063 mm^2 for 2k 16byte. Divide by 8192 to get area/word
-      //size_estimate += 0.804063/8192.*cache_size;
-      // L1 size removed to use Cacti numbers
-      if (!l1_off) {
-	size_estimate += unit_area*1.0e-6;
-      }
+
     }     
     else {
       // a simple module taking latency and issue width
@@ -214,80 +188,62 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
         functional_units->push_back(fp_addsub);
         module_names->push_back(std::string("FP AddSub"));
 	
-        if (unit_area < 0) {
-	  // 0.2mm on a side
-	  //size_estimate += .04 * issue_width;
-	  // 142 um^2
-	  //size_estimate += .000142 * issue_width;
-	  // 65nm lp: 2596um^2
-	  //size_estimate += .002596 * issue_width;
-	  // 65nm sp: 3311um^2
-	  size_estimate += .003311 * issue_width;
-	}
+	// Hard-code default area/energy inline since they are unlikely to change
+	// This is ugly but oh well
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .003;
+	    unit_energy = .0074;
+	  }
+
       } else if (unit_string == "FPMIN") {
         FPMinMax* fp_minmax = new FPMinMax(latency, issue_width);
         modules->push_back(fp_minmax);
         functional_units->push_back(fp_minmax);
         module_names->push_back(std::string("FP MinMax"));
 
-        if (unit_area < 0) {
-	  // 0.18mm on a side
-	  //size_estimate += .0324 * issue_width;
-	  // 190 um^2
-	  //size_estimate += .000190 * issue_width;
-	  // 65nm lp: 690um^2 (same as compare)
-	  //size_estimate += .000690 * issue_width;
-	  // 65nm sp: 722um^2
-	  size_estimate += .000722 * issue_width;
-	}
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .000722;
+	    unit_energy = .000536;
+	  }
+	
       } else if (unit_string == "FPCMP") {
         FPCompare* fp_compare = new FPCompare(latency, issue_width);
         modules->push_back(fp_compare);
         functional_units->push_back(fp_compare);
         module_names->push_back(std::string("FP Compare"));
 	
-        if (unit_area < 0) {
-	  // 0.18mm on a side
-	  //size_estimate += .0324 * issue_width;
-	  // 61 um^2
-	  //size_estimate += .000061 * issue_width;
-	  // 65nm lp: 690um^2
-	  //size_estimate += .000690 * issue_width;
-	  // 65nm sp: 722um^2
-	  size_estimate += .000722 * issue_width;
-	}
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .000722;
+	    unit_energy = .000536;
+	  }
+
       } else if (unit_string == "INTADD") {
         IntAddSub* int_addsub = new IntAddSub(latency, issue_width);
         modules->push_back(int_addsub);
         functional_units->push_back(int_addsub);
         module_names->push_back(std::string("Int AddSub"));
 
-        if (unit_area < 0) {
-	  // 0.08mm on a side
-	  //size_estimate += 0.0064 * issue_width;
-	  // 58 um^2
-	  //size_estimate += 0.000058 * issue_width;
-	  // 65nm lp: 577um^2
-	  //size_estimate += .000577 * issue_width;
-	  // 65nm sp: 658um^2
-	  size_estimate += .000658 * issue_width;
-	}
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .00066;
+	    unit_energy = .000572;
+	  }
+
       } else if (unit_string == "FPMUL") {
         FPMul* fp_mul = new FPMul(latency, issue_width);
         modules->push_back(fp_mul);
         functional_units->push_back(fp_mul);
         module_names->push_back(std::string("FP Mul"));
 	
-        if (unit_area < 0) {
-	  // 0.4mm on a side
-	  //size_estimate += 0.16 * issue_width;
-	  // 226 um^2
-	  //size_estimate += 0.000226 * issue_width;
-	  // 65nm lp: 8980um^2
-	  //size_estimate += .008980 * issue_width;
-	  // 65nm sp: 10327um^2
-	  size_estimate += .010327 * issue_width;
-	}
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .0165;
+	    unit_energy = .0142;
+	  }
+
       } else if (unit_string == "FPINV" || unit_string == "FPINVSQRT") {
         FPInvSqrt* fp_invsqrt = new FPInvSqrt(latency, issue_width);
         modules->push_back(fp_invsqrt);
@@ -300,65 +256,66 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
         functional_units->push_back(fp_div);
         module_names->push_back(std::string("FP Div"));
 
-        if (unit_area < 0) {
-	  // 0.8mm on a side
-	  //size_estimate += 0.64 * issue_width;
-	  // 452 um^2
-	  //size_estimate += 0.000452 * issue_width;
-	  // 65nm lp: 44465um^2
-	  //size_estimate += .044465 * issue_width;
-	  // 65nm sp: 112818um^2
-	  size_estimate += .112818 * issue_width;
-	}
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .112;
+	    unit_energy = .1563;
+	  }
+
+	// Set the area/energy here since there are two of them
+	fp_invsqrt->area = unit_area;
+	fp_invsqrt->energy = unit_energy;
+	fp_div->area = unit_area;
+	fp_div->energy = unit_energy;
+
       } else if (unit_string == "INTMUL") {
         IntMul* int_mul = new IntMul(latency, issue_width);
         modules->push_back(int_mul);
         functional_units->push_back(int_mul);
         module_names->push_back(std::string("Int Mul"));
 
-        if (unit_area < 0) {
-	  // 0.4mm on a side
-	  //size_estimate += 0.16 * issue_width;
-	  // 226 um^2
-	  //size_estimate += 0.000226 * issue_width;
-	  // 65nm lp: 12690um^2
-	  //size_estimate += .012690 * issue_width;
-	  // 65nm sp: 11694um^2
-	  size_estimate += .011694 * issue_width;
-	}
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .0117;
+	    unit_energy = .0177;
+	  }
+
       } else if (unit_string == "CONV") {
         ConversionUnit* converter = new ConversionUnit(latency, issue_width);
         modules->push_back(converter);
         functional_units->push_back(converter);
         module_names->push_back(std::string("Conversion Unit"));
-	// ignore size
+
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .001814;
+	    unit_energy = .001;
+	  }
+	
       } else if (unit_string == "BLT") {
         BranchUnit* branch = new BranchUnit(latency, issue_width);
         modules->push_back(branch);
         functional_units->push_back(branch);
         module_names->push_back(std::string("Branch Unit"));
 
-        if (unit_area < 0) {
-	  // 0.18mm on a side
-	  //size_estimate += .0324 * issue_width;
-	  // 61 um^2
-	  //size_estimate += 0.000061 * issue_width;
-	  // 65nm lp: 690um^2 (same as compare)
-	  //size_estimate += .000690 * issue_width;
-	  // 65nm sp: 722um^2
-	  size_estimate += .000722 * issue_width;
-	}
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .00066;
+	    unit_energy = .000572;
+	  }
+
       } else if (unit_string == "BITWISE") {
         Bitwise* bitwise = new Bitwise(latency, issue_width);
         modules->push_back(bitwise);
         functional_units->push_back(bitwise);
         module_names->push_back(std::string("Bitwise Ops"));
 
-        if (unit_area < 0) {
-	  // 0.05mm on a side
-	  size_estimate += .000722 * issue_width;
-	  // didn't have better numbers, chose the size of the compare.
-	}
+        if (unit_area < 0 || unit_energy < 0) 
+	  {
+	    unit_area = .00066;
+	    unit_energy = .000572;
+	  }
+
       }
             
       else if (unit_string == "DEBUG") {
@@ -366,26 +323,38 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
         modules->push_back(debug);
         functional_units->push_back(debug);
         module_names->push_back(std::string("Debug Unit"));
-	// ignore size
+
+	// Debug unit is free since it's not part of the real chip
+        if (unit_area < 0 || unit_energy < 0) 	  
+	  {
+	    unit_area = 0;
+	    unit_energy = 0;
+	  }
+
       } else {
         printf("ERROR: Unknown/unhandled unit string %s\n", unit_string.c_str());
         continue;
       }
 
+      size_estimate += unit_area * issue_width;
+      functional_units->at(functional_units->size()-1)->area = unit_area;
+      functional_units->at(functional_units->size()-1)->energy = unit_energy;
 
     }
   }
-  
-  //printf(" Size estimate (HW config):\t%.4lf\n", size_estimate);
-
 
   fclose(input);
 }
 
 
-int ReadCacheParams(int capacityBytes, int numBanks, int lineSizeBytes, float& area, float& energy)
+int ReadCacheParams(int capacityBytes, int numBanks, int lineSizeBytes, float& area, float& energy, bool is_data_cache)
 {
-  FILE* input = fopen("../samples/configs/dcacheparams.txt", "r");
+  FILE* input;
+  if(is_data_cache)
+    input = fopen("../samples/configs/dcacheparams.txt", "r");
+  else
+    input = fopen("../samples/configs/icacheparams.txt", "r");
+
   if (!input) 
     {
       // TODO: Add argument to specify location of this file

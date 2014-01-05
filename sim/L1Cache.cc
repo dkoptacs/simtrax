@@ -552,7 +552,7 @@ void L1Cache::PrintStats() {
   printf("L1 stores: \t%lld\n", stores);
   printf("L1 hit rate: \t%f\n", static_cast<float>(hits)/accesses);
   printf("Hit under miss: %lld\n", bus_hits);
-  printf("L2 -> L1 bus transfers: %lld\n", bus_transfers);
+  //printf("L2 -> L1 bus transfers: %lld\n", bus_transfers);
 }
 
 double L1Cache::Utilization() {

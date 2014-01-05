@@ -26,4 +26,6 @@ public:
   bool l1_off, l2_off, l1_read_copy;
 };
 
+int ReadCacheParams(int capacityBytes, int numBanks, int lineSizeBytes, float& area, float& energy, bool is_data_cache);
+
 #endif // __SIMHWRT_READ_CONFIG_H__

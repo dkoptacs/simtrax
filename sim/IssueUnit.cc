@@ -4,6 +4,7 @@
 #include "L1Cache.h"
 #include "FPMul.h"
 #include "FPAddSub.h"
+#include "ReadConfig.h"
 #include "memory_controller.h"
 #include <stdlib.h>
 #include <fstream>
@@ -14,10 +15,11 @@ IssueUnit::IssueUnit(std::vector<ThreadProcessor*>& _thread_procs,
 		     int _simd_width) 
  :verbosity(_verbosity){
   printed_single_kernel = false;
-//   memset(kernel_executions, 0, sizeof(long long int) * MAX_KERNEL_CYCLES);
-//   memset(kernel_instruction_count, 0, sizeof(long long int) * Instruction::NUM_OPS);
-//   memset(kernel_stall_cycles, 0, sizeof(long long int) * Instruction::NUM_OPS);
-//   memset(kernel_fu_dependencies, 0, sizeof(long long int) * Instruction::NUM_OPS);
+
+  if(!ReadCacheParams(4096, _icache_banks, 4, area, energy, false))
+    perror("WARNING: Unable to find area and energy profile for specified instruction cache.\nAssuming 0\n");
+  
+  area *= _num_icaches;
   
   // flag denoting stats have not been calculated yet
   issue_stats.avg_issue = -1.0;

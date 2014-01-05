@@ -6,6 +6,11 @@
 
 LocalStore::LocalStore(int _latency, int _width) :
   FunctionalUnit(_latency){
+
+  // Hard-code area and energy since they are unlikely to change
+  area = 0.01396329 * _width;
+  energy = 0.00692867;
+
   issued_this_cycle = 0;
   width = _width;
   jtable_size = 0;
@@ -190,6 +195,8 @@ double LocalStore::Utilization() {
 // load jump table in to low order words of stack ("top" of stack space)
 void LocalStore::LoadJumpTable(std::vector<int> jump_table)
 {
+ 
+
   jtable_size = jump_table.size() * 4; // convert from num words to num bytes
   for(int i=0; i < width; i++)
     for(size_t j=0; j < jump_table.size(); j++)
@@ -212,6 +219,8 @@ void LocalStore::LoadAsciiLiterals(std::vector<std::string> ascii_literals)
   for(int i=0; i < width; i++)
     {
       wordNum = jtable_size / 4;
+      tempWord.uvalue = 0;
+      byteNum = 0;
       for(size_t j=0; j < ascii_literals.size(); j++)
 	{
 	  // <= length here so that we get the null terminating char
@@ -239,7 +248,8 @@ void LocalStore::LoadAsciiLiterals(std::vector<std::string> ascii_literals)
 	  ((FourByte *)((char *)(storage[i]) + (wordNum * 4)))->uvalue = tempWord.uvalue;      
 	}
     }
-  
+
+
   // Add size of string literals to protected space size
   for(size_t i = 0; i < ascii_literals.size(); i++)
     jtable_size += ascii_literals.at(i).length() + 1;

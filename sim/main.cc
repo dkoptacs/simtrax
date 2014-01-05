@@ -586,8 +586,10 @@ int main(int argc, char* argv[])
     duplicate_bvh = false;
   
   // size estimates
-  double L2_size = 0;
   double core_size = 0;
+  // deprecated
+  double L2_size = 0;
+
 
   // Keep track of register names
   std::vector<symbol*> regs;
@@ -642,11 +644,6 @@ int main(int argc, char* argv[])
 
       cores.push_back(current_core);
     }
-    // adding register file size
-    // 128, 32-bit registers is 22000um in 65nm lp (made up number - from scaling)
-    // 128, 32-bit registers is 19470um in 65nm from Cacti
-    float size_of_one_reg = 0.01947f / 128.0f;
-    core_size += num_regs * num_thread_procs * threads_per_proc * size_of_one_reg;
   }
   
   // set up L1 snooping if enabled
@@ -1016,7 +1013,6 @@ int main(int argc, char* argv[])
 		cores[0]->AddStats(cores[i]);
 	      
 	    }
-	  // TODO: fix up all relevent numbers (like utilizations need to be divided by num_cores
 
 	  // Print system-wide stats
 	  if((num_cores * num_L2s) > 1 || !trax_verbosity)
@@ -1089,71 +1085,100 @@ int main(int argc, char* argv[])
 
 	//printf("L1 energy(J) = %f, area(mm2) = %f\n", (cores[0]->L1->energy * cores[0]->L1->accesses) / 1000000000.f, cores[0]->L1->area * num_cores * num_L2s);
 
-	double L1_area = cores[0]->L1->area * num_cores * num_L2s;
+	LocalStore* ls_unit = NULL;
+	for (size_t i = 0; i < cores[0]->issuer->units.size(); i++) 
+	  {
+	    ls_unit = dynamic_cast<LocalStore*>(cores[0]->issuer->units[i]);
+	    if(ls_unit) 
+	      break;
+	  }
 
+	double L1_area = cores[0]->L1->area * num_cores * num_L2s;
+	double icache_area = cores[0]->issuer->GetArea() * num_cores * num_L2s;
+	double compute_area = core_size * num_cores * num_L2s;	
+	double register_area = cores[0]->thread_procs[0]->thread_states[0]->registers->GetArea() * cores[0]->num_thread_procs * num_cores * num_L2s;
+	double localstore_area = 0;
+	if(!ls_unit)
+	  printf("Warning: could not find localstore unit to compute area/energy\n");
+	else
+	  localstore_area = ls_unit->GetArea() * num_cores * num_L2s;
+
+	double total_area = L1_area + L2_area + compute_area + icache_area + localstore_area + register_area;
+	
 	printf("\n");
 
-	//TODO: add other components
 	printf("Chip area (mm2):\n");
-	printf("\tL1 data caches: %f\n", L1_area);
-	printf("\tL2 data caches: %f\n", L2_area);
-	printf("\ttotal: %f\n", L1_area + L2_area);
+	printf("   Functional units: \t %f\n", compute_area);
+	printf("   L1 data caches: \t %f\n", L1_area);
+	printf("   L2 data caches: \t %f\n", L2_area);
+	printf("   Instruction caches: \t %f\n", icache_area);
+	printf("   Localstore units: \t %f\n", localstore_area);
+	printf("   Register files: \t %f\n", register_area);
+	printf("   ------------------------------\n");
+	printf("   Total: \t\t %f\n", total_area);
 
 	printf("\n");
 	
 	// core 0 contains the aggregate accesses
 	double L1_energy = (cores[0]->L1->energy * cores[0]->L1->accesses) / 1000000000.f;
 
-	//TODO: add other components (will need to compute usimm stats first)
-	printf("System-wide energy consumption (J):\n");
-	printf("\tL1 data caches: %f\n", L1_energy);
-	printf("\tL2 data caches: %f\n", L2_energy);
-	printf("\ttotal: %f\n\n", L1_energy + L2_energy);	
+	double compute_energy = 0;
+	double icache_energy = 0;
+	double localstore_energy = 0;
+	double register_energy = 0;
+	// Calculate compute energy and icache energy
+	for(int i = 0; i < Instruction::NUM_OPS; i++)
+	  {
+	    // icache energy, 1 activation per instruction
+	    icache_energy += cores[0]->issuer->GetEnergy() * cores[0]->issuer->instruction_bins[i];
 
+	    // localstore energy, 1 activation per localstore op
+	    if(ls_unit->SupportsOp((Instruction::Opcode)(i)))
+	      localstore_energy += ls_unit->GetEnergy() * cores[0]->issuer->instruction_bins[i];
 
-	// print sizes
-	double size_estimate = L2_size * num_L2s + core_size * num_cores * num_L2s;
-	printf("Core size: %.4lf\n", core_size);
-	printf("L2 size: %.4lf\n", L2_size);
-	printf("%d-L2 size: %.4lf\n", num_L2s, L2_size * num_L2s);
-	printf("%d-core chip size: %.4lf\n", num_cores * num_L2s, size_estimate);
+	    // RF access energy, each instruction assumed to cause 3 activates (2 reads, 1 write)
+	    if(i != Instruction::NOP)
+	      register_energy += cores[0]->thread_procs[0]->thread_states[0]->registers->GetEnergy() * cores[0]->issuer->instruction_bins[i] * 3;
+
+	    // compute energy, 1 FU activation per op
+	    for (size_t j = 0; j < cores[0]->issuer->units.size(); j++) 
+	      if (cores[0]->issuer->units[j]->SupportsOp((Instruction::Opcode)(i))) 
+		compute_energy += cores[0]->issuer->instruction_bins[i] * cores[0]->issuer->units[j]->GetEnergy();
+	  }
 	
-	// needs fixing
-	//int num_tiles = image_width * image_height / 256;
+	// convert nanojoules to joules
+	compute_energy /= 1000000000.f;
+	icache_energy /= 1000000000.f;
+	localstore_energy /= 1000000000.f;
+	register_energy /= 1000000000.f;
+	
+	double total_energy = compute_energy + L1_energy + L2_energy + icache_energy + localstore_energy + register_energy;
+	double FPS = Hz/static_cast<double>(cycle_count);
+
+	//TODO: add usimm energy, will need to compute usimm stats first
+	printf("On-chip energy consumption (Joules):\n");
+	printf("   Functional units: \t %f\n", compute_energy);
+	printf("   L1 data caches: \t %f\n", L1_energy);
+	printf("   L2 data caches: \t %f\n", L2_energy);
+	printf("   Instruction caches: \t %f\n", icache_energy);
+	printf("   Localstore units: \t %f\n", localstore_energy);
+	printf("   Register files: \t %f\n", register_energy);
+	printf("   ------------------------------\n");
+	printf("   Total: \t\t %f\n", total_energy);
+	printf("   Power draw (watts): \t %f\n\n", total_energy / (1.f / FPS));
+
+	
 	printf("FPS Statistics:\n");
-	printf("Total clock cycles: %lld\n", cycle_count);
-	printf("  FPS assuming %dMHz clock: %.4lf\n", (int)Hz / 1000000,
-	       Hz/static_cast<double>(cycle_count));
+	printf("   Total clock cycles: \t\t %lld\n", cycle_count);
+	printf("   FPS assuming %dMHz clock: \t %.4lf\n", (int)Hz / 1000000,
+	       FPS);
 
 
 	printf("\n\n");
 
-	
-	// DK: Not sure where to print these stats, just put it at the very end for testing for now.
 	if(!disable_usimm)
 	  printUsimmStats();
 
-
-	/*
-	double fps1024 = Hz/((cycle_count) /
-				    static_cast<double>(image_width * image_height) * (1024*768));
-	printf("  FPS assuming 1024x768: %.4lf\n",
-	       fps1024);
-	// for 20fps at 1024x768
-	printf("  Number of cores for 20fps at 1024x768: %.4lf (%.4lf Threads)\n",
-	       20/fps1024*num_cores, 20/fps1024 * num_cores * num_thread_procs);
-	printf("  Number of cores for 30fps at 1024x768: %.4lf (%.4lf Threads)\n",
-	       30/fps1024*num_cores, 30/fps1024 * num_thread_procs);
-	printf("  Size for %d cores:\t%.4lf mm^2\n", static_cast<int>(ceil(20/fps1024*num_cores)),
-	       ceil(20/fps1024*num_cores)*core_size + L2_size * num_L2s);
-	//jbs: these numbers might need num_L2s in here
-	printf("  FPS for %d cores:\t%.4lf\n", static_cast<int>(ceil(20/fps1024*num_cores)),
-	       ceil(20/fps1024*num_cores)*fps1024/num_cores);
-	printf("  Size for %d cores:\t%.4lf mm^2\n", static_cast<int>(ceil(30/fps1024*num_cores)),
-	       ceil(30/fps1024*num_cores)*core_size + L2_size * num_L2s);
-	printf("  FPS for %d cores:\t%.4lf\n", static_cast<int>(ceil(30/fps1024*num_cores)),
-	       ceil(30/fps1024*num_cores)*fps1024/num_cores);
-	*/
       }
 
       fflush(stdout);
@@ -1235,19 +1260,6 @@ int main(int argc, char* argv[])
       }
       else
 	exit(0);
-      /*
-      else {
-	for (int j = 0; j < image_height; j++) {
-	  printf("Row %03d: ------\n", j);
-	  for (int i = 0; i < image_width; i++) {
-	    int index = start_framebuffer + 3 * (j * image_width + i);
-	    //printf("%.2f ", mem[index].fvalue);
-	    printf("%d ", memory->getData()[index].ivalue);
-	  }
-	  printf("\n");
-	}
-      }
-      */
 
       // reset the cores for a fresh frame (enforce "cache coherency" modified scene data)
       // only one section (one L2) of the chip does any scene modification, so this is fine

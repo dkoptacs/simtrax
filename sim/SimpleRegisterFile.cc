@@ -8,6 +8,12 @@ SimpleRegisterFile::SimpleRegisterFile(int num_regs, int _thread_id) :
   FunctionalUnit(0), 
   num_registers(num_regs)
 {
+
+  // Hard-code area and energy since they are unlikely to change
+  area = 0.0147665;
+  energy = 0.00789613;
+  
+
   fdata = new float[num_regs];
   buffer = NULL;
   // this should be the actual thread id
