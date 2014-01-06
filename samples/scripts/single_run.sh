@@ -3,7 +3,7 @@
 SIMTRAXROOT=../../
 #SIMTRAXROOT=/absolute/path/to/simtrax
 
-ASSEMBLY=$SIMTRAXROOT/samples/src/pathtracer/rt-llvm.s
+ASSEMBLY=$SIMTRAXROOT/samples/src/gradient/rt-llvm.s
 # simulation report file
 OUTPUT_FILE=temp_results.txt
 # image output name
