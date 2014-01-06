@@ -632,6 +632,11 @@ void IssueUnit::MultipleIssueClockFall() {
       int bank_num = thread->program_counter % icache_banks;
       if (bank_fetched[icache_num][bank_num] < fetch_per_cycle) {
 	bank_fetched[icache_num][bank_num]++;
+	if(thread->program_counter < 0)
+	  {
+	    printf("Error: invalid program counter: %d\n", thread->program_counter);
+	    exit(1);
+	  }
 	thread->fetched_instruction = thread->instructions[thread->program_counter];
 	thread->program_counter = thread->next_program_counter;
 	thread->next_program_counter++;
@@ -726,6 +731,11 @@ void IssueUnit::SIMDClockFall() {
     int bank_num = thread->program_counter % icache_banks;
     if (bank_fetched[icache_num][bank_num] < fetch_per_cycle) {
       bank_fetched[icache_num][bank_num]++;
+      if(thread->program_counter < 0)
+	{
+	  printf("Error: invalid program counter: %d\n", thread->program_counter);
+	  exit(1);
+	}
       thread->fetched_instruction = thread->instructions[thread->program_counter];
       thread->program_counter = thread->next_program_counter;
       thread->next_program_counter++;

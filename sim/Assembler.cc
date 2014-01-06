@@ -119,11 +119,20 @@ int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions
 	{
 	  if(labels.at(i)->isJumpTable)
 	    printf("(jump table label): ");
+	  if(labels.at(i)->isAscii)
+	    printf("(ascii label): ");
 	  printf("%s:\t%d\n", labels.at(i)->names.at(0), labels.at(i)->address);
 	}
       printf("Jump table\n");
       for(i=0; i < jump_table.size(); i++)
 	printf("%d: %d\n", (i * 4), jump_table[i]);
+      printf("ASCII literals:\n");
+      int totalStringSize = 0;
+      for(i=0; i < ascii_literals.size(); i++)
+	{
+	  printf("%d: \"%s\"\n", (jump_table.size() * 4) + totalStringSize, ascii_literals[i].c_str());
+	  totalStringSize += ascii_literals[i].length() + 1;
+	}
     }
 
   // fill in the symbol table for any unnamed registers
@@ -210,6 +219,7 @@ int Assembler::handleLine(FILE *input, int pass, std::vector<Instruction*>& inst
 		{
 		  labels[labels.size()-1]->isJumpTable = true;
 		  labels[labels.size()-1]->address = jtable_size;
+		  
 		}
 	      // Make space for the entry
 	      jtable_size += 4; // local store is byte-addressed, assign 1 word for each entry
@@ -249,8 +259,10 @@ int Assembler::handleLine(FILE *input, int pass, std::vector<Instruction*>& inst
 	      int args[4];  
 	      if(!getArgs(token, args, labels, regs) || args[1] != 0 || args[2] != 0 || args[3] != 0)
 		{
-		  printf("WARNING: failed to add jump table entry: %s. This likely means the source uses inheritance, which is not supported, and will fail.\n", token);
-		  return 1;
+		  printf("WARNING: failed to add jump table entry: %s. This likely means the source uses inheritance. If this label is ever a jump target, the program counter will become invalid.\n", token);
+		  // leave the label in, but make it invalid.
+		  // IssueUnit will throw an error if it is ever reached.
+		  args[0] = -1;
 		}
 	      jump_table.push_back(args[0]); // add the label's address to the jump table
 	    }

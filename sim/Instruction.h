@@ -80,7 +80,7 @@ public:
     LOADPIPEGLB, // dst, source (global address)
     LOADPIPELOC, // dst, source (localstore address)
 
-    // implement these
+    // old compares
     FPEQ,        // dst, source1, source2
     FPNE,        // dst, source1, source2
     FPLT,        // dst, source1, source2
