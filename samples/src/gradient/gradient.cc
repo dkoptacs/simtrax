@@ -1,10 +1,5 @@
 #include "trax.hpp"
 
-// Only include stdio for printf on the non-trax version
-#if TRAX==0
-#include <stdio.h>
-#endif
-
 // Utility function to store a color at a pixel offset in the frame buffer
 inline void StorePixel(const int &fb, const int &pixel, const float &r, const float &g, const float &b) {
   storef(r, fb + pixel*3, 0);
@@ -37,10 +32,7 @@ void trax_main()
   // nor is it helpful. It is only here for an example of the usage.
   barrier();
 
-  // Conditional to only execute the following on the CPU version
-#if TRAX==0
-  printf("Thread %d one drawing.\n", trax_getid(1));
-#endif
+  printf("Thread %d done drawing.\n", trax_getid(1));
 }
 
 
