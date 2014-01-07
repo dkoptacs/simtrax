@@ -5,16 +5,21 @@
 
 void trax_main()
 {
+  // Mandelbrot set variables
   float zreal;
   float zimag;
   float creal;
   float cimag;
   float lengthsq;
   float temp;
+
+  // Helper function to get a pointer to the framebuffer
   int start_fb = GetFrameBuffer();
+
+  // Helper functions to get the resolution
   int xres = GetXRes();
   int yres = GetYRes();
-  int total_pixels = xres * yres;
+
   int i;
   int j;
   int k;
