@@ -26,7 +26,8 @@
 #include "TraxCore.h"
 
 
-ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, MainMemory*& mem,
+ReadConfig::ReadConfig(const char* input_file, const char* _dcache_params_file,
+		       L2Cache** L2s, size_t num_L2s, MainMemory*& mem,
 		       double &size_estimate, bool disable_usimm, bool _memory_trace, bool _l1_off, bool _l2_off, bool _l1_read_copy) :
   input_file(input_file), memory_trace(_memory_trace), l1_off(_l1_off), l2_off(_l2_off), l1_read_copy(_l1_read_copy)
 {
@@ -35,6 +36,8 @@ ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, Ma
     perror("Unable to open config file.");
     exit(1);
   }
+
+  dcache_params_file = _dcache_params_file;
 
   // assume input is of the form UNIT_TYPE args
   char line_buf[1024];
@@ -79,7 +82,7 @@ ReadConfig::ReadConfig(const char* input_file, L2Cache** L2s, size_t num_L2s, Ma
       if(scanvalue != 6)
 	{
 	  int line_size_bytes = (1 << line_size) * 4;
-	  if(!ReadCacheParams(cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy, true))
+	  if(!ReadCacheParams(dcache_params_file, cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy, true))
 	    perror("WARNING: Unable to find area and energy profile for specified L2\nAssuming 0\n");
 	}
 
@@ -143,7 +146,7 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
       if(scanvalue != 6)
 	{
 	  int line_size_bytes = (1 << line_size) * 4;
-	  if(!ReadCacheParams(cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy, true))
+	  if(!ReadCacheParams(dcache_params_file, cache_size * 4, num_banks, line_size_bytes, unit_area, unit_energy, true))
 	    perror("WARNING: Unable to find area and energy profile for specified L1\nAssuming 0\n");
 	}
       
@@ -347,24 +350,21 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
 }
 
 
-int ReadCacheParams(int capacityBytes, int numBanks, int lineSizeBytes, float& area, float& energy, bool is_data_cache)
+int ReadCacheParams(const char* file, int capacityBytes, int numBanks, int lineSizeBytes, float& area, float& energy, bool is_data_cache)
 {
   FILE* input;
-  if(is_data_cache)
-    input = fopen("../samples/configs/dcacheparams.txt", "r");
-  else
-    input = fopen("../samples/configs/icacheparams.txt", "r");
-
-  if (!input) 
+  input = fopen(file, "r");
+  if(!input)
     {
-      // TODO: Add argument to specify location of this file
-      perror("WARNING: Unable to find dcacheparams.txt (should be in samples/configs/)\n Area and power may be wrong.\n");
-      fclose(input);
+      if(is_data_cache)
+	perror("WARNING: Unable to find dcacheparams.txt (should be in samples/configs/).\n Use --dcacheparams <path to file> to specify the location of the file. Area and power may be wrong.\n");
+      else
+	perror("WARNING: Unable to find dcacheparams.txt (should be in samples/configs/).\n Use --icacheparams <path to file> to specify the location of the file. Area and power may be wrong.\n");
+
       area = 0;
       energy = 0;
       return 0;
     }
-
   
   char line[1000];
   

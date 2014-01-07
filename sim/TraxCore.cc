@@ -30,7 +30,9 @@ TraxCore::~TraxCore(){
   }
 }
 
-void TraxCore::initialize(int issue_verbosity, int num_icaches, int icache_banks, int simd_width, std::vector<int> jump_table, std::vector<std::string> ascii_literals) {
+void TraxCore::initialize(const char* icache_params_file, int issue_verbosity, 
+			  int num_icaches, int icache_banks, int simd_width, 
+			  std::vector<int> jump_table, std::vector<std::string> ascii_literals) {
   // set up thread states
   for (int i = 0; i < num_thread_procs; i++) {
     ThreadProcessor *tp = new ThreadProcessor(threads_per_proc, num_regs, i, schedule, instructions, modules, &functional_units, (size_t)i, core_id, l2_id);
@@ -41,7 +43,7 @@ void TraxCore::initialize(int issue_verbosity, int num_icaches, int icache_banks
   }
 
   functional_units.push_back(dynamic_cast<FunctionalUnit*>(L1));
-  issuer = new IssueUnit(thread_procs, functional_units, issue_verbosity, num_icaches, icache_banks, simd_width);
+  issuer = new IssueUnit(icache_params_file, thread_procs, functional_units, issue_verbosity, num_icaches, icache_banks, simd_width);
   modules.push_back(issuer);
   module_names.push_back(std::string("IssueLogic"));
 

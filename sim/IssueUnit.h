@@ -76,7 +76,7 @@ public:
   long long int program_counter;
   long long int* writes_register;
 
-  IssueUnit(std::vector<ThreadProcessor*>& _thread_procs, std::vector<FunctionalUnit*>& functional_units,
+  IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor*>& _thread_procs, std::vector<FunctionalUnit*>& functional_units,
 	    int verbosity, int num_icaches, int icache_banks, int simd_width);
   ~IssueUnit();
 

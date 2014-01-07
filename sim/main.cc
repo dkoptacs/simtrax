@@ -321,6 +321,8 @@ void printUsage(char* program_name)
   printf("\n");
   printf("   + Files:\n");
   printf("\t--config-file     <config file name>\n");
+  printf("\t--dcacheparams    <data cache params file name>\n");
+  printf("\t--icacheparams    <instruction cache params file name>\n");
   printf("\t--light-file      <light file name>\n");
   printf("\t--load-assembly   <filename -- loads the default if not specified>\n");
   printf("\t--model           <model file name (.obj)>\n");
@@ -426,6 +428,8 @@ int main(int argc, char* argv[])
   ThreadProcessor::SchedulingScheme scheduling_scheme = ThreadProcessor::SIMPLE;
   int total_simulation_threads          = 1;
   char *usimm_config_file               = NULL;
+  char *dcache_params_file              = NULL;
+  char *icache_params_file              = NULL;
 
   // Verify Instruction.h matches Instruction.cc in size.
   if (strncmp(Instruction::Opnames[Instruction::PROF].c_str(), "PROF", 4) != 0) 
@@ -569,6 +573,10 @@ int main(int argc, char* argv[])
         scheduling_scheme = ThreadProcessor::POSTSTALL;
     } else if (strcmp(argv[i], "--usimm-config") == 0) {
       usimm_config_file = argv[++i];
+    } else if (strcmp(argv[i], "--dcacheparams") == 0) {
+      dcache_params_file = argv[++i];
+    } else if (strcmp(argv[i], "--icacheparams") == 0) {
+      icache_params_file = argv[++i];
     } else if (strcmp(argv[i], "--disable-usimm") == 0) {
       disable_usimm = 1;
     } else {
@@ -609,9 +617,15 @@ int main(int argc, char* argv[])
     config_file = (char*)"../samples/configs/default.config";
     printf("No configuration specified, using default: %s\n", config_file);
   }
+  if(dcache_params_file == NULL)
+    dcache_params_file = "../samples/configs/dcacheparams.txt";
+  if(icache_params_file == NULL)
+    icache_params_file = "../samples/configs/icacheparams.txt";
+
+
   //if (config_file != NULL) {
   // Set up memory from config (L2 and main memory)
-  ReadConfig config_reader(config_file, L2s, num_L2s, memory, L2_size, disable_usimm, memory_trace, l1_off, l2_off, l1_read_copy);
+  ReadConfig config_reader(config_file, dcache_params_file, L2s, num_L2s, memory, L2_size, disable_usimm, memory_trace, l1_off, l2_off, l1_read_copy);
 
   // loop through the L2s
   for (size_t l2_id = 0; l2_id < num_L2s; ++l2_id) {
@@ -842,7 +856,7 @@ int main(int argc, char* argv[])
 
   // initialize the cores
   for (size_t i = 0; i < cores.size(); ++i) {
-    cores[i]->initialize(issue_verbosity, num_icaches, icache_banks, simd_width, jump_table, ascii_literals);
+    cores[i]->initialize(icache_params_file, issue_verbosity, num_icaches, icache_banks, simd_width, jump_table, ascii_literals);
   }
 
   // Check that there are units for each instruction in the program

@@ -9,14 +9,14 @@
 #include <stdlib.h>
 #include <fstream>
 
-IssueUnit::IssueUnit(std::vector<ThreadProcessor*>& _thread_procs,
+IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor*>& _thread_procs,
                      std::vector<FunctionalUnit*>& functional_units,
                      int _verbosity, int _num_icaches, int _icache_banks, 
 		     int _simd_width) 
  :verbosity(_verbosity){
   printed_single_kernel = false;
 
-  if(!ReadCacheParams(4096, _icache_banks, 4, area, energy, false))
+  if(!ReadCacheParams(icache_params_file, 4096, _icache_banks, 4, area, energy, false))
     perror("WARNING: Unable to find area and energy profile for specified instruction cache.\nAssuming 0\n");
   
   area *= _num_icaches;
