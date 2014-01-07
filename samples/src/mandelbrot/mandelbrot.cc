@@ -44,6 +44,7 @@ void trax_main()
 	  ++k;
 	}
       while(lengthsq < 4.f && k < MAX_ITERS);
+
       if(k==MAX_ITERS)
 	k = 0;
       float intensity = k / (float)MAX_ITERS;
