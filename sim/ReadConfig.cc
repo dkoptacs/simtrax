@@ -41,7 +41,10 @@ ReadConfig::ReadConfig(const char* input_file, const char* _dcache_params_file,
 
   // assume input is of the form UNIT_TYPE args
   char line_buf[1024];
-  while (!feof(input) && fgets(line_buf, sizeof(line_buf), input)) {
+  while (!feof(input) && fgets(line_buf, sizeof(line_buf), input)) 
+    {
+      if(line_buf[0] == '#')
+	continue;
     char unit_type[100];
     sscanf(line_buf, "%s ", unit_type);
     std::string unit_string(unit_type);
@@ -55,6 +58,8 @@ ReadConfig::ReadConfig(const char* input_file, const char* _dcache_params_file,
 	printf("ERROR: MEMORY syntax is MEMORY <latency> <memory size> <bandwidth (optional)>\n");
 	continue;
       }
+
+
       // Each L2 is allowed this much bandwidth
       max_bandwidth /= num_L2s;
       mem = new MainMemory(num_blocks, latency, max_bandwidth);
@@ -86,6 +91,7 @@ ReadConfig::ReadConfig(const char* input_file, const char* _dcache_params_file,
 	    perror("WARNING: Unable to find area and energy profile for specified L2\nAssuming 0\n");
 	}
 
+
       // Loop to allocate num_L2s 
       for (size_t i = 0; i < num_L2s; ++i) {
 	L2s[i] = new L2Cache(mem, cache_size, hit_latency,
@@ -97,7 +103,6 @@ ReadConfig::ReadConfig(const char* input_file, const char* _dcache_params_file,
       // a per-core module line (skipped here)
     }
   }
-  //printf(" Size estimate (L2):\t%.4lf\n", size_estimate);
 
   fclose(input);
 }
@@ -118,6 +123,8 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
   // assume input is of the form UNIT_TYPE args
   char line_buf[1024];
   while (!feof(input) && fgets(line_buf, sizeof(line_buf), input)) {
+    if(line_buf[0] == '#')
+      continue;
     char unit_type[100];
     sscanf(line_buf, "%s ", unit_type);
     std::string unit_string(unit_type);
@@ -150,6 +157,7 @@ void ReadConfig::LoadConfig(L2Cache* L2, double &size_estimate) {
 	    perror("WARNING: Unable to find area and energy profile for specified L1\nAssuming 0\n");
 	}
       
+
       current_core->L1 = new L1Cache(L2, hit_latency, cache_size, unit_area, unit_energy,
 				     num_banks, line_size,
 				     memory_trace, l1_off, l1_read_copy);
