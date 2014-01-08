@@ -31,7 +31,7 @@ L1Cache::L1Cache(L2Cache* _L2, int _hit_latency,
   unit_off = _l1_off;
   if (unit_off) {
     hit_latency = 0;
-    line_size = 0;
+    //line_size = 0;
     area = 0;
     energy = 0;
   }
@@ -224,13 +224,12 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	line_accesses[index]++;
 #endif
 	
-	//TODO: Take this out?
-	//UpdateCache(address, write_cycle);
 	read_address[bank_id] = address;
 	issued_this_cycle[bank_id]++;
 	return true;
       }
 
+      // TODO: If the unit is off, need to turn off the MSHR as well
       else if(bus_latency != -1)
 	{
 
@@ -316,7 +315,7 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	  // L2 stalled
 	  return false;
 	}
-    } 
+    }
     else 
       { // cache hit
 	// queue register write
@@ -543,7 +542,7 @@ void L1Cache::print() {
 void L1Cache::PrintStats() {
   if (unit_off) {
     printf("L1 OFF!\n");
-    return;
+    //return;
   }
   printf("L1 accesses: \t%lld\n", accesses);
   printf("L1 hits: \t%lld\n", hits);
