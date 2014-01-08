@@ -2,7 +2,7 @@
 #define TRAX_CPP_HPP
 
 #include <string>
-//#include <stdio.h>
+#include <stdio.h>
 
 // Memory ops
 int loadi( int base, int offset = 0 );
