@@ -882,7 +882,7 @@ void IssueUnit::print(int total_system_TMs = -1)
   printf(" --Average #threads Issuing each cycle: %.4lf\n", issue_stats.avg_issue);
   printf(" --Issue Rate: %.2f\n", issue_stats.avg_issue / static_cast<float>(total_system_threads));
   printf(" --iCache conflicts: %lld (%f%%)\n", iCache_conflicts, issue_stats.avg_iCache_conflicts / divisor);
-  printf(" --thread*cycles of FU dependence: %lld (%f%%)\n", fu_dependence, issue_stats.avg_fu_dependence / divisor);
+  printf(" --thread*cycles of resource conflicts: %lld (%f%%)\n", fu_dependence, issue_stats.avg_fu_dependence / divisor);
   printf(" --thread*cycles of data dependence: %lld (%f%%)\n", data_dependence, issue_stats.avg_data_dependence / divisor);
   printf(" --thread*cycles halted: %lld (%f%%)\n", halted_count, issue_stats.avg_halted_count / divisor);
   printf(" --thread*cycles of issue NOP/other: %lld (%f%%)\n", instructions_misc, issue_stats.avg_misc_count / divisor);
