@@ -1073,8 +1073,8 @@ int main(int argc, char* argv[])
 	int L2_line_size = (int)pow( 2.f, static_cast<float>(L2->line_size) );
 	float Hz = 1000000000;
 	printf("Bandwidth numbers for %dMHz clock (GB/s):\n", static_cast<int>(Hz/1000000));
-	printf("   register to L1 bandwidth: \t %f\n", static_cast<float>(cores[0]->L1->accesses) * word_size / cycle_count);
-	printf("   L1 to L2 bandwidth: \t\t %f\n", static_cast<float>(cores[0]->L1->bus_transfers) * word_size * L1_line_size / cycle_count);
+	printf("   L1 to register bandwidth: \t %f\n", static_cast<float>(cores[0]->L1->accesses) * word_size / cycle_count);
+	printf("   L2 to L1 bandwidth: \t\t %f\n", static_cast<float>(cores[0]->L1->bus_transfers) * word_size * L1_line_size / cycle_count);
 	
 	double DRAM_BW;
 	if(disable_usimm)
@@ -1088,7 +1088,7 @@ int main(int argc, char* argv[])
 	      total_lines_transfered += stats_reads_completed[c];
 	    DRAM_BW = static_cast<float>(total_lines_transfered) * L2_line_size * word_size / cycle_count;
 	  }
-	printf("   L2 to memory bandwidth: \t %f\n", DRAM_BW);
+	printf("   memory to L2 bandwidth: \t %f\n", DRAM_BW);
 
 
 	if(trax_verbosity)

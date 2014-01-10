@@ -26,6 +26,7 @@ IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor
 
   num_halted = 0;
   halted = false;
+  halt_cycle = 0;
   vector_stats = false;
   current_vec_ops = 0;
   lastOp = Instruction::NOP;
@@ -65,6 +66,7 @@ IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor
     schedule_data[i].last_issued = Instruction::NOP;
     schedule_data[i].last_stall = Instruction::NOP;
   }
+
   // for counting the max number of threads
   thread_issue_count[count] = 0;
 
@@ -154,6 +156,7 @@ void IssueUnit::Reset()
 {
   num_halted = 0;
   halted = false;
+  halt_cycle = 0;
   current_vec_ops = 0;
   lastOp = Instruction::NOP;
   last_pc = -1;
@@ -271,6 +274,7 @@ void IssueUnit::HaltSystem() {
   // need to do something else here.
   //longjmp(jump_location, 0);
   halted = true;
+  halt_cycle = current_cycle;
 }
 
 void IssueUnit::ClockRise() {
@@ -285,8 +289,10 @@ void IssueUnit::ClockRise() {
   int num_issued = thread_procs.size();
   for (size_t i = 0; i < thread_procs.size(); i++) {
     // decrement when not issued
-    if (thread_procs[i]->GetActiveThread()->issued_this_cycle == NULL) num_issued--;
-    else instructions_issued++;
+    if (thread_procs[i]->GetActiveThread()->issued_this_cycle == NULL) 
+      num_issued--;
+    else 
+      instructions_issued++;
     thread_procs[i]->GetActiveThread()->issued_this_cycle = NULL;
   }
   // increment the counter for the number of threads issued this cycle
@@ -302,7 +308,7 @@ void IssueUnit::ClockRise() {
 }
 
 void IssueUnit::IssueVerbosity(ThreadState* thread, Instruction* fetched_instruction, size_t proc_id) {
-  if (verbosity == 1) {     
+  if (verbosity == 1) {
     printf( "Cycle %lld: Thread %d: Instruction %llu (PC:%llu): ISSUED (%s)\n", current_cycle, 
 	    static_cast<int>(proc_id), 
 	    fetched_instruction->id,
@@ -434,20 +440,17 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
       }
  
     else if (fetched_instruction->op == Instruction::HALT) {
-      
+      halted_count++;
       
       // Only HaltSystem() after all threads reach a halt, otherwise return false
       for (size_t i = 0; i < thread_procs.size(); ++i) {
 	ThreadState *curr_thread = thread_procs[i]->GetActiveThread();
 	if (!curr_thread->fetched_instruction || curr_thread->fetched_instruction->op != Instruction::HALT) {
 	  // stall halts until they all agree
-	  halted_count++;
 	  return false;
 	}
       }
       // All threads fetched a halt
-      //printf("cycle: %lld, proc_id: %d\n", current_cycle, (int)proc_id);
-      //printf("ISSUER FOUND HALT.  HALTING...\n");
       HaltSystem();
     } else if (thread->registers->SupportsOp(fetched_instruction->op)) {
       // This is a register operation it'll definitely succeed
@@ -461,8 +464,8 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
 	// Something else is blocking the register file
 	// Should maybe count these for multiple issue mode
       }
-    } else {
-      // regular op, check the functional unit list
+    } 
+    else /**/{ // regular op, check the functional unit list
       for (size_t i = 0; i < units.size(); i++) {
 	if (units[i]->SupportsOp(fetched_instruction->op)) {
 	  if (units[i]->AcceptInstruction(*fetched_instruction,
@@ -511,9 +514,14 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
       if (fetched_instruction->op == Instruction::SLEEP)
 	instructions_misc++;
       else
-	fu_dependence++;
+	{
+	  if(fetched_instruction->op != Instruction::HALT)
+	    fu_dependence++;
+	}
     }
-  } else {
+  } 
+  else 
+    {
     data_dependence++;
     // find which instruction caused the stall (from old IssueUnit.cc)
     data_depend_bins[thread->GetFailOp(fail_reg)]++;
@@ -789,7 +797,7 @@ void IssueUnit::ClockFall() {
   } else {
     SIMDClockFall();
   }
-  current_cycle++;
+    current_cycle++;
 }
 
 void IssueUnit::print()
@@ -878,15 +886,15 @@ void IssueUnit::print(int total_system_TMs = -1)
       divisor = static_cast<float>(total_system_TMs);
     }
 
+
   printf("Issue statistics:\n");
   printf(" --Average #threads Issuing each cycle: %.4lf\n", issue_stats.avg_issue);
-  printf(" --Issue Rate: %.2f\n", issue_stats.avg_issue / static_cast<float>(total_system_threads));
+  printf(" --Issue Rate: %.2f%%\n", (issue_stats.avg_issue / static_cast<float>(total_system_threads) * 100));
   printf(" --iCache conflicts: %lld (%f%%)\n", iCache_conflicts, issue_stats.avg_iCache_conflicts / divisor);
   printf(" --thread*cycles of resource conflicts: %lld (%f%%)\n", fu_dependence, issue_stats.avg_fu_dependence / divisor);
   printf(" --thread*cycles of data dependence: %lld (%f%%)\n", data_dependence, issue_stats.avg_data_dependence / divisor);
   printf(" --thread*cycles halted: %lld (%f%%)\n", halted_count, issue_stats.avg_halted_count / divisor);
   printf(" --thread*cycles of issue NOP/other: %lld (%f%%)\n", instructions_misc, issue_stats.avg_misc_count / divisor);
-
 }
 
 
@@ -943,12 +951,12 @@ void IssueUnit::CalculateIssueStats()
 {
   issue_stats.avg_issue = 0.0;
   for (size_t i = 0; i < thread_procs.size()+1; ++i) 
-    issue_stats.avg_issue += thread_issue_count[i]/static_cast<double>(current_cycle+1) * i;
+    issue_stats.avg_issue += thread_issue_count[i]/static_cast<double>(halt_cycle+1) * i;
   
-  issue_stats.avg_iCache_conflicts = static_cast<float>(iCache_conflicts)/thread_procs.size()/current_cycle*100;
-  issue_stats.avg_fu_dependence = static_cast<float>(fu_dependence)/thread_procs.size()/current_cycle*100;
-  issue_stats.avg_data_dependence = static_cast<float>(data_dependence)/thread_procs.size()/current_cycle*100;
-  issue_stats.avg_halted_count = static_cast<float>(halted_count)/thread_procs.size()/current_cycle*100;
-  issue_stats.avg_misc_count = static_cast<float>(instructions_misc)/thread_procs.size()/current_cycle*100;
+  issue_stats.avg_iCache_conflicts = static_cast<float>(iCache_conflicts)/thread_procs.size()/halt_cycle*100;
+  issue_stats.avg_fu_dependence = static_cast<float>(fu_dependence)/thread_procs.size()/halt_cycle*100;
+  issue_stats.avg_data_dependence = static_cast<float>(data_dependence)/thread_procs.size()/halt_cycle*100;
+  issue_stats.avg_halted_count = static_cast<float>(halted_count)/thread_procs.size()/halt_cycle*100;
+  issue_stats.avg_misc_count = static_cast<float>(instructions_misc)/thread_procs.size()/halt_cycle*100;
 
 }

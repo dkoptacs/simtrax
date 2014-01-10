@@ -101,6 +101,7 @@ public:
   bool vector_stats;
   size_t num_halted;
   bool halted;
+  long long int halt_cycle;
   int current_vec_ops;
   Instruction::Opcode lastOp;
   std::vector<int> vector_writes;
