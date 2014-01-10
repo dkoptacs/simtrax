@@ -708,7 +708,7 @@ int read_matches_write_or_read_queue(const dram_address_t &physical_address, req
 
 
 // Function to merge writes to the same address
-int write_exists_in_write_queue(const dram_address_t &dram_address)
+int write_exists_in_write_queue(const dram_address_t &dram_address, request_t*& existing_request)
 {
 	//get channel info
 	//dram_address_t * this_addr = calc_dram_addr(physical_address);
@@ -721,6 +721,7 @@ int write_exists_in_write_queue(const dram_address_t &dram_address)
 	{
 		if(wr_ptr->dram_addr.actual_address == dram_address.actual_address)
 		{
+		  existing_request = wr_ptr;
 		  num_write_merge ++;
 		  stats_writes_merged_per_channel[channel]++;
 		  return 1;
@@ -836,8 +837,10 @@ request_t * insert_write(const dram_address_t &dram_address, int trax_address, l
   //physical_address *= 4;
   //physical_address &= (0xFFFFFFFF << (L2->line_size + 2)); // +2 here to convert from word line-size to byte line-size 
   
-  if(write_exists_in_write_queue(dram_address))
-    return NULL;
+  
+  request_t* existing_req = NULL;
+  if(write_exists_in_write_queue(dram_address, existing_req))
+    return existing_req;
 
 
 
@@ -849,13 +852,16 @@ request_t * insert_write(const dram_address_t &dram_address, int trax_address, l
 
 #if 1
   if(write_queue_length[channel] > MAX_QUEUE_LENGTH)
-    return NULL;
+    {
+      return NULL;
+    }
 #endif  
 
   stats_writes_seen[channel] ++;
   
   request_t * new_node = (request_t*)init_new_node(dram_address, arrival_time, this_op, thread_id, instruction_id, instruction_pc, which_reg, result, op, thread, L1, L2, trax_address);
-  
+ 
+
   LL_APPEND(write_queue_head[channel], new_node);
   
   write_queue_length[channel] ++;

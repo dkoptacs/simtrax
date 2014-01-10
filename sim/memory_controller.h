@@ -275,7 +275,7 @@ int issue_autoprecharge(int channel, int rank, int bank);
 int read_matches_write_or_read_queue(long long int physical_address, request_t*& existing_request);
 
 // find if there is a matching request in the write queue
-int write_exists_in_write_queue(long long int physical_address);
+int write_exists_in_write_queue(const dram_address_t &dram_address, request_t*& existing_request);
 
 // enqueue a read into the corresponding read queue (returns ptr to new node)
 request_t* insert_read(const dram_address_t &physical_address, int trax_address, long long int arrival_cycle, int thread_id, int instruction_id, long long int instruction_pc, 
