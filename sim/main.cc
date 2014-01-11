@@ -309,7 +309,7 @@ void printUsage(char* program_name)
   printf("\t--num-thread-procs   <number of threads per TM -- default 4>\n");
   //printf("\t--threads-per-proc   <number of hyperthreads per TP>\n");
   //printf("\t--simd-width         <number of threads issuing in SIMD within a TM>\n");
-  printf("\t--num-cores          <number of TMs (Thread Multiprocessors) -- default 1>\n");
+  printf("\t--num-TMs            <number of TMs (Thread Multiprocessors) -- default 1>\n");
   printf("\t--num-l2s            <number of L2 blocks. All resources are multiplied by this number. -- default 1>\n");
   printf("\t--l1-off             [turn off the L1 data cache and set latency to 0]\n");
   printf("\t--l2-off             [turn off the L2 data cache and set latency to 0]\n");
@@ -474,7 +474,8 @@ int main(int argc, char* argv[])
       threads_per_proc = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--simd-width") == 0) {
       simd_width = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "--num-cores") == 0) {
+    } else if (strcmp(argv[i], "--num-cores") == 0 || 
+	       strcmp(argv[i], "--num-TMs") == 0) {
       num_cores = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--num-l2s") == 0) {
       num_L2s = atoi(argv[++i]);
