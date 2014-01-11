@@ -1060,7 +1060,7 @@ int main(int argc, char* argv[])
 	  L2_misses += L2s[i]->misses;
 	  printf("\n");
 	  L2_area += L2s[i]->area;
-	  L2_energy += L2s[i]->energy * L2s[i]->accesses;
+	  L2_energy += L2s[i]->energy * (L2s[i]->accesses - L2s[i]->stores);
 	}
 	L2_energy /= 1000000000.f;
 
@@ -1134,7 +1134,7 @@ int main(int argc, char* argv[])
 	printf("\n");
 	
 	// core 0 contains the aggregate accesses
-	double L1_energy = (cores[0]->L1->energy * cores[0]->L1->accesses) / 1000000000.f;
+	double L1_energy = (cores[0]->L1->energy * (cores[0]->L1->accesses - cores[0]->L1->stores)) / 1000000000.f;
 
 	double compute_energy = 0;
 	double icache_energy = 0;
