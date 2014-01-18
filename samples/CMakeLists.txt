@@ -78,17 +78,41 @@ if(NOT PTHREADS_FOUND)
 endif(NOT PTHREADS_FOUND)
 include_directories(${PTHREADS_INCLUDE_DIR})
 
+# Find the .dll we need to copy in case of windows
+set(PTHREADS_LIBRARY_DLL "")
+if(WIN32 AND PTHREADS_FOUND)
+	# check 2 spots: same folder, with same name but with dll, rather than lib
+	# or replacing the last 2 lib with dll
+	file(RELATIVE_PATH IncludeToLibPath ${PTHREADS_INCLUDE_DIR} ${PTHREADS_LIBRARY})
+	string(REPLACE "lib" "dll" libFile ${IncludeToLibPath})
+	file(TO_CMAKE_PATH  "${PTHREADS_INCLUDE_DIR}/${libFile}" libFile2)
+	if(EXISTS ${libFile2})
+		set(PTHREADS_LIBRARY_DLL ${libFile2})
+		message(STATUS "Found pthreads dll: ${PTHREADS_LIBRARY_DLL}")
+	ELSE(EXISTS ${libFile2})
+		# try to find the file in the same folder...
+		string(REPLACE ".lib" ".dll" libFile ${PTHREADS_LIBRARY})
+		if(EXISTS ${libFile})
+			set(PTHREADS_LIBRARY_DLL ${libFile})
+			message(STATUS "Found pthreads dll: ${PTHREADS_LIBRARY_DLL}")
+		else()
+			message("Can't seem to find pthreads DLL, so it won't be copied into binary folders automatically on INSTALL")
+			set(PTHREADS_LIBRARY_DLL PTHREADS_LIBRARY_DLL_NOT_FOUND)
+		endif()
+	ENDIF(EXISTS ${libFile2})
+endif(WIN32 AND PTHREADS_FOUND)
+
 
 #################################################################
 set(TRAX_HEADERS ${SIMDIR}/LoadMemory.h 		${SIMDIR}/OBJLoader.h	${SIMDIR}/OBJListLoader.h
-				 ${SIMDIR}/IWLoader.h 
+				 ${SIMDIR}/IWLoader.h			${SIMDIR}/lodepng.h
 				 ${SIMDIR}/BVH.h 				${SIMDIR}/Grid.h		${SIMDIR}/Camera.h
 				 ${SIMDIR}/ReadViewfile.h		${SIMDIR}/Material.h	${SIMDIR}/Triangle.h 
 				 ${SIMDIR}/MTLLoader.h 	   		${SIMDIR}/PPM.h			${TRAX_INCLUDE_DIR}/trax.hpp
 				 ${SIMDIR}/WinCommonNixFcns.h 	${SIMDIR}/TGALoader.h	${SIMDIR}/ReadLightfile.h
 				 ${SIMDIR}/CustomLoadMemory.h
 )
-set(TRAX_SOURCES ${LIBDIR}/trax_cpp.cpp 
+set(TRAX_SOURCES ${LIBDIR}/trax_cpp.cpp 	${SIMDIR}/lodepng.cc
 				 ${SIMDIR}/LoadMemory.cc 	${SIMDIR}/OBJLoader.cc 		${SIMDIR}/OBJListLoader.cc
 				 ${SIMDIR}/IWLoader.cc 
 				 ${SIMDIR}/BVH.cc			${SIMDIR}/Grid.cc	   		${SIMDIR}/Camera.cc
@@ -136,7 +160,9 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend a
 	source_group(TRAX_Headers FILES ${PRE_TRAX_HDR})
 
 	install(TARGETS ${targetName} DESTINATION "bin/${TARGET_INSTALL_SUBDIR}/")
-
+	if(PTHREADS_LIBRARY_DLL)
+		install(FILES ${PTHREADS_LIBRARY_DLL} DESTINATION "bin/${TARGET_INSTALL_SUBDIR}/")
+	endif(PTHREADS_LIBRARY_DLL)
 
 
 	############

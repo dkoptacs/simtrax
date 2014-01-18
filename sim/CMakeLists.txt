@@ -29,6 +29,31 @@ if(NOT PTHREADS_FOUND)
 endif(NOT PTHREADS_FOUND)
 include_directories(${PTHREADS_INCLUDE_DIR})
 
+# Find the .dll we need to copy in case of windows
+set(PTHREADS_LIBRARY_DLL "")
+if(WIN32 AND PTHREADS_FOUND)
+	# check 2 spots: same folder, with same name but with dll, rather than lib
+	# or replacing the last 2 lib with dll
+	file(RELATIVE_PATH IncludeToLibPath ${PTHREADS_INCLUDE_DIR} ${PTHREADS_LIBRARY})
+	string(REPLACE "lib" "dll" libFile ${IncludeToLibPath})
+	file(TO_CMAKE_PATH  "${PTHREADS_INCLUDE_DIR}/${libFile}" libFile2)
+	if(EXISTS ${libFile2})
+		set(PTHREADS_LIBRARY_DLL ${libFile2})
+		message(STATUS "Found pthreads dll: ${PTHREADS_LIBRARY_DLL}")
+	ELSE(EXISTS ${libFile2})
+		# try to find the file in the same folder...
+		string(REPLACE ".lib" ".dll" libFile ${PTHREADS_LIBRARY})
+		if(EXISTS ${libFile})
+			set(PTHREADS_LIBRARY_DLL ${libFile})
+			message(STATUS "Found pthreads dll: ${PTHREADS_LIBRARY_DLL}")
+		else()
+			message("Can't seem to find pthreads DLL, so it won't be copied into binary folders automatically on INSTALL")
+			set(PTHREADS_LIBRARY_DLL PTHREADS_LIBRARY_DLL_NOT_FOUND)
+		endif()
+	ENDIF(EXISTS ${libFile2})
+endif(WIN32 AND PTHREADS_FOUND)
+
+
 set(simHdr
 	Animation.h
 	Assembler.h
@@ -62,6 +87,7 @@ set(simHdr
 	LoadMemory.h
 	LoadStore.h
 	LocalStore.h
+	lodepng.h
 	MainMemory.h
 	Material.h
 	memory_controller.h
@@ -120,6 +146,7 @@ set(simSrc
 	LoadMemory.cc
 	LoadStore.cc
 	LocalStore.cc
+	lodepng.cc
 	MainMemory.cc
 	Material.cc
 	memory_controller.cc
@@ -147,4 +174,7 @@ set(simSrc
 add_executable(simtrax ${simSrc} ${simHdr})
 target_link_libraries(simtrax ${PTHREADS_LIBRARIES})
 
-install(TARGETS simtrax DESTINATION bin)
+install(TARGETS simtrax DESTINATION ${CMAKE_INSTALL_PREFIX})
+if(PTHREADS_LIBRARY_DLL)
+	install(FILES ${PTHREADS_LIBRARY_DLL} DESTINATION ${CMAKE_INSTALL_PREFIX})
+endif(PTHREADS_LIBRARY_DLL)

@@ -102,13 +102,14 @@ typedef struct runrtParams_tt{
   std::string view_file_name;
   std::string model_file_name;
   std::string light_file_name;
+  std::string output_prefix_name;
   
   // defaults
   runrtParams_tt() : read_from_mem_file( false ), triangles_store_edges( false ), no_scene(false),
 		     num_render_threads( 4 ), num_samples_per_pixel( NUMSAMPLES ), ray_depth( RAYDEPTH ),
 		     img_height( HEIGHT ), img_width( WIDTH ), bvh_dot_depth( 0 ), num_global_registers( 8 ),
 		     subtree_size( 0 ), custom_mem_loader( 0 ), mem_file_name( MEMORYFILE ), view_file_name( VIEWFILE ), 
-		     model_file_name( MODELFILE ), light_file_name( LIGHTFILE )
+		     model_file_name( MODELFILE ), light_file_name( LIGHTFILE ), output_prefix_name( "out.png" )
   {}
 } runrtParams_t;
 

@@ -13,6 +13,7 @@
 #include "CustomLoadMemory.h"
 #include "ReadLightfile.h"
 #include "ReadViewfile.h"
+#include "lodepng.h"
 
 
 // Windows pipe stuff for trax_cleanup (needs stdio.h)
@@ -252,34 +253,86 @@ void trax_setup( runrtParams_t &opts ) {
 
 void trax_cleanup( runrtParams_t &opts ){
 
-  // output the image
-  char command_buf[512];
-  sprintf(command_buf, "convert PPM:- out.png");
-#ifndef WIN32
-  FILE* output = popen(command_buf, "w");
-#else
-  FILE* output = popen(command_buf, "wb");
-#endif
-  if (!output)
-    perror("Failed to open out.png");
-	
-  fprintf(output, "P6\n%d %d\n%d\n", opts.img_width, opts.img_height, 255);
-  for (int j = static_cast<int>(opts.img_height - 1); j >= 0; j--) {
-    for (unsigned int i = 0; i < opts.img_width; i++) {
-      int index = start_framebuffer + 3 * (j * opts.img_width + i);
-	    
-      float rgb[3];
-      // for gradient/colors we have the result
-      rgb[0] = trax_memory_pointer[index + 0].fvalue;
-      rgb[1] = trax_memory_pointer[index + 1].fvalue;
-      rgb[2] = trax_memory_pointer[index + 2].fvalue;
-      fprintf(output, "%c%c%c",
-	      (char)(int)(rgb[0] * 255),
-	      (char)(int)(rgb[1] * 255),
-	      (char)(int)(rgb[2] * 255));
-    }
+  unsigned found = opts.output_prefix_name.find_last_of("/\\");
+  std::string path = opts.output_prefix_name.substr(0, found + 1);
+  std::string baseName = opts.output_prefix_name.substr(found + 1);
+
+  bool usePNGLibrary = true;
+  if(baseName.rfind(".") == std::string::npos) {
+    baseName += ".png";
   }
-  pclose(output);
+  else {
+    usePNGLibrary = false;
+  }
+  baseName = path + baseName;
+
+  // save using lodePNG
+  if(usePNGLibrary) {
+    unsigned char *imgRGBA = new unsigned char[4*opts.img_width*opts.img_height];
+    unsigned char *curImgPixel = imgRGBA;
+    for(int j = (int)(opts.img_height - 1); j >= 0; j--) {
+      for(unsigned int i = 0; i < opts.img_width; i++, curImgPixel+=4) {
+        const int index = start_framebuffer + 3 * (j * opts.img_width + i);
+
+        float rgb[3];
+        rgb[0] = trax_memory_pointer[index + 0].fvalue;
+        rgb[1] = trax_memory_pointer[index + 1].fvalue;
+        rgb[2] = trax_memory_pointer[index + 2].fvalue;
+
+        curImgPixel[0] = (char)(int)(rgb[0] * 255);
+        curImgPixel[1] = (char)(int)(rgb[1] * 255);
+        curImgPixel[2] = (char)(int)(rgb[2] * 255);
+        curImgPixel[3] = 255;
+      }
+    }
+
+    unsigned char* png;
+    size_t pngsize;
+
+    unsigned error = lodepng_encode32(&png, &pngsize, imgRGBA, opts.img_width, opts.img_height);
+    if(!error)
+      lodepng_save_file(png, pngsize, baseName.c_str());
+    else
+      printf("error %u: %s\n", error, lodepng_error_text(error));
+
+    free(png);
+    delete[] imgRGBA;
+  }
+
+  // otherwise, save with calling convert
+  else {
+    // output the image
+    char command_buf[512];
+	sprintf(command_buf, "convert PPM:- %s", baseName.c_str());
+#ifndef WIN32
+    FILE* output = popen(command_buf, "w");
+#else
+    FILE* output = popen(command_buf, "wb");
+#endif
+    if (!output) {
+	  char errorMsg[512];
+      sprintf(errorMsg, "Failes to open %s", baseName.c_str());
+      perror(errorMsg);
+	}
+
+    fprintf(output, "P6\n%d %d\n%d\n", opts.img_width, opts.img_height, 255);
+    for (int j = static_cast<int>(opts.img_height - 1); j >= 0; j--) {
+      for (unsigned int i = 0; i < opts.img_width; i++) {
+        int index = start_framebuffer + 3 * (j * opts.img_width + i);
+	    
+        float rgb[3];
+        // for gradient/colors we have the result
+        rgb[0] = trax_memory_pointer[index + 0].fvalue;
+        rgb[1] = trax_memory_pointer[index + 1].fvalue;
+        rgb[2] = trax_memory_pointer[index + 2].fvalue;
+        fprintf(output, "%c%c%c",
+	        (char)(int)(rgb[0] * 255),
+	        (char)(int)(rgb[1] * 255),
+	        (char)(int)(rgb[2] * 255));
+      }
+    }
+    pclose(output);
+  }
 }
 
 
@@ -388,6 +441,7 @@ void printHelp( char* progName ) {
   printf( "\t--num-cores         <number of render threads -- default: %d>\n", def.num_render_threads );
   printf( "\t--num-globals       <number of global registers -- default %d>\n", def.num_global_registers );
   printf( "\t--num-samples       <number of samples per pixel -- default: %d>\n", def.num_samples_per_pixel );
+  printf( "\t--output-prefix      <prefix for image output. Be sure any directories exist> -- default: %s\n", def.output_prefix_name.c_str() );
   printf( "\t--ray-depth         <depth of rays -- default: %d>\n", def.ray_depth );
   printf( "\t--subtree-size      <minimum size in words of BVH subtrees -- default: %d (won't build subtrees)>\n", def.subtree_size );
   printf( "\t--triangles-store-edges [set flag to store 2 edge vecs in a tri instead of 2 verts -- default: off]\n" );
@@ -450,6 +504,11 @@ void programOptParser( runrtParams_t &params, int argc, char* argv[] ) {
     else if( strcmp(argv[i], "--num-samples")==0 ) {
       params.num_samples_per_pixel = atoi( argv[++i] );
     }
+
+	// output file prefix
+	else if( strcmp(argv[i], "--output-prefix")==0 ) {
+		params.output_prefix_name  = argv[++i];
+	}
 
     // ray depth for traversal
     else if( strcmp(argv[i], "--ray-depth")==0 ) {
