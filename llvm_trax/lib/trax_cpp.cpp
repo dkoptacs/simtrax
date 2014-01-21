@@ -251,17 +251,18 @@ void trax_setup( runrtParams_t &opts ) {
   }
 }
 
-void trax_cleanup( runrtParams_t &opts ){
+void trax_cleanup(runrtParams_t &opts){
 
   unsigned found = opts.output_prefix_name.find_last_of("/\\");
   std::string path = opts.output_prefix_name.substr(0, found + 1);
   std::string baseName = opts.output_prefix_name.substr(found + 1);
 
   bool usePNGLibrary = true;
-  if(baseName.rfind(".") == std::string::npos) {
+  size_t foundPeriod = baseName.rfind(".");
+  if(foundPeriod == std::string::npos) {
     baseName += ".png";
   }
-  else {
+  else if(strcasecmp(baseName.substr(foundPeriod).c_str(), ".png") != 0) {
     usePNGLibrary = false;
   }
   baseName = path + baseName;
@@ -441,7 +442,7 @@ void printHelp( char* progName ) {
   printf( "\t--num-cores         <number of render threads -- default: %d>\n", def.num_render_threads );
   printf( "\t--num-globals       <number of global registers -- default %d>\n", def.num_global_registers );
   printf( "\t--num-samples       <number of samples per pixel -- default: %d>\n", def.num_samples_per_pixel );
-  printf( "\t--output-prefix      <prefix for image output. Be sure any directories exist> -- default: %s\n", def.output_prefix_name.c_str() );
+  printf( "\t--output-prefix     <prefix for image output. Be sure any directories exist> -- default: %s\n", def.output_prefix_name.c_str() );
   printf( "\t--ray-depth         <depth of rays -- default: %d>\n", def.ray_depth );
   printf( "\t--subtree-size      <minimum size in words of BVH subtrees -- default: %d (won't build subtrees)>\n", def.subtree_size );
   printf( "\t--triangles-store-edges [set flag to store 2 edge vecs in a tri instead of 2 verts -- default: off]\n" );

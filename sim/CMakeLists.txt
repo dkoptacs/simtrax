@@ -53,6 +53,10 @@ if(WIN32 AND PTHREADS_FOUND)
 	ENDIF(EXISTS ${libFile2})
 endif(WIN32 AND PTHREADS_FOUND)
 
+# Figure out the relative path between bin directory and samples directory
+file(RELATIVE_PATH REL_PATH_BIN_TO_SAMPLES "${CMAKE_INSTALL_PREFIX}" "${CMAKE_SOURCE_DIR}/../")
+add_definitions(-DREL_PATH_BIN_TO_SAMPLES="${REL_PATH_BIN_TO_SAMPLES}/")
+
 
 set(simHdr
 	Animation.h

@@ -52,15 +52,18 @@ endif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 
 # Update install location if it's the default
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-	set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR} CACHE PATH "simtrax install location prefix" FORCE)
+	set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR} CACHE PATH "samples install location prefix" FORCE)
 endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
+# Get relative path from bin to scenes folder
+file(RELATIVE_PATH BIN_TO_SCENES_PATH "${CMAKE_INSTALL_PREFIX}/bin/example/" "${CMAKE_SOURCE_DIR}/scenes/")
+
 # Default scene and such... can be easily changed within visual studio
-set(SIMDIR "${CMAKE_SOURCE_DIR}/../sim/" CACHE PATH "Location of the Simulator")
+#set(SIMDIR "${CMAKE_SOURCE_DIR}/../sim/" CACHE PATH "Location of the Simulator")
 set(LIBDIR "${TRAX_DIR}/lib")
-set(SCENE_VIEWFILE \"${CMAKE_SOURCE_DIR}/scenes/cornell/cornell.view\" CACHE string "Default view file for scenes (must have double quotes)")
-set(SCENE_MODELFILE \"${CMAKE_SOURCE_DIR}/scenes/cornell/CornellBox.obj\"  CACHE string "Default model file for scenes (must have double quotes)")
-set(SCENE_LIGHTFILE \"${CMAKE_SOURCE_DIR}/scenes/cornell/cornell.light\"  CACHE string "Default light file for scenes (must have double quotes)")
+set(SCENE_VIEWFILE \"${BIN_TO_SCENES_PATH}/cornell/cornell.view\" CACHE string "Default view file for scenes (must have double quotes)")
+set(SCENE_MODELFILE \"${BIN_TO_SCENES_PATH}/cornell/CornellBox.obj\"  CACHE string "Default model file for scenes (must have double quotes)")
+set(SCENE_LIGHTFILE \"${BIN_TO_SCENES_PATH}/cornell/cornell.light\"  CACHE string "Default light file for scenes (must have double quotes)")
 set(SCENE_RAYDEPTH 1 CACHE string "Default maximum ray depth for path tracer, reflection and refraction")
 set(SCENE_NUMSAMPLES 1 CACHE string "Default number of samples per pixel for super-sampling")
 set(SCENE_CPPHEIGHT 512 CACHE string "Default height for CPU compilation")
