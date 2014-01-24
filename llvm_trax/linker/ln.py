@@ -8,6 +8,7 @@ import sys
 STACK_OFFSET = 8192
 
 needsMemset = False
+needsMemcpy = False
 needsExtendsf = False
 
 def main():
@@ -38,6 +39,9 @@ def main():
         if filename.find("memset.s") != -1:
             if needsMemset == False:
                 continue
+        if filename.find("memcpy.s") != -1:
+            if needsMemcpy == False:
+                continue
         if filename.find("__extendsfdf2.s") != -1:
             if needsExtendsf == False:
                 continue
@@ -47,6 +51,7 @@ def main():
 def LinkFile(filename, fileid):
 
     global needsMemset
+    global needsMemcpy
     global needsExtendsf
 
     #for filename in sys.argv[1:]:
@@ -85,6 +90,8 @@ def LinkFile(filename, fileid):
                 # Check if we need to link external library calls
                 if tok == "memset":
                     needsMemset = True
+                if tok == "memcpy":
+                    needsMemcpy = True
                 if tok == "__extendsfdf2":
                     needsExtendsf = True
 

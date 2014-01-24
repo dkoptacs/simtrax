@@ -51,12 +51,12 @@
 
 
 // Some useful functions
+// sqrt() has issue within MSVC
+#ifndef WIN32
 inline float sqrt(const float &x){
   return 1.0f / invsqrt(x);
 }
-inline float trax_sqrt(const float x){
-  return 1.0f / invsqrt(x);
-}
+#endif
 inline int GetXRes() {
   return loadi( 0, 1 );
 }

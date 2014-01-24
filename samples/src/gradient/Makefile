@@ -64,7 +64,7 @@ ${BINARYOUTPUT}: ${SOURCES} ${COBJS}
 
 ${TRAXOUTPUT}: rt.s
 	@echo "Writing ${TRAXOUTPUT}"
-	@${LINKERDIR}/ln.py rt.s ${LIBDIR}/memset.s ${LIBDIR}/__extendsfdf2.s > ${TRAXOUTPUT}
+	@${LINKERDIR}/ln.py rt.s ${LIBDIR}/memset.s ${LIBDIR}/memcpy.s ${LIBDIR}/__extendsfdf2.s > ${TRAXOUTPUT}
 
 mkdirs:
 	@mkdir -p objs;

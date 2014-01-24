@@ -200,6 +200,7 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend a
 
 	# do we need memory functions?
 	set(MEMSET_FCNS_ADD "${directoryPrePend}${LIBDIR}/memset.s")
+	set(MEMCPY_FCNS_ADD "${directoryPrePend}${LIBDIR}/memcpy.s")
 	set(EXTENDS_FDF2_ADD "${directoryPrePend}${LIBDIR}/__extendsfdf2.s")
 
 	# now, actually do the linking, etc
@@ -221,9 +222,9 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend a
 	# add the final rt-llvm.s target, which depends on things like memset.s
 	set(targetRTLLVMs_file "${CMAKE_CURRENT_BINARY_DIR}/${targetName}_rt-llvm.s")
 	add_custom_command(OUTPUT ${targetRTLLVMs_file}
-					   COMMAND python "${directoryPrePend}${TRAX_LN_PY_LOC}" ${targetRTs_file}.s ${MEMSET_FCNS_ADD} ${EXTENDS_FDF2_ADD} > ${targetRTLLVMs_file}
-					   DEPENDS "${targetRTs_file}.s" "${MEMSET_FCNS_ADD}" "${EXTENDS_FDF2_ADD}" )	
-	list(APPEND TARGET_BC_FILES "${MEMSET_FCNS_ADD}" "${EXTENDS_FDF2_ADD}" "${targetRTLLVMs_file}")
+					   COMMAND python "${directoryPrePend}${TRAX_LN_PY_LOC}" ${targetRTs_file}.s ${MEMSET_FCNS_ADD} ${MEMCPY_FCNS_ADD} ${EXTENDS_FDF2_ADD} > ${targetRTLLVMs_file}
+					   DEPENDS "${targetRTs_file}.s" "${MEMSET_FCNS_ADD}" "${MEMCPY_FCNS_ADD}" "${EXTENDS_FDF2_ADD}" )	
+	list(APPEND TARGET_BC_FILES "${MEMSET_FCNS_ADD}" "${MEMCPY_FCNS_ADD}" "${EXTENDS_FDF2_ADD}" "${targetRTLLVMs_file}")
 
 	# final project target
 	add_custom_target(TRAX_${targetName} ALL
