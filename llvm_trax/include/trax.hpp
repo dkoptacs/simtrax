@@ -54,6 +54,9 @@
 inline float sqrt(const float &x){
   return 1.0f / invsqrt(x);
 }
+inline float trax_sqrt(const float x){
+  return 1.0f / invsqrt(x);
+}
 inline int GetXRes() {
   return loadi( 0, 1 );
 }

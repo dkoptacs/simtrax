@@ -22,6 +22,9 @@
 #   define popen _popen
 #   define pclose _pclose
 # endif
+# ifndef strcasecmp
+#   define strcasecmp _stricmp
+# endif
 #endif
 
 
