@@ -33,7 +33,7 @@ IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor
   last_pc = -1;
   for(int i=0; i < 14; i++)
     total_vector_ops[i] = 0;
-
+ 
   kernel_cycles = new long long int*[MAX_NUM_KERNELS];
   kernel_calls = new int*[MAX_NUM_KERNELS];
   kernel_profiling = new int*[MAX_NUM_KERNELS];
@@ -50,14 +50,6 @@ IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor
 	kernel_cycles[i][j] = 0;
 	kernel_calls[i][j] = 0;
       }
-    for(int k = 0; k < Instruction::NUM_OPS; k++)
-      {
-	kernel_instruction_count[i][k] = 0;
-	kernel_unit_contention[i][k] = 0;
-	kernel_fu_dependencies[i][k] = 0;
-      }      
-
-
   }
 //   start_clock_counter = -1;
 //   profile_num_kernels = 0;
@@ -182,12 +174,6 @@ void IssueUnit::Reset()
 	kernel_cycles[i][j] = 0;
 	kernel_calls[i][j] = 0;
       }
-    for(int k = 0; k < Instruction::NUM_OPS; k++)
-      {
-	kernel_instruction_count[i][k] = 0;
-	kernel_unit_contention[i][k] = 0;
-	kernel_fu_dependencies[i][k] = 0;
-      }      
   }
   
   int count = 0;
@@ -409,8 +395,7 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
       int kernel_prof_id = fetched_instruction->args[0]; //kernel id
       // check for out of bounds error
       if (kernel_prof_id >= MAX_NUM_KERNELS) {
-	printf("PROF kernel ID out of range. Must be in [0 .. %d]\n", MAX_NUM_KERNELS);
-	exit(1);
+	printf("PROF kernel ID out of range.\n");
       } else {
 	// toggle profiling for this kernel
 	kernel_profiling[kernel_prof_id][tp->proc_id] = !kernel_profiling[kernel_prof_id][tp->proc_id];
@@ -540,10 +525,6 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
     data_dependence++;
     // find which instruction caused the stall (from old IssueUnit.cc)
     data_depend_bins[thread->GetFailOp(fail_reg)]++;
-    
-    //TODO: Working here: need to check all kernels for this thread and increment kernel_data_depend[kernel_id]
-    //if (kernel_profiling[j][i])
-
     schedule_data[proc_id].last_stall = thread->GetFailOp(fail_reg);
     DataDependVerbosity(thread, fetched_instruction, proc_id);
     not_ready++;
