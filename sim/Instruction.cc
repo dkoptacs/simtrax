@@ -72,6 +72,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::LT:
   case Instruction::LE:
   case Instruction::ADDK:
+  case Instruction::ADDKC:
   case Instruction::RSUB:
   case Instruction::CMP:
   case Instruction::CMPU:
