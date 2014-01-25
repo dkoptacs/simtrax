@@ -59,7 +59,7 @@ endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 file(RELATIVE_PATH BIN_TO_SCENES_PATH "${CMAKE_INSTALL_PREFIX}/bin/example/" "${CMAKE_SOURCE_DIR}/scenes/")
 
 # Default scene and such... can be easily changed within visual studio
-#set(SIMDIR "${CMAKE_SOURCE_DIR}/../sim/" CACHE PATH "Location of the Simulator")
+set(SIMDIR "${CMAKE_SOURCE_DIR}/../sim/" CACHE PATH "Location of the Simulator Sources")
 set(LIBDIR "${TRAX_DIR}/lib")
 set(SCENE_VIEWFILE \"${BIN_TO_SCENES_PATH}/cornell/cornell.view\" CACHE string "Default view file for scenes (must have double quotes)")
 set(SCENE_MODELFILE \"${BIN_TO_SCENES_PATH}/cornell/CornellBox.obj\"  CACHE string "Default model file for scenes (must have double quotes)")
