@@ -86,6 +86,10 @@ set(PTHREADS_LIBRARY_DLL "")
 if(WIN32 AND PTHREADS_FOUND)
 	# check 2 spots: same folder, with same name but with dll, rather than lib
 	# or replacing the last 2 lib with dll
+	string(FIND ${PTHREADS_LIBRARY} ".lib" LIBPATHINCLUDESLIB)
+	if(${LIBPATHINCLUDESLIB} EQUAL -1)
+		message(FATAL_ERROR "The pthreads library path (set to: ${PTHREADS_LIBRARY}) doesn't include .lib, please make sure that PTHREADS_LIBRARY path points to the pthreads libray file!")
+	endif(${LIBPATHINCLUDESLIB} EQUAL -1)
 	file(RELATIVE_PATH IncludeToLibPath ${PTHREADS_INCLUDE_DIR} ${PTHREADS_LIBRARY})
 	string(REPLACE "lib" "dll" libFile ${IncludeToLibPath})
 	file(TO_CMAKE_PATH  "${PTHREADS_INCLUDE_DIR}/${libFile}" libFile2)
