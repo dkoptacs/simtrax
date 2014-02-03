@@ -77,7 +77,7 @@ public:
   long long int* writes_register;
 
   IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor*>& _thread_procs, std::vector<FunctionalUnit*>& functional_units,
-	    int verbosity, int num_icaches, int icache_banks, int simd_width);
+	    int verbosity, int num_icaches, int icache_banks, int simd_width, bool _enable_profiling);
   ~IssueUnit();
 
   void Reset();
@@ -99,6 +99,7 @@ public:
 
 
   bool vector_stats;
+  bool enable_profiling;
   size_t num_halted;
   bool halted;
   long long int halt_cycle;

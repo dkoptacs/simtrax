@@ -12,6 +12,8 @@ Instruction::Instruction(Opcode code,
   pc_address = pc_addr;
   id = 0;
   depends[0] = depends[1] = -1;
+  executions = 0;
+  data_stalls = 0;
 }
 
 Instruction::Instruction(const Instruction& ins) {
@@ -22,6 +24,8 @@ Instruction::Instruction(const Instruction& ins) {
   id = ins.id;
   depends[0] = ins.depends[0];
   depends[1] = ins.depends[1];
+  executions = ins.executions;
+  data_stalls = ins.data_stalls;
 }
 
 bool Instruction::RayReady(int ray_start, long long int* writes_in_flight, int kNoBlock) const {
@@ -100,6 +104,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::LOADIMM:
   case Instruction::LOADL1:
   case Instruction::MOV:
+  case Instruction::PROF:
   case Instruction::sra:
   case Instruction::srl:
   case Instruction::bslli:
@@ -267,7 +272,6 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::brlid:
   case Instruction::brid:
   case Instruction::NOP:
-  case Instruction::PROF:
   case Instruction::RAND:
   case Instruction::HALT:
   case Instruction::SETBOXPIPE:

@@ -163,7 +163,7 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	long long int write_cycle = hit_latency + issuer->current_cycle;
 	reg_value result;
 	result.udata = data[address].uvalue;
-	if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) {
+	if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op, &ins)) {
 	  //printf("pipeline hazzard1\n");
 	  // pipeline hazzard
 	  return false;
@@ -212,7 +212,7 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	long long int write_cycle = hit_latency + issuer->current_cycle + near_latency;
 	reg_value result;
 	result.udata = data[address].uvalue;
-	if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) {
+	if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op, &ins)) {
 	  //printf("pipeline hazzard2\n");
 	  // pipeline hazzard
 	  return false;
@@ -238,7 +238,7 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	  
 	  reg_value result;
 	  result.udata = data[address].uvalue;
-	  if (!thread->QueueWrite(ins.args[0], result, bus_latency, ins.op))
+	  if (!thread->QueueWrite(ins.args[0], result, bus_latency, ins.op, &ins))
 	    {
 	      // pipeline hazzard
 	      return false;
@@ -265,7 +265,7 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	      // queue write to register
 	      long long int write_cycle = hit_latency + temp_latency + issuer->current_cycle;
 	      
-	      if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) {	      
+	      if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op, &ins)) {	      
 		// pipeline hazzard
 		pthread_mutex_lock(&(L2->cache_mutex));
 		L2->accesses--;
@@ -283,7 +283,7 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	    {
 	      // Otherwise, enqueue it with unknown latency, usimm will update it's return cycle later
 	      
-	      if (!thread->QueueWrite(ins.args[0], result, UNKNOWN_LATENCY, ins.op)) 
+	      if (!thread->QueueWrite(ins.args[0], result, UNKNOWN_LATENCY, ins.op, &ins)) 
 		{
 		  // pipeline hazzard
 		  pthread_mutex_lock(&(L2->cache_mutex));
@@ -323,7 +323,7 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	reg_value result;
 	result.udata = data[address].uvalue;
 	//printf("\tnotifying thread, register %d, cycle %d, result %u\n", ins.args[0], write_cycle, result.udata);
-	if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) 
+	if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op, &ins)) 
 	  {
 	    // pipeline hazzard
 	    return false;
@@ -380,7 +380,7 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       reg_value result;
       // Fail value
       result.idata = 0;
-      if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) {
+      if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op, &ins)) {
 	// pipeline hazzard
 	return false;
       }
@@ -396,7 +396,7 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       long long int write_cycle = hit_latency + issuer->current_cycle;
       reg_value result;
       result.idata = 1;
-      if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op)) {
+      if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op, &ins)) {
 	// pipeline hazzard
 	
 	return false;

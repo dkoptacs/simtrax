@@ -50,7 +50,7 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       // bad stuff happened
       printf("IntAddSub unit: Error in Accepting instruction. Should have passed2.\n");
       printf("PC = %d, thread = %d, core = %d, cycle = %lld, reg_ready[%d] = %lld, reg_ready[%d] = %lld\n", 
-	     ins.pc_address, thread->thread_id, thread->core_id, issuer->current_cycle, 
+	     ins.pc_address, thread->thread_id, (int)thread->core_id, issuer->current_cycle, 
 	     ins.args[1], thread->register_ready[ins.args[1]],
 	     ins.args[2], thread->register_ready[ins.args[2]]);
       exit(1);
@@ -111,7 +111,7 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   };
   
   // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op)) {
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
     // pipeline hazard
     return false;
   }

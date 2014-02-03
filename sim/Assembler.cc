@@ -130,7 +130,7 @@ int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions
       int totalStringSize = 0;
       for(i=0; i < ascii_literals.size(); i++)
 	{
-	  printf("%d: \"%s\"\n", (jump_table.size() * 4) + totalStringSize, ascii_literals[i].c_str());
+	  printf("%d: \"%s\"\n", (int)(jump_table.size() * 4) + totalStringSize, ascii_literals[i].c_str());
 	  totalStringSize += ascii_literals[i].length() + 1;
 	}
     }

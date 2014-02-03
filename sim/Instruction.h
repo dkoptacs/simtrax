@@ -214,6 +214,12 @@ public:
   void print();
   Opcode op;
   int args[3];
+
+  // For "profiling"
+  // Keep track of performance data
+  long long int executions;
+  long long int data_stalls;
+  
   
   // Since we're assuming an in-order processor, we never have to wait
   // for the destination register (since anyone that depended on it

@@ -24,7 +24,7 @@ public:
   long long int cycle_num;
   TraxCore(int num_thread_procs, int _threads_per_core, int num_regs, ThreadProcessor::SchedulingScheme ss, 
 	   std::vector<Instruction*>* instructions, L2Cache* L2,
-	   size_t coreid, size_t l2id);
+	   size_t coreid, size_t l2id, bool _enable_profiling);
   ~TraxCore();
 
   // sets up issue unit and thread states
@@ -40,6 +40,7 @@ public:
   long long int CountStalls();
 
   //data members...
+  bool enable_profiling;
   int num_thread_procs;
   int threads_per_proc;
   int num_regs;

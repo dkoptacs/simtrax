@@ -18,6 +18,7 @@ public:
   virtual void print();
   virtual double Utilization();
 
+
   int width;
   int issued_this_cycle;
 };

@@ -72,7 +72,7 @@ bool BranchUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
   case Instruction::brki:
     arg.idata = thread->program_counter;
     // write the value
-    if (!thread->QueueWrite(write_reg, arg, write_cycle, ins.op)) {
+    if (!thread->QueueWrite(write_reg, arg, write_cycle, ins.op, &ins)) {
       // pipeline hazzard
       return false;
     }
@@ -83,7 +83,7 @@ bool BranchUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
     // Second arg is register with address to branch to
     arg.idata = thread->program_counter;
     // write the value
-    if (!thread->QueueWrite(write_reg, arg, write_cycle, ins.op)) {
+    if (!thread->QueueWrite(write_reg, arg, write_cycle, ins.op, &ins)) {
       // pipeline hazzard
       return false;
     }

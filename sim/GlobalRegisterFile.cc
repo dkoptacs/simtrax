@@ -124,6 +124,7 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       last_report_cycle += report_period;
     }
     
+
     WriteUint(ins.args[1], result.udata+1);
     break;
   case Instruction::ATOMIC_ADD:
@@ -169,7 +170,7 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
 
   if(ins.op != Instruction::BARRIER) // barrier doesn't write anything
     {
-      if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op)) {
+      if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
 	// pipeline hazzard, undo changes
 	switch (ins.op) {
 	case Instruction::ATOMIC_INC:

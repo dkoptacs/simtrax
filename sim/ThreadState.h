@@ -22,9 +22,10 @@ class WriteQueue {
   int size();
   void pop();
   bool empty();
-  bool update(ThreadState* thread, int which_reg, long long int which_cycle, unsigned int val, long long new_cycle, unsigned int new_val, Instruction::Opcode new_op);
+  bool update(ThreadState* thread, int which_reg, long long int which_cycle, unsigned int val, long long new_cycle, unsigned int new_val, Instruction::Opcode new_op, Instruction* new_instr);
   bool CycleUsed(long long int cycle);
   Instruction::Opcode GetOp(int which_reg);
+  Instruction* GetInstruction(int which_reg);
   bool ReadyBy(int which_reg, long long int which_cycle, long long int &ready_cycle, reg_value &val, Instruction::Opcode &op);
   void print();
 
@@ -64,8 +65,9 @@ public:
   std::vector<Instruction*> instructions;
 
   // Begin new write queue stuff
-  bool QueueWrite(int which_reg, reg_value val, long long int which_cycle, Instruction::Opcode op);
+  bool QueueWrite(int which_reg, reg_value val, long long int which_cycle, Instruction::Opcode op, Instruction* instr);
   Instruction::Opcode GetFailOp(int which_reg);
+  Instruction* GetFailInstruction(int which_reg);
 
   void UpdateWriteCycle(int which_reg, long long int which_cycle, unsigned int val, long long int new_cycle, Instruction::Opcode op);
 
@@ -81,6 +83,7 @@ public:
 
 
   Instruction* fetched_instruction;
+  Instruction* last_issued;
   Instruction* issued_this_cycle;
   
   int instructions_in_flight;

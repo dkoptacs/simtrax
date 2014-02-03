@@ -134,7 +134,7 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   };
 
   // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op)) {
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
     // pipeline hazzard
     return false;
   }

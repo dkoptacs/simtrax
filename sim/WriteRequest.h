@@ -15,6 +15,7 @@ public:
   void print();
 
   Instruction::Opcode op;
+  Instruction* instr;
   int which_reg;
   
   union {

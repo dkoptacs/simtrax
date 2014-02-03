@@ -4,6 +4,7 @@
 WriteRequest::WriteRequest() {
   ready_cycle = 0; // set later
   op = Instruction::NOP;
+  instr = NULL;
   which_reg = -1;
   // set good debugging value...
   fdata = FLT_MAX;
@@ -13,6 +14,7 @@ WriteRequest::WriteRequest(long long int which_cycle) :
   ready_cycle(which_cycle) {
   // set good debugging value...
   fdata = FLT_MAX;
+  instr = NULL;
 }
 
 bool WriteRequest::IsReady(long long int current_cycle) const {

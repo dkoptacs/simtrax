@@ -9,12 +9,15 @@
 #include <stdlib.h>
 #include <fstream>
 
+extern pthread_mutex_t profile_mutex;
+
 IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor*>& _thread_procs,
                      std::vector<FunctionalUnit*>& functional_units,
                      int _verbosity, int _num_icaches, int _icache_banks, 
-		     int _simd_width) 
+		     int _simd_width, bool _enable_profiling) 
  :verbosity(_verbosity){
   printed_single_kernel = false;
+  enable_profiling = _enable_profiling;
 
   if(!ReadCacheParams(icache_params_file, 4096, _icache_banks, 4, area, energy, false))
     perror("WARNING: Unable to find area and energy profile for specified instruction cache.\nAssuming 0\n");
@@ -522,6 +525,13 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
   } 
   else 
     {
+      if(enable_profiling)
+	{
+	  // All threads point to the same list of Instructions, must protect modifications to it
+	  pthread_mutex_lock(&profile_mutex);
+	  thread->GetFailInstruction(fail_reg)->data_stalls++;
+	  pthread_mutex_unlock(&profile_mutex);
+	}
     data_dependence++;
     // find which instruction caused the stall (from old IssueUnit.cc)
     data_depend_bins[thread->GetFailOp(fail_reg)]++;
@@ -531,6 +541,14 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
   }
 
   if (issued) {
+    if(enable_profiling)
+      {
+	// All threads point to the same list of Instructions, must protect modifications to it
+	pthread_mutex_lock(&profile_mutex);
+	fetched_instruction->executions++;
+	pthread_mutex_unlock(&profile_mutex);
+      }
+
     // stats and info
     simd_issue++;
     profile_instruction_count[thread->program_counter]++;
@@ -565,7 +583,7 @@ void IssueUnit::MultipleIssueClockFall() {
 		fetched_instruction->id,
 		thread->program_counter - 1,
 		Instruction::Opnames[fetched_instruction->op].c_str() );
-	printf("\tthread_id = %d, core_id = %d\n", thread->thread_id, thread->core_id);
+	printf("\tthread_id = %d, core_id = %d\n", thread->thread_id, (int)thread->core_id);
 	printf("\tregister_ready[%d][%d][%d] = %lld, %lld, %lld\n", fetched_instruction->args[0], fetched_instruction->args[1], fetched_instruction->args[2], thread->register_ready[fetched_instruction->args[0]], thread->register_ready[fetched_instruction->args[1]], thread->register_ready[fetched_instruction->args[2]]);
       }
 
@@ -642,7 +660,7 @@ void IssueUnit::MultipleIssueClockFall() {
 	bank_fetched[icache_num][bank_num]++;
 	if(thread->program_counter < 0)
 	  {
-	    printf("Error: invalid program counter: %d\n", thread->program_counter);
+	    printf("Error: invalid program counter: %lld\n", thread->program_counter);
 	    exit(1);
 	  }
 	thread->fetched_instruction = thread->instructions[thread->program_counter];
@@ -741,7 +759,7 @@ void IssueUnit::SIMDClockFall() {
       bank_fetched[icache_num][bank_num]++;
       if(thread->program_counter < 0)
 	{
-	  printf("Error: invalid program counter: %d\n", thread->program_counter);
+	  printf("Error: invalid program counter: %lld\n", thread->program_counter);
 	  exit(1);
 	}
       thread->fetched_instruction = thread->instructions[thread->program_counter];

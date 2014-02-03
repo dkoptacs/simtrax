@@ -52,6 +52,7 @@ bool LocalStore::IssueLoad(int write_reg, int address, ThreadState* thread, long
   reg_value result;
   if (address < 0 || address > LOCAL_SIZE) {
     printf("Error Issuing load in LocalStore. 0x%8x not in [0x%8x, 0x%8x].\n", address, 0, LOCAL_SIZE);
+    exit(1);
   }
 
   // check for byte loads
@@ -65,7 +66,7 @@ bool LocalStore::IssueLoad(int write_reg, int address, ThreadState* thread, long
   else {
     result.udata = ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue;
   }
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op)) {
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
     // pipeline hazzard
     return false;
   }

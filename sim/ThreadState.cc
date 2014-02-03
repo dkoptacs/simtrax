@@ -61,15 +61,12 @@ bool WriteQueue::empty() {
   return head == tail;
 }
 
-bool WriteQueue::update(ThreadState* thread, int which_reg, long long int which_cycle, unsigned int val, long long new_cycle, unsigned int new_val, Instruction::Opcode new_op)
+bool WriteQueue::update(ThreadState* thread, int which_reg, long long int which_cycle, unsigned int val, long long new_cycle, unsigned int new_val, Instruction::Opcode new_op, Instruction* new_instr)
 {
   int num = size();
 
-  //printf("searching for reg %d, cycle %lld, val %u\n", which_reg, which_cycle, val);
-
   for(int i = 0; i < num; ++i) 
     {
-      //printf("\texamining reg %d, cycle %lld, val %u\n", requests[(tail+i)%N].which_reg, requests[(tail+i)%N].ready_cycle, requests[(tail+i)%N].udata);
       if (requests[(tail+i)%N].which_reg == which_reg &&
 	  requests[(tail+i)%N].ready_cycle == which_cycle &&
 	  requests[(tail+i)%N].udata == val)
@@ -94,6 +91,9 @@ bool WriteQueue::update(ThreadState* thread, int which_reg, long long int which_
 	  requests[(tail+i)%N].ready_cycle = new_cycle;
 	  requests[(tail+i)%N].udata = new_val;
 	  requests[(tail+i)%N].op = new_op;
+	  // If this function was called by UpdateWriteCycle, then we don't change the instruction
+	  if(new_instr != NULL)
+	    requests[(tail+i)%N].instr = new_instr;
 	  thread->register_ready[which_reg] = new_cycle;
 	  return true;
 	}
@@ -134,6 +134,23 @@ Instruction::Opcode WriteQueue::GetOp(int which_reg) {
   }
   // in case the reg isn't being written...
   return return_op;
+}
+
+Instruction* WriteQueue::GetInstruction(int which_reg) {
+  // do a linear search to find the op for the register
+  int num = size();
+  Instruction* return_instr = NULL;
+  long long int last_cycle = 0;
+  for(int i = 0; i < num; ++i) {
+    if (requests[(tail+i)%N].which_reg == which_reg) {
+      if (last_cycle < requests[(tail+i)%N].ready_cycle) {
+	last_cycle = requests[(tail+i)%N].ready_cycle;
+	return_instr = requests[(tail+i)%N].instr;
+      }
+    }
+  }
+  // in case the reg isn't being written...
+  return return_instr;
 }
 
 bool WriteQueue::ReadyBy(int which_reg, long long int which_cycle,
@@ -218,7 +235,7 @@ ThreadState::~ThreadState(){
   delete registers;
 }
 
-bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_cycle, Instruction::Opcode op) {
+bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_cycle, Instruction::Opcode op, Instruction* instr) {
   // check to make sure we can write on the cycle
 //   printf("Queuing write to reg: %d with val: %d on cycle: %lld from op: %s\n", which_reg, val.idata, which_cycle,
 //   Instruction::Opnames[op].c_str());
@@ -238,7 +255,7 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
       // Get the old enqueued result
       write_requests.ReadyBy(which_reg, UNKNOWN_LATENCY, old_ready, old_val, temp);
       // This should never fail
-      if(!write_requests.update(this, which_reg, old_ready, old_val.udata, which_cycle, val.udata, op))
+      if(!write_requests.update(this, which_reg, old_ready, old_val.udata, which_cycle, val.udata, op, instr))
 	{
 	  printf("Error: found old write request but could not update it(1)\n");
 	  exit(1);
@@ -271,6 +288,7 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
   new_write->which_reg = which_reg;
   new_write->idata = val.idata;
   new_write->op = op;
+  new_write->instr = instr;
   writes_in_flight[which_reg]++;
   //printf("%d writes in flight.\n",writes_in_flight[which_reg]);
   register_ready[which_reg] = which_cycle;
@@ -281,12 +299,17 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
 
 void ThreadState::UpdateWriteCycle(int which_reg, long long int which_cycle, unsigned int val, long long int new_cycle, Instruction::Opcode op)
 {
-  write_requests.update(this, which_reg, which_cycle, val, new_cycle, val, op);
+  write_requests.update(this, which_reg, which_cycle, val, new_cycle, val, op, NULL);
 }
 
 Instruction::Opcode ThreadState::GetFailOp(int which_reg) {
   // find which op was last queued to write to this reg
   return write_requests.GetOp(which_reg);
+}
+
+Instruction* ThreadState::GetFailInstruction(int which_reg) {
+  // find which instruction was last queued to write to this reg
+  return write_requests.GetInstruction(which_reg);
 }
 
 bool ThreadState::ReadRegister(int which_reg, long long int which_cycle, reg_value& val, Instruction::Opcode &op) {

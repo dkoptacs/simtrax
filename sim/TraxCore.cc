@@ -11,9 +11,10 @@
 TraxCore::TraxCore(int _num_thread_procs, int _threads_per_proc, int _num_regs,
 		   ThreadProcessor::SchedulingScheme ss, std::vector<Instruction*>* _instructions, 
 		   L2Cache* _L2,
-		   size_t coreid, size_t l2id)
+		   size_t coreid, size_t l2id, bool _enable_profiling)
   :num_thread_procs(_num_thread_procs), threads_per_proc(_threads_per_proc), num_regs(_num_regs) {
 
+  enable_profiling = _enable_profiling;
   instructions = _instructions;
   L2 = _L2;
   enable_proc_trace = -1;
@@ -43,7 +44,7 @@ void TraxCore::initialize(const char* icache_params_file, int issue_verbosity,
   }
 
   functional_units.push_back(dynamic_cast<FunctionalUnit*>(L1));
-  issuer = new IssueUnit(icache_params_file, thread_procs, functional_units, issue_verbosity, num_icaches, icache_banks, simd_width);
+  issuer = new IssueUnit(icache_params_file, thread_procs, functional_units, issue_verbosity, num_icaches, icache_banks, simd_width, enable_profiling);
   modules.push_back(issuer);
   module_names.push_back(std::string("IssueLogic"));
 
