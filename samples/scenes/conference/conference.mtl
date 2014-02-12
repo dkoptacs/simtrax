@@ -1,0 +1,258 @@
+newmtl mtl_0
+Ka 0 0 0
+Kd 0.000000 0.000000 0.000000
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_1
+Ka 0 0 0
+Kd 0.639599 0.639599 0.639599
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_2
+Ka 0 0 0
+Kd 0.639332 0.394960 0.127464
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_3
+Ka 0 0 0
+Kd 0.724404 0.391998 0.157309
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_4
+Ka 0 0 0
+Kd 0.184801 0.184801 0.184801
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_5
+Ka 0 0 0
+Kd 0.179843 0.065000 0.058185
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_6
+Ka 0 0 0
+Kd 0.899031 0.899031 0.899031
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_7
+Ka 0 0 0
+Kd 0.066828 0.066828 0.066828
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_8
+Ka 0 0 0
+Kd 0.685261 0.685261 0.685261
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_9
+Ka 0 0 0
+Kd 0.657286 0.404943 0.166828
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_10
+Ka 0 0 0
+Kd 0.212471 0.212471 0.212471
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_11
+Ka 0 0 0
+Kd 0.599354 0.599354 0.599354
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_12
+Ka 0 0 0
+Kd 0.122794 0.262992 0.151447
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_13
+Ka 0 0 0
+Kd 0.214768 0.214768 0.214768
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_14
+Ka 0 0 0
+Kd 0.197787 0.197787 0.197787
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_15
+Ka 0 0 0
+Kd 0.515317 0.450066 0.341094
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_16
+Ka 0 0 0
+Kd 0.039957 0.039957 0.039957
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_17
+Ka 0 0 0
+Kd 0.224758 0.224758 0.224758
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_18
+Ka 0 0 0
+Kd 0.474488 0.474488 0.474488
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_19
+Ka 0 0 0
+Kd 0.379591 0.379591 0.379591
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_20
+Ka 0 0 0
+Kd 0.834989 0.684129 0.552697
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_21
+Ka 0 0 0
+Kd 0.812337 0.686120 0.422632
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_22
+Ka 0 0 0
+Kd 0.284038 0.147026 0.127828
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_23
+Ka 0 0 0
+Kd 0.079914 0.079914 0.079914
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_24
+Ka 0 0 0
+Kd 0.802866 0.088228 0.068792
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_25
+Ka 0 0 0
+Kd 0.139849 0.139849 0.139849
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_26
+Ka 0 0 0
+Kd 0.179806 0.179806 0.179806
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_27
+Ka 0 0 0
+Kd 0.099892 0.099892 0.099892
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_28
+Ka 0 0 0
+Kd 0.468643 0.468643 0.468643
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_29
+Ka 0 0 0
+Kd 10.000000 10.000000 10.000000
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_30
+Ka 0 0 0
+Kd 0.286845 0.148479 0.129091
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_31
+Ka 0 0 0
+Kd 0.639173 0.440120 0.316934
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_32
+Ka 0 0 0
+Kd 0.288249 0.149206 0.129723
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_33
+Ka 0 0 0
+Kd 0.059935 0.059935 0.059935
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_34
+Ka 0 0 0
+Kd 0.498571 0.229603 0.140122
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_35
+Ka 0 0 0
+Kd 0.979013 0.183039 0.165590
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_36
+Ka 0 0 0
+Kd 0.029968 0.029968 0.029968
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_37
+Ka 0 0 0
+Kd 0.455469 0.224282 0.115295
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_38
+Ka 0 0 0
+Kd 0.049447 0.049447 0.049447
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_39
+Ka 0 0 0
+Kd 1.000000 1.000000 1.000000
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_40
+Ka 0 0 0
+Kd 1.000000 0.000000 0.000000
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_41
+Ka 0 0 0
+Kd 0.000000 1.000000 0.000000
+Ks 0 0 0
+illum 2
+Ns 0
+newmtl mtl_42
+Ka 0 0 0
+Kd 0.000000 0.000000 1.000000
+Ks 0 0 0
+illum 2
+Ns 0
