@@ -2144,7 +2144,7 @@ void update_memory()
 // Units : Time- ns; Current mA; Voltage V; Power mW; 
 //------------------------------------------------------------
 
- float calculate_power(int channel, int rank, int print_stats_type, int chips_per_rank)
+float calculate_power(int channel, int rank, int print_stats_type, int chips_per_rank, bool print)
 {
 	/*
 	Power is calculated using the equations from Technical Note "TN-41-01: Calculating Memory System Power for DDR"
@@ -2339,100 +2339,56 @@ void update_memory()
 	    }
 	  }
 
-	if(trax_verbosity)
+	if(print)
 	  {
-	    if (print_stats_type == 0) 
+	    if(trax_verbosity)
 	      {
-		/*
-		  printf ("%3d %6d %13.2f %13.2f %13.2f %13.2f %15.2f %15.2f %15.2f %13.2f %11.2f \n", \
-		  channel,						\
-		  rank,							\
-		  (double)reads/CYCLE_VAL,				\
-		  (double)writes/CYCLE_VAL,				\
-		  psch_termRoth,					\
-		  psch_termWoth,					\
-		  ((double)stats_time_spent_in_precharge_power_down_fast[channel][rank]/CYCLE_VAL), \
-		  ((double)stats_time_spent_in_precharge_power_down_slow[channel][rank]/CYCLE_VAL), \
-		  ((double)stats_time_spent_in_active_power_down[channel][rank]/CYCLE_VAL), \
-		  ((double)stats_time_spent_in_active_standby[channel][rank]/CYCLE_VAL), \
-		  (((double)(CYCLE_VAL - stats_time_spent_in_active_standby[channel][rank]- stats_time_spent_in_precharge_power_down_slow[channel][rank] - stats_time_spent_in_precharge_power_down_fast[channel][rank] - stats_time_spent_in_active_power_down[channel][rank]))/CYCLE_VAL)
-		  );
-		*/
-		printf ("Channel %d Rank %d Read Cycles(%%)           %9.2f # %% cycles the Rank performed a Read\n",channel, rank, (double)reads*T_DATA_TRANS/CYCLE_VAL ); 
-		printf ("Channel %d Rank %d Write Cycles(%%)          %9.2f # %% cycles the Rank performed a Write\n",channel, rank, (double)writes*T_DATA_TRANS/CYCLE_VAL ); 
-		printf ("Channel %d Rank %d Read Other(%%)            %9.2f # %% cycles other Ranks on the channel performed a Read\n",channel, rank, \
-			((double)stats_time_spent_terminating_reads_from_other_ranks[channel][rank]/CYCLE_VAL) ); 
-		printf ("Channel %d Rank %d Write Other(%%)           %9.2f # %% cycles other Ranks on the channel performed a Write\n",channel, rank, \
-			((double)stats_time_spent_terminating_writes_to_other_ranks[channel][rank]/CYCLE_VAL) ); 
-		printf ("Channel %d Rank %d PRE_PDN_FAST(%%)          %9.2f # %% cycles the Rank was in Fast Power Down and all Banks were Precharged\n",channel, rank, \
-			((double)stats_time_spent_in_precharge_power_down_fast[channel][rank]/CYCLE_VAL) ); 
-		printf ("Channel %d Rank %d PRE_PDN_SLOW(%%)          %9.2f # %% cycles the Rank was in Slow Power Down and all Banks were Precharged\n",channel, rank, \
-			((double)stats_time_spent_in_precharge_power_down_slow[channel][rank]/CYCLE_VAL) ); 
-		printf ("Channel %d Rank %d ACT_PDN(%%)               %9.2f # %% cycles the Rank was in Active Power Down and atleast one Bank was Active\n",channel, rank, \
-			((double)stats_time_spent_in_active_power_down[channel][rank]/CYCLE_VAL) ); 
-		printf ("Channel %d Rank %d ACT_STBY(%%)              %9.2f # %% cycles the Rank was in Standby and atleast one bank was Active\n",channel, rank, \
-			((double)stats_time_spent_in_active_standby[channel][rank]/CYCLE_VAL) ); 
-		printf ("Channel %d Rank %d PRE_STBY(%%)              %9.2f # %% cycles the Rank was in Standby and all Banks were Precharged\n",channel, rank, time_in_pre_stby ); 
-		printf ("---------------------------------------------------------------\n\n");
-		
-		
-	      } 
-	    else if (print_stats_type == 1) 
-	      {
-		/*----------------------------------------------------
-		// Total Power is the sum total of all the components calculated above
-		----------------------------------------------------*/
-		
-		
-		printf ("Channel %d Rank %d Background(mw)          %9.2f # depends only on Power Down time and time all banks were precharged\n",channel, rank, psch_act_pdn+psch_act_stby+psch_pre_pdn_slow+psch_pre_pdn_fast+psch_pre_stby); 
-		printf ("Channel %d Rank %d Act(mW)                 %9.2f # power spend bringing data to the row buffer\n",channel, rank, psch_act); 
-		printf ("Channel %d Rank %d Read(mW)                %9.2f # power spent doing a Read  after the Row Buffer is open\n",channel, rank, psch_rd); 
-		printf ("Channel %d Rank %d Write(mW)               %9.2f # power spent doing a Write after the Row Buffer is open\n",channel, rank, psch_wr); 
-		printf ("Channel %d Rank %d Read Terminate(mW)      %9.2f # power dissipated in ODT resistors during Read\n",channel, rank, psch_dq); 
-		printf ("Channel %d Rank %d Write Terminate(mW)     %9.2f # power dissipated in ODT resistors during Write\n",channel, rank, psch_termW); 
-		printf ("Channel %d Rank %d termRoth(mW)            %9.2f # power dissipated in ODT resistors during Reads  in other ranks\n",channel, rank, psch_termRoth); 
-		printf ("Channel %d Rank %d termWoth(mW)            %9.2f # power dissipated in ODT resistors during Writes in other ranks\n",channel, rank, psch_termWoth); 
-		printf ("Channel %d Rank %d Refresh(mW)             %9.2f # depends on frequency of Refresh (tREFI)\n",channel, rank, psch_ref); 
-		printf ("---------------------------------------------------------------\n");
-		printf ("Channel %d Rank %d Total Rank Power(mW)    %9.2f # (Sum of above components)*(num chips in each Rank)\n",channel, rank, total_rank_power);
-		printf ("---------------------------------------------------------------\n\n");
-		
-		
-		
-		/*
-		  
-		  printf("%3d %11d %16.2f %16.2f %17.2f %13.2f %13.2f %20.2f %21.2f %24.2f %12.2f %13.2f\n", \
-		  channel,						\
-		  rank,							\
-		  total_rank_power,					\
-		  psch_act_pdn+psch_act_stby+psch_pre_pdn_slow+psch_pre_pdn_fast+psch_pre_stby, \
-		  psch_act,						\
-		  psch_rd,						\
-		  psch_wr,						\
-		  psch_dq,						\
-		  psch_termW,						\
-		  psch_termRoth,					\
-		  psch_termWoth,					\
-		  psch_ref                                                                                  
-		  
-		  );
-		*/
-		
-		/*
-		  printf("Channel:%d Rank:%d Total background power : %f mW\n", channel, rank, psch_act_pdn+psch_act_stby+psch_pre_pdn_slow+psch_pre_pdn_fast+psch_pre_stby);
-		  printf("Channel:%d, Rank:%d Total activate power : %f,%f,%d,%f mW\n", channel, rank, psch_act,pds_act,T_RC,average_gap_between_activates[channel][rank]);
-		  printf("Channel:%d, Rank:%d Total I/O and termination power: %f rd:%f wr:%f dq:%f termW:%f termRoth:%f termWoth:%f mW\n", channel, rank, psch_rd+psch_wr+psch_dq+psch_termW+psch_termRoth+psch_termWoth, psch_rd, psch_wr, psch_dq, psch_termW, psch_termRoth, psch_termWoth);
-		  
-		  printf("Channel:%d, Rank:%d Total refresh power: %f mW\n", channel, rank, psch_ref);
-		  printf("Channel:%d, Rank:%d Total Rank power: %f mW\n\n", channel, rank, total_rank_power);
-		  printf("------------------------------------------------\n");
-		*/
-		
-	      }
-	    else 
-	      {
-		printf ("PANIC: FN_CALL_ERROR: In calculate_power(), print_stats_type can only be 1 or 0\n");
-		assert (-1);
+		if (print_stats_type == 0) 
+		  {
+		    printf ("Channel %d Rank %d Read Cycles(%%)           %9.2f # %% cycles the Rank performed a Read\n",channel, rank, (double)reads*T_DATA_TRANS/CYCLE_VAL ); 
+		    printf ("Channel %d Rank %d Write Cycles(%%)          %9.2f # %% cycles the Rank performed a Write\n",channel, rank, (double)writes*T_DATA_TRANS/CYCLE_VAL ); 
+		    printf ("Channel %d Rank %d Read Other(%%)            %9.2f # %% cycles other Ranks on the channel performed a Read\n",channel, rank, \
+			    ((double)stats_time_spent_terminating_reads_from_other_ranks[channel][rank]/CYCLE_VAL) ); 
+		    printf ("Channel %d Rank %d Write Other(%%)           %9.2f # %% cycles other Ranks on the channel performed a Write\n",channel, rank, \
+			    ((double)stats_time_spent_terminating_writes_to_other_ranks[channel][rank]/CYCLE_VAL) ); 
+		    printf ("Channel %d Rank %d PRE_PDN_FAST(%%)          %9.2f # %% cycles the Rank was in Fast Power Down and all Banks were Precharged\n",channel, rank, \
+			    ((double)stats_time_spent_in_precharge_power_down_fast[channel][rank]/CYCLE_VAL) ); 
+		    printf ("Channel %d Rank %d PRE_PDN_SLOW(%%)          %9.2f # %% cycles the Rank was in Slow Power Down and all Banks were Precharged\n",channel, rank, \
+			    ((double)stats_time_spent_in_precharge_power_down_slow[channel][rank]/CYCLE_VAL) ); 
+		    printf ("Channel %d Rank %d ACT_PDN(%%)               %9.2f # %% cycles the Rank was in Active Power Down and atleast one Bank was Active\n",channel, rank, \
+			    ((double)stats_time_spent_in_active_power_down[channel][rank]/CYCLE_VAL) ); 
+		    printf ("Channel %d Rank %d ACT_STBY(%%)              %9.2f # %% cycles the Rank was in Standby and atleast one bank was Active\n",channel, rank, \
+			    ((double)stats_time_spent_in_active_standby[channel][rank]/CYCLE_VAL) ); 
+		    printf ("Channel %d Rank %d PRE_STBY(%%)              %9.2f # %% cycles the Rank was in Standby and all Banks were Precharged\n",channel, rank, time_in_pre_stby ); 
+		    printf ("---------------------------------------------------------------\n\n");
+		    
+		    
+		  } 
+		else if (print_stats_type == 1) 
+		  {
+		    /*----------------------------------------------------
+		    // Total Power is the sum total of all the components calculated above
+		    ----------------------------------------------------*/
+		    
+		    
+		    printf ("Channel %d Rank %d Background(mw)          %9.2f # depends only on Power Down time and time all banks were precharged\n",channel, rank, psch_act_pdn+psch_act_stby+psch_pre_pdn_slow+psch_pre_pdn_fast+psch_pre_stby); 
+		    printf ("Channel %d Rank %d Act(mW)                 %9.2f # power spend bringing data to the row buffer\n",channel, rank, psch_act); 
+		    printf ("Channel %d Rank %d Read(mW)                %9.2f # power spent doing a Read  after the Row Buffer is open\n",channel, rank, psch_rd); 
+		    printf ("Channel %d Rank %d Write(mW)               %9.2f # power spent doing a Write after the Row Buffer is open\n",channel, rank, psch_wr); 
+		    printf ("Channel %d Rank %d Read Terminate(mW)      %9.2f # power dissipated in ODT resistors during Read\n",channel, rank, psch_dq); 
+		    printf ("Channel %d Rank %d Write Terminate(mW)     %9.2f # power dissipated in ODT resistors during Write\n",channel, rank, psch_termW); 
+		    printf ("Channel %d Rank %d termRoth(mW)            %9.2f # power dissipated in ODT resistors during Reads  in other ranks\n",channel, rank, psch_termRoth); 
+		    printf ("Channel %d Rank %d termWoth(mW)            %9.2f # power dissipated in ODT resistors during Writes in other ranks\n",channel, rank, psch_termWoth); 
+		    printf ("Channel %d Rank %d Refresh(mW)             %9.2f # depends on frequency of Refresh (tREFI)\n",channel, rank, psch_ref); 
+		    printf ("---------------------------------------------------------------\n");
+		    printf ("Channel %d Rank %d Total Rank Power(mW)    %9.2f # (Sum of above components)*(num chips in each Rank)\n",channel, rank, total_rank_power);
+		    printf ("---------------------------------------------------------------\n\n");
+		  }
+		else 
+		  {
+		    printf ("PANIC: FN_CALL_ERROR: In calculate_power(), print_stats_type can only be 1 or 0\n");
+		    assert (-1);
+		  }
 	      }
 	  }
 	return total_rank_power;

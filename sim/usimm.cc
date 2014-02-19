@@ -730,6 +730,15 @@ int usimm_setup(char* config_filename)
   return 0;
 } 
 
+float getUsimmPower()
+{
+  float total_system_power =0;
+  for(int c=0; c<NUM_CHANNELS; c++)
+    for(int r=0; r<NUM_RANKS ;r++)
+      total_system_power += calculate_power(c,r,1,chips_per_rank, false);
+  return total_system_power;
+}
+
 void printUsimmStats()
 {
 

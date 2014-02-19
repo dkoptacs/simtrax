@@ -267,6 +267,7 @@ void printUsage(char* program_name) {
   printf(" + Simulator Parameters:\n");
   printf("    --atominc-report       <(debug): number of cycles between reporting global registers -- default 0, 0 means off>\n");
   //printf("    --custom-mem-loader    [which custom mem loader to use -- default 0 (off)]\n");
+  printf("    --ignore-dcache-area   <reported chip area will not include data caches>\n");
   //printf("    --incremental-output   <number of stores between outputs -- default 64>\n");
   printf("    --issue-verbosity      <level of verbosity for issue unit -- default 0>\n");
   printf("    --load-mem-file        [read memory dump from file]\n");
@@ -298,7 +299,7 @@ void printUsage(char* program_name) {
   printf("    --l1-off             [turn off the L1 data cache and set latency to 0]\n");
   printf("    --l2-off             [turn off the L2 data cache and set latency to 0]\n");
   //printf("    --l1-read-copy       [turn on read replication of same word reads on the same cycle]\n");
-  printf("    --num-icache-banks   <number of banks per icache -- default 32>\n");
+  printf("    --num-icache-banks   <number of banks per icache -- default 1>\n");
   printf("    --num-icaches        <number of icaches in a TM. Should be a power of 2 -- default 1>\n");
   printf("    --disable-usimm      [use naive DRAM simulation instead of usimm]\n");
 
@@ -388,9 +389,10 @@ int main(int argc, char* argv[]) {
   bool print_instructions               = false;
   bool no_scene                         = false;
   int issue_verbosity                   = 0;
+  bool ignore_dcache_area               = false;
   long long int atominc_report_period   = 0;
   int num_icaches                       = 1;
-  int icache_banks                      = 32;
+  int icache_banks                      = 1;
   char *assem_file                      = NULL;
   bool memory_trace                     = false;
   int proc_register_trace               = -1;
@@ -514,6 +516,8 @@ int main(int argc, char* argv[]) {
       no_scene = true;
     } else if (strcmp(argv[i], "--issue-verbosity") == 0) {
       issue_verbosity = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "--ignore-dcache-area") == 0) {
+      ignore_dcache_area = true;
     } else if (strcmp(argv[i], "--atominc-report") == 0) {
       atominc_report_period = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--num-icache-banks") == 0) {
@@ -876,7 +880,8 @@ int main(int argc, char* argv[]) {
     if(usimm_config_file == NULL) {
       //usimm_config_file = "configs/usimm_configs/1channel.cfg";
       //usimm_config_file = "configs/usimm_configs/4channel.cfg";
-      usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/gddr5.cfg";
+      //usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/gddr5.cfg";
+      usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/gddr5_8ch.cfg";
       printf("No USIMM configuration specified, using default: %s\n", usimm_config_file);
     }
     usimm_setup(usimm_config_file);
@@ -1108,6 +1113,13 @@ int main(int argc, char* argv[]) {
       else
         localstore_area = ls_unit->GetArea() * num_cores * num_L2s;
 
+      if(ignore_dcache_area)
+	{
+	  L1_area = 0;
+	  L2_area = 0;
+	}
+      
+
       double total_area = L1_area + L2_area + compute_area + icache_area + localstore_area + register_area;
 
       printf("\n");
@@ -1131,6 +1143,8 @@ int main(int argc, char* argv[]) {
       double icache_energy = 0;
       double localstore_energy = 0;
       double register_energy = 0;
+      double DRAM_power = 0;
+      double DRAM_energy = 0;
 
       // Calculate compute energy and icache energy
       for(int i = 0; i < Instruction::NUM_OPS; i++) {
@@ -1159,20 +1173,25 @@ int main(int argc, char* argv[]) {
       localstore_energy /= 1000000000.f;
       register_energy /= 1000000000.f;
 
-      double total_energy = compute_energy + L1_energy + L2_energy + icache_energy + localstore_energy + register_energy;
+      DRAM_power = getUsimmPower() / 1000;
+
       double FPS = Hz/static_cast<double>(cycle_count);
 
-      //TODO: add usimm energy, will need to compute usimm stats first
-      printf("On-chip energy consumption (Joules):\n");
+      DRAM_energy = DRAM_power / FPS;
+      double total_energy = compute_energy + L1_energy + L2_energy + icache_energy + localstore_energy + register_energy + DRAM_energy;
+
+
+      printf("Energy consumption (Joules):\n");
       printf("   Functional units: \t %f\n", compute_energy);
       printf("   L1 data caches: \t %f\n", L1_energy);
       printf("   L2 data caches: \t %f\n", L2_energy);
       printf("   Instruction caches: \t %f\n", icache_energy);
       printf("   Localstore units: \t %f\n", localstore_energy);
       printf("   Register files: \t %f\n", register_energy);
+      printf("   DRAM: \t\t %f\n", DRAM_energy);
       printf("   ------------------------------\n");
       printf("   Total: \t\t %f\n", total_energy);
-      printf("   Power draw (watts): \t %f\n\n", total_energy / (1.f / FPS));
+      printf("   Power draw (watts): \t %f\n\n", (total_energy / (1.f / FPS)));
 
       printf("FPS Statistics:\n");
       printf("   Total clock cycles: \t\t %lld\n", cycle_count);

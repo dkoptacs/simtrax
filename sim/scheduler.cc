@@ -71,21 +71,17 @@ void schedule(int channel)
 	//if (Debug == 1)
 	//	print_read_queue();
 
-	
+	/*
 	for (int i=0; i < MAX_NUM_CHANNELS; i++)
 	  for (int j=0; j < MAX_NUM_RANKS; j++)
 	    for (int k=0; k < MAX_NUM_BANKS; k++)
 	      {
-		
-		
-		
-		
 		BANK_CAN_BE_CLOSED[i][j][k] = 0;
 		//				printf("loop %d %d %d	\n ", i, j, k);
 	      }
-	
-	
-	//memset(BANK_CAN_BE_CLOSED[channel], 0, sizeof(int) * MAX_NUM_RANKS * MAX_NUM_BANKS);
+	*/	
+
+	memset(BANK_CAN_BE_CLOSED[channel], 0, sizeof(int) * MAX_NUM_RANKS * MAX_NUM_BANKS);
 	
 	// if in write drain mode, keep draining writes until the
 	// write queue occupancy drops to LO_WM

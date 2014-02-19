@@ -294,5 +294,5 @@ void gather_stats(int channel);
 extern void print_stats();
 
 // calculate power for each channel
-float calculate_power(int channel, int rank, int print_stats_type, int chips_per_rank);
+float calculate_power(int channel, int rank, int print_stats_type, int chips_per_rank, bool print = false);
 #endif // __MEM_CONTROLLER_HH__

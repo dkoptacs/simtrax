@@ -193,7 +193,7 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
       // miss (add main memory request)
 
       long long int queued_latency = 0;
-      if(PendingUpdate(address, queued_latency)) // check for incoming cache lines (some time in the future)
+      if(PendingUpdate(address, queued_latency)) // check for incoming cache lines (MSHR)
 	{ 
 	  ret_latency = hit_latency + queued_latency;
 	  
@@ -204,11 +204,12 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
 	      misses++;
 	      pthread_mutex_unlock(&cache_mutex);
 	    }
-	  else
+	  else // count it as a hit if the line came in on this cycle
 	    {
 	      pthread_mutex_lock(&cache_mutex);
 	      unroll_type = UNROLL_HIT;
-	      hits++;
+	      if(!unit_off)
+		hits++;
 	      pthread_mutex_unlock(&cache_mutex);
 	    }
 	}

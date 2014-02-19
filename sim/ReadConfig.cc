@@ -46,6 +46,7 @@ ReadConfig::ReadConfig(const char* input_file, const char* _dcache_params_file,
       if(line_buf[0] == '#')
 	continue;
     char unit_type[100];
+    unit_type[0] = '\0';
     sscanf(line_buf, "%s ", unit_type);
     std::string unit_string(unit_type);
     if (unit_string == "MEMORY") {
