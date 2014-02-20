@@ -118,6 +118,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::ADDI:
   case Instruction::ANDI:
   case Instruction::ORI:
+  case Instruction::XORI:
   case Instruction::MULI:
   case Instruction::RSUBI:
   case Instruction::LWI:
