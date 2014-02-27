@@ -177,8 +177,11 @@ public:
     brki,
     rtsd,
     bslli,
+    bsll,
     bsrli,
+    bsrl,
     bsrai,
+    bsra,
     // extra FP instructions
     FPDIV,
     DIV,

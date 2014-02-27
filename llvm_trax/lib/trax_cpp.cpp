@@ -49,7 +49,11 @@ bool mainCondInit       = false;
 // C versions of everything
 FourByte * trax_memory_pointer;
 FourByte * trax_global_registers;
-#define MEMORY_SIZE 33554432			// 2^25
+//define MEMORY_SIZE 33554432			// 2^25
+//define MEMORY_SIZE 67108864
+#define MEMORY_SIZE 134217728
+
+
 
 
 int loadi( int base, int offset ) {

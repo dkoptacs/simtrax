@@ -82,6 +82,11 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::CMPU:
   case Instruction::LW:
   case Instruction::lbu:
+  case Instruction::bsrl:
+  case Instruction::bsra:
+  case Instruction::bsll:
+
+
     // check args[1] and args[2] and choose the first fail_reg if there is a fail.
     if ( (register_ready[args[1]] <= cur_cycle) )
       if ((register_ready[args[2]] <= cur_cycle))
@@ -537,8 +542,11 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("brki"), //
   std::string("rtsd"),
   std::string("bslli"), // barrel shift left logical immediate
+  std::string("bsll"),  // barrel shift left logical
   std::string("bsrli"), // barrel shift right logical immediate
+  std::string("bsrl"),  // barrel shift right logical
   std::string("bsrai"), // barrel shift right arithmetical immediate
+  std::string("bsra"),  // barrel shift right arithmetical
 
   // End MBlaze stuff
   std::string("FPDIV"),

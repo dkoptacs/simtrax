@@ -27,8 +27,11 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::BITSLEFT ||
       op == Instruction::BITSRIGHT ||
       op == Instruction::bslli || 
+      op == Instruction::bsll || 
       op == Instruction::bsrli ||
-      op == Instruction::bsrai
+      op == Instruction::bsrl ||
+      op == Instruction::bsrai ||
+      op == Instruction::bsra
       )
     return true;
   else
@@ -49,6 +52,9 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   case Instruction::ANDN:
   case Instruction::BITSLEFT:
   case Instruction::BITSRIGHT:
+  case Instruction::bsll:
+  case Instruction::bsrl:
+  case Instruction::bsra:
     if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
 	!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
       // bad stuff happened
@@ -122,11 +128,20 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   case Instruction::bslli:
     result.udata = arg1.udata << ins.args[2];
     break;
+  case Instruction::bsll:
+    result.udata = arg1.udata << arg2.udata;
+    break;
   case Instruction::bsrai: // arithmetic
     result.idata = arg1.idata >> ins.args[2];
     break;
+  case Instruction::bsra: // arithmetic
+    result.idata = arg1.idata >> arg2.idata;
+    break;
   case Instruction::bsrli: // logical
     result.udata = arg1.udata >> ins.args[2];
+    break;
+  case Instruction::bsrl: // logical
+    result.udata = arg1.udata >> arg2.udata;
     break;
   default:
     fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
