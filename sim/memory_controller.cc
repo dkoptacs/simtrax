@@ -2047,7 +2047,7 @@ void print_stats()
 		printf("Average read queue length:      %f\n"   ,(float)accumulated_read_queue_length[c] / CYCLE_VAL);
 		printf("Average column reads per ACT:   %f\n"   ,(float)stats_reads_completed[c] / (float)activates_for_reads);
 		printf("Single column reads:            %lld\n" ,single_reads);
-		printf("Single columng reads(%%):       %f\n"   ,((float)single_reads / (float)stats_reads_completed[c]) * 100.f);
+		printf("Single columng reads(%%):        %f\n"   ,((float)single_reads / (float)stats_reads_completed[c]) * 100.f);
 		printf("------------------------------------\n");
 	}
 }

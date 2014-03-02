@@ -423,7 +423,7 @@ int usimm_setup(char* config_filename)
 
   //if (NUM_CHANNELS > 4) {
   if (NUM_CHANNELS >= 4) {
-    vi_file = fopen("../samples/configs/usimm_configs/1Gb_x16_amd2GHz.vi", "r");
+    vi_file = fopen((char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/1Gb_x16_amd2GHz.vi", "r");
     chips_per_rank= 16;
     printf("Reading vi file: 1Gb_x16_amd2GHz.vi\t\n%d Chips per Rank\n",chips_per_rank);
   }
