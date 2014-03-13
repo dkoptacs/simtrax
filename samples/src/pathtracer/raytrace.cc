@@ -16,7 +16,6 @@ void trax_main()
 {
 
   // Load scene parameters
-  //BoundingVolumeHierarchy bvh(loadi(0, 8)); // tell the BVH where the scene starts
   int start_bvh = loadi(0, 8);
   Light light = loadLightFromMemory(loadi(0, 12)); // load the light from memory
   int xres = loadi( 0, 1 );
@@ -36,7 +35,7 @@ void trax_main()
   RayCamera camera(loadi(0, 10));
 
   // Blue sky background
-  Color background(0.561f * 3.f, 0.729f * 3.f, 0.988f * 3.f); 
+  Color background(0.561f, 0.729f, 0.988f); 
 
   Scene scene(start_bvh, start_matls, start_tex_coords, light, background);
 
@@ -112,9 +111,9 @@ void trax_main()
       // Box filter
       result /= num_samples;
 
-      // Apply a simple tone map
-      float scale = 1.f / (1.f + result.luminance());
-      result *= scale;
+      // Apply a tone map if desired
+      //float scale = 1.f / (1.f + result.luminance());
+      //result *= scale;
 
       image.set(i, j, result);
   }
