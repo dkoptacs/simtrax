@@ -25,6 +25,13 @@ affected threads' ready cycles for the given register.
 
 #define MAXTRACELINESIZE 64
 
+// relative paths between install (bin) folder for simtrax and scene folder
+// CMAKE will define this parameter during generation, but if we use Makefiles,
+// then this should be just ../
+#ifndef REL_PATH_BIN_TO_SAMPLES
+#  define REL_PATH_BIN_TO_SAMPLES "../"
+#endif
+
 extern int trax_verbosity;
 
 // Tons of globals from params.h
