@@ -149,6 +149,17 @@ void barrier( int reg_num ) {
   }
   return;
 }
+
+void trax_semacq(int reg_num)
+{
+  pthread_mutex_lock( &mainMutex[reg_num] );
+}
+
+void trax_semrel(int reg_num)
+{
+  pthread_mutex_unlock( &mainMutex[reg_num] );
+}
+
 float trax_noise( float x, float y, float z ) {
   // ***TODO: put real noise function here
   return 1.0f;
@@ -158,6 +169,7 @@ float trax_noise( float x, float y, float z ) {
 // Debug
 void profile( int prof_id ) {}
 int loadl1( int base, int offset ) {return 0;}
+//int loadl2( int base, int offset ) {return 0;}
 void trax_printi(int value) { printf("Value is %d.\n", value);}
 void trax_printf( float value ) { printf("Value is %f.\n", value);}
 // printf for trax_cpp is defined in stdio
