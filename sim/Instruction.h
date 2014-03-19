@@ -52,6 +52,8 @@ public:
     ATOMIC_INC,  // dst, source(global), offset(imm -- ignored)
     INC_RESET,   // dst, source(global)
     BARRIER,     // source(global)
+    SEM_ACQ,
+    SEM_REL,
     GLOBAL_READ, // dest, source(global)
     ATOMIC_ADD,  // dst, source1(global), source2 (dst = source1 += source2)
     ATOMIC_FPADD, // addr(reg), source, offset(imm)

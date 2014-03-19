@@ -398,7 +398,7 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
       int kernel_prof_id = fetched_instruction->args[0]; //kernel id
       // check for out of bounds error
       if (kernel_prof_id >= MAX_NUM_KERNELS) {
-	printf("PROF kernel ID out of range.\n");
+	printf("PROF kernel ID (%d) out of range.\n", kernel_prof_id);
       } else {
 	// toggle profiling for this kernel
 	kernel_profiling[kernel_prof_id][tp->proc_id] = !kernel_profiling[kernel_prof_id][tp->proc_id];

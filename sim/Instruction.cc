@@ -168,6 +168,8 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   case Instruction::STARTSW:
   case Instruction::STREAMW:
   case Instruction::SETSTRID:
+  case Instruction::SEM_ACQ:
+  case Instruction::SEM_REL:
     // check args[0] for read
     if ( (register_ready[args[0]] <= cur_cycle)) {
       return true;
@@ -419,6 +421,8 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("ATOMIC_INC"),
   std::string("INC_RESET"),
   std::string("BARRIER"),
+  std::string("SEM_ACQ"),
+  std::string("SEM_REL"),
   std::string("GLOBAL_READ"),
   std::string("ATOMIC_ADD"),
   std::string("ATOMIC_FPADD"),

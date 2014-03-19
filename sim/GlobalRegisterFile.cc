@@ -68,7 +68,9 @@ void GlobalRegisterFile::WriteFloat(int which_reg, float value) {
 
 bool GlobalRegisterFile::SupportsOp(Instruction::Opcode op) const {
   if (op == Instruction::ATOMIC_INC || op == Instruction::ATOMIC_ADD || 
-      op == Instruction::INC_RESET || op == Instruction::BARRIER || op == Instruction::GLOBAL_READ)
+      op == Instruction::INC_RESET || op == Instruction::BARRIER || 
+      op == Instruction::GLOBAL_READ || op == Instruction::SEM_ACQ ||
+      op == Instruction::SEM_REL)
     return true;
   return false;
 }
@@ -162,13 +164,43 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       }
     break;
 
+    // Warning: The programmer is required to generate semaphore acquire and semaphore release in the correct order
+    // The HW will not prevent a thread from releasing a semaphore before acquiring it (thus releasing someone else's hold on it)
+  case Instruction::SEM_ACQ:
+    // Read the thread-local register which holds the desired global register ID
+    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg, failop))
+      printf("Error in GlobalRegisterFile:SEM_ACQ. Failed to read register.\n");
+    // Now read the global register
+    result.udata = ReadUint(arg.idata);
+    // Check if the semaphore is already locked
+    if(result.udata != 0)
+      {
+	pthread_mutex_unlock(&global_mutex);
+	return false; // instruction fails to issue, will automatically retry
+      }
+    else // Otherwise, lock it (set it to 1)
+      WriteUint(arg.idata, 1);
+    break;
+
+  case Instruction::SEM_REL:
+    // Read the thread-local register which holds the desired global register ID
+    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg, failop))
+      printf("Error in GlobalRegisterFile:SEM_ACQ. Failed to read register.\n");
+
+    // Warning: No valid state checking done here! Just release it no matter what
+    // Write 0 to the specified global register
+    WriteUint(arg.idata, 0);
+    break;
+
   default:
     fprintf(stderr, "ERROR GlobalRegisterFile FOUND SOME OTHER OP\n");
     break;
   };
 
 
-  if(ins.op != Instruction::BARRIER) // barrier doesn't write anything
+  if(ins.op != Instruction::BARRIER     // barrier doesn't write anything to thread's RF
+     && ins.op != Instruction::SEM_ACQ  // semaphore ops don't write anything to threads RF
+     && ins.op != Instruction::SEM_REL) 
     {
       if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
 	// pipeline hazzard, undo changes
