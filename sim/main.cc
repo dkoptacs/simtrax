@@ -880,8 +880,8 @@ int main(int argc, char* argv[]) {
     if(usimm_config_file == NULL) {
       //usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/1channel.cfg";
       //usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/4channel.cfg";
-      usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/gddr5.cfg";
-      //usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/gddr5_8ch.cfg";
+      //usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/gddr5.cfg";
+      usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/gddr5_8ch.cfg";
       printf("No USIMM configuration specified, using default: %s\n", usimm_config_file);
     }
     usimm_setup(usimm_config_file);
