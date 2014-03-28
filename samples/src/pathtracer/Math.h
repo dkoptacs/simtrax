@@ -2,7 +2,7 @@
 #ifndef MATH_H
 #define MATH_H
 
-static inline float fabs(float x) {
+static inline float Fabs(float x) {
   return x < 0.0f ? -x : x;
 }
 

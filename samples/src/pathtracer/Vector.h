@@ -149,9 +149,9 @@ inline Vector Cross(const Vector& v1, const Vector& v2)
 Vector getOrtho(Vector const &v)
 {
   Vector axis(0.0f, 0.0f, 0.0f);
-  float ax = fabs(v.X);
-  float ay = fabs(v.Y);
-  float az = fabs(v.Z);
+  float ax = Fabs(v.X);
+  float ay = Fabs(v.Y);
+  float az = Fabs(v.Z);
 
   if(ax < ay && ax < az)
     { axis = Vector(1.0f, 0.0f, 0.0f); }
