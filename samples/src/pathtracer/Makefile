@@ -51,7 +51,7 @@ CXXLIBS=${LIBDIR}/trax_cpp.cpp
 
 # clang is preferred.
 TRAXC=clang
-TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR} -target mblaze -S -O3
+TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR} -target mips -S -O3
 
 all: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
 default: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
@@ -87,8 +87,8 @@ OBJS := $(addprefix objs/, $(notdir $(SOURCES:${CSUFFIX}=.bc))) objs/trax_trax.b
 rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
 	@${BINDIR}/llvm-link ${OBJS} -o rt.bc
 	@${BINDIR}/opt rt.bc -O3 -inline-threshold 200000000 -o rt.bc
-#@${BINDIR}/opt rt.bc -O3 -o rt.bc
-	@${BINDIR}/llc rt.bc -o rt.s -march=trax -mattr=fpu,mul,div,barrel
+	@${BINDIR}/llc rt.bc -o rt.s -march=mips -mattr=+mips32,+single-float -relocation-model=static
+
 
 clean:
 	rm -rf objs/ rt.s rt.bc pre.ll post.ll ${TRAXOUTPUT} ${BINARYOUTPUT} out.png *~ *.dSYM a.out
