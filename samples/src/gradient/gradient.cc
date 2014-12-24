@@ -32,7 +32,6 @@ void trax_main()
   // nor is it helpful. It is only here for an example of the usage.
   barrier();
 
-  printf("Thread %d done drawing.\n", trax_getid(1));
 }
 
 
