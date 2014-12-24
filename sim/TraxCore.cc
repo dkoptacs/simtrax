@@ -33,7 +33,8 @@ TraxCore::~TraxCore(){
 
 void TraxCore::initialize(const char* icache_params_file, int issue_verbosity, 
 			  int num_icaches, int icache_banks, int simd_width, 
-			  std::vector<int> jump_table, std::vector<std::string> ascii_literals) {
+			  char* jump_table, int jtable_size, 
+			  std::vector<std::string> ascii_literals) {
   // set up thread states
   for (int i = 0; i < num_thread_procs; i++) {
     ThreadProcessor *tp = new ThreadProcessor(threads_per_proc, num_regs, i, schedule, instructions, modules, &functional_units, (size_t)i, core_id, l2_id);
@@ -48,12 +49,12 @@ void TraxCore::initialize(const char* icache_params_file, int issue_verbosity,
   modules.push_back(issuer);
   module_names.push_back(std::string("IssueLogic"));
 
-  // Find the LocalStore (stack) unit and pre-load the .data segment
+  // Find the LocalStore (stack) unit and pre-load the data segment
   for (size_t i = 0; i < modules.size(); i++) {
     LocalStore* ls_unit = dynamic_cast<LocalStore*>(modules[i]);
     if (ls_unit) {
-      ls_unit->LoadJumpTable(jump_table);
-      ls_unit->LoadAsciiLiterals(ascii_literals);
+      ls_unit->LoadJumpTable(jump_table, jtable_size);
+      //ls_unit->LoadAsciiLiterals(ascii_literals);
 
       // While we have a pointer to the local store, loop through units again to find DebugUnit (ugh)
       // DebugUnit needs pointer to stack for PRINTF instruction to work

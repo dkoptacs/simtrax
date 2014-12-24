@@ -9,11 +9,13 @@ int loadi( int base, int offset = 0 );
 float loadf( int base, int offset = 0 );
 void storei( int value, int base, int offset = 0 );
 void storef( float value, int base, int offset = 0 );
+
+// Misc
 int trax_getid( int value );
+int global_reg_read( int location );
 
 // Arithmetic
 int atomicinc( int location );
-int global_reg_read( int location );
 float min( float left, float right );
 float max( float left, float right );
 float invsqrt( float value );
@@ -41,6 +43,7 @@ int loadl1( int base, int offset = 0 );
 //int loadl2( int base, int offset = 0 );
 void trax_printi(int value);
 void trax_printf( float value );
+
 
 typedef struct runrtParams_tt runrtParams_t;		// temp -> see below
 void trax_setup( runrtParams_t &parsedParams );

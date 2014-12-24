@@ -7,8 +7,11 @@
 #include <cassert>
 #include <stdlib.h>
 
+bool OverflowOnAdd(int a, int b);
+int Extend16(int a);
+
 IntAddSub::IntAddSub(int _latency, int _width) :
-  FunctionalUnit(_latency), width(_width){
+    FunctionalUnit(_latency), width(_width){
   issued_this_cycle = 0;
 }
 
@@ -22,9 +25,19 @@ bool IntAddSub::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::ADDIKC ||
       op == Instruction::SUB ||
       op == Instruction::CMP ||
-      op == Instruction::CMPU || 
+      op == Instruction::CMPU ||
       op == Instruction::RSUB ||
-      op == Instruction::RSUBI)
+      op == Instruction::RSUBI ||
+
+      // MIPS
+      op == Instruction::addi ||
+      op == Instruction::addiu ||
+      op == Instruction::addu ||
+      op == Instruction::slt ||
+      op == Instruction::slti ||
+      op == Instruction::sltu ||
+      op == Instruction::sltiu ||
+      op == Instruction::subu )
     return true;
   else
     return false;
@@ -36,80 +49,126 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   long long int write_cycle = issuer->current_cycle + latency;
   reg_value arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
+
   // Read the registers
-  if (ins.op == Instruction::ADDI ||
-      ins.op == Instruction::RSUBI) {
+  // Single register operands
+  if (ins.op == Instruction::ADDI  ||
+      ins.op == Instruction::RSUBI ||
+      ins.op == Instruction::addi  ||
+      ins.op == Instruction::addiu ||
+      ins.op == Instruction::slti ||
+      ins.op == Instruction::sltiu) {
     if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
       // bad stuff happened
       printf("IntAddSub unit: Error in Accepting instruction. Should have passed1.\n");
     }
   } else {
-    // two register instructions
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
+    // Two register operands
+    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
 	!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
       // bad stuff happened
       printf("IntAddSub unit: Error in Accepting instruction. Should have passed2.\n");
-      printf("PC = %d, thread = %d, core = %d, cycle = %lld, reg_ready[%d] = %lld, reg_ready[%d] = %lld\n", 
-	     ins.pc_address, thread->thread_id, (int)thread->core_id, issuer->current_cycle, 
+      printf("PC = %d, thread = %d, core = %d, cycle = %lld, reg_ready[%d] = %lld, reg_ready[%d] = %lld\n",
+	     ins.pc_address, thread->thread_id, (int)thread->core_id, issuer->current_cycle,
 	     ins.args[1], thread->register_ready[ins.args[1]],
 	     ins.args[2], thread->register_ready[ins.args[2]]);
       exit(1);
     }
   }
-  
+
   // now get the result value
   unsigned long long overflow;
   reg_value result;
   result.udata = 0;
-  switch (ins.op) {
-  case Instruction::ADD:
-    result.idata = arg1.idata + arg2.idata;
+  switch (ins.op) 
+    {
+      
+    case Instruction::addu:
+      result.idata = arg1.idata + arg2.idata;
+      break;
+
+    case Instruction::subu:
+      result.idata = arg1.idata - arg2.idata;
+      break;
+
+    case Instruction::slt:
+      result.idata = (arg1.idata < arg2.idata);
+      break;
+
+  case Instruction::sltu:
+    result.udata = (arg1.udata < arg2.udata);
     break;
-  case Instruction::ADDK:
-    thread->carry_register = 0;
-  case Instruction::ADDKC:
-    result.idata = arg1.idata + arg2.idata + thread->carry_register;
-    overflow = (long long int)arg1.udata + (long long int)arg2.udata + (long long int)thread->carry_register;
-    if(overflow & 0x100000000LL) // check 32nd bit for carry
-      thread->carry_register = 1;
-    else thread->carry_register = 0;
-    break;
-  case Instruction::ADDI:
-    result.idata = arg1.idata + ins.args[2];
-    break;
-  case Instruction::ADDIK:
-    thread->carry_register = 0;
-  case Instruction::ADDIKC:
-    result.idata = arg1.idata + ins.args[2] + thread->carry_register;
-    overflow = (long long int)arg1.udata + (long long int)arg2.udata + (long long int)thread->carry_register;
-    if(overflow & 0x100000000LL) // check 32nd bit for carry
-      thread->carry_register = 1;
-    else thread->carry_register = 0;
-    break;
-  case Instruction::SUB:
-    result.idata = arg1.idata - arg2.idata;
-    break;
-  case Instruction::CMP:
-    result.idata = arg2.idata - arg1.idata;
-    break;
-  case Instruction::CMPU:
-    result.udata = arg2.udata - arg1.udata;
-    if(arg1.udata > arg2.udata)
-      result.udata |= 0x80000000u;
-    else
-      result.udata &= 0x7fffffffu;
-    break;
-  case Instruction::RSUB:
-    result.idata = arg2.idata - arg1.idata;
-    break;
-  case Instruction::RSUBI:
-    result.idata = ins.args[2] - arg1.idata;
-    break;
-  default:
-    fprintf(stderr, "ERROR IntAddSub FOUND SOME OTHER OP\n");
-    break;
+
+    case Instruction::slti:
+      result.idata = (arg1.idata < ins.args[2]);
+      break;
+
+    case Instruction::sltiu:
+      result.idata = (arg1.udata < ins.args[2]);
+      break;
+
+    case Instruction::ADD:
+      result.idata = arg1.idata + arg2.idata;
+      break;
+    case Instruction::ADDK:
+      thread->carry_register = 0;
+    case Instruction::ADDKC:
+      result.idata = arg1.idata + arg2.idata + thread->carry_register;
+      overflow = (long long int)arg1.udata + (long long int)arg2.udata + (long long int)thread->carry_register;
+      if(overflow & 0x100000000LL) // check 32nd bit for carry
+        thread->carry_register = 1;
+      else thread->carry_register = 0;
+      break;
+      
+    case Instruction::ADDI:
+      result.idata = arg1.idata + ins.args[2];
+      break;
+    case Instruction::addi:
+      if(OverflowOnAdd(arg1.idata, ins.args[2]))
+	{
+	  printf("TRAP: Overflow occured when executing instruction %d with operands %d, %d\n",
+		 ins.pc_address, arg1.idata, ins.args[2]);
+	  exit(1);
+	}
+      result.idata = arg1.idata + Extend16(ins.args[2]);
+      break;
+    case Instruction::addiu:
+      result.idata = arg1.idata + Extend16(ins.args[2]);
+      break;
+
+    case Instruction::ADDIK:
+      thread->carry_register = 0;
+    case Instruction::ADDIKC:
+      result.idata = arg1.idata + ins.args[2] + thread->carry_register;
+      overflow = (long long int)arg1.udata + (long long int)arg2.udata + (long long int)thread->carry_register;
+      if(overflow & 0x100000000LL) // check 32nd bit for carry
+        thread->carry_register = 1;
+      else thread->carry_register = 0;
+      break;
+    case Instruction::SUB:
+      result.idata = arg1.idata - arg2.idata;
+      break;
+    case Instruction::CMP:
+      result.idata = arg2.idata - arg1.idata;
+      break;
+    case Instruction::CMPU:
+      result.udata = arg2.udata - arg1.udata;
+      if(arg1.udata > arg2.udata)
+        result.udata |= 0x80000000u;
+      else
+        result.udata &= 0x7fffffffu;
+      break;
+    case Instruction::RSUB:
+      result.idata = arg2.idata - arg1.idata;
+      break;
+    case Instruction::RSUBI:
+      result.idata = ins.args[2] - arg1.idata;
+      break;
+    default:
+      fprintf(stderr, "ERROR IntAddSub FOUND SOME OTHER OP\n");
+      break;
   };
-  
+
   // Write the value
   if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
     // pipeline hazard
@@ -135,5 +194,26 @@ void IntAddSub::print() {
 
 double IntAddSub::Utilization() {
   return static_cast<double>(issued_this_cycle)/
-    static_cast<double>(width);
+      static_cast<double>(width);
+}
+
+// some mips immediates need to be sign extended
+int Extend16(int a)
+{
+  return (a << 16) >> 16;
+}
+
+bool OverflowOnAdd(int a, int b)
+{
+  int sum = a + b;
+  
+  // Opposite signs on inputs can't overflow
+  if((a & 0x80000000u) != (b & 0x80000000u))
+    return false;
+
+  if((a & 0x80000000u) != (sum & 0x80000000u))
+    return true;
+
+  return false;
+
 }

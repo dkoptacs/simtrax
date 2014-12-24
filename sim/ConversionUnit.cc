@@ -7,17 +7,19 @@
 #include <cassert>
 
 ConversionUnit::ConversionUnit(int _latency, int _width) :
-  FunctionalUnit(_latency), width(_width) {
+    FunctionalUnit(_latency), width(_width) {
   issued_this_cycle = 0;
 }
 
 // From FunctionalUnit
 bool ConversionUnit::SupportsOp(Instruction::Opcode op) const {
-  if (op == Instruction::FPCONV)
+  if (op == Instruction::FPCONV ||
+      op == Instruction::INTCONV ||
+      op == Instruction::cvt_s_w ||
+      op == Instruction::trunc_w_s)
     return true;
-  else if (op == Instruction::INTCONV)
-    return true;
-  else return false;
+  else
+    return false;
 }
 
 bool ConversionUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread) {
@@ -35,15 +37,18 @@ bool ConversionUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, Thre
   // Get result value
   reg_value result;
   switch (ins.op) {
-  case Instruction::FPCONV:
-    result.fdata = static_cast<float>(arg1.idata);
-    break;
-  case Instruction::INTCONV:
-    result.idata = static_cast<int>(arg1.fdata);
-    break;
-  default:
-    fprintf(stderr, "ERROR ConversionUnit FOUND SOME OTHER OP\n");
-    break;
+    case Instruction::cvt_s_w:
+    case Instruction::FPCONV:
+      result.fdata = static_cast<float>(arg1.idata);
+      break;
+
+    case Instruction::trunc_w_s:
+    case Instruction::INTCONV:
+      result.idata = static_cast<int>(arg1.fdata);
+      break;
+    default:
+      fprintf(stderr, "ERROR ConversionUnit FOUND SOME OTHER OP\n");
+      break;
   };
 
   // Write the value
@@ -70,5 +75,5 @@ void ConversionUnit::print() {
 
 double ConversionUnit::Utilization() {
   return static_cast<double>(issued_this_cycle)/
-    static_cast<double>(width);
+      static_cast<double>(width);
 }

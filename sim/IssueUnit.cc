@@ -15,7 +15,7 @@ IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor
                      std::vector<FunctionalUnit*>& functional_units,
                      int _verbosity, int _num_icaches, int _icache_banks, 
 		     int _simd_width, bool _enable_profiling) 
- :verbosity(_verbosity){
+    :verbosity(_verbosity){
   printed_single_kernel = false;
   enable_profiling = _enable_profiling;
 
@@ -46,19 +46,19 @@ IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor
     kernel_calls[i] = new int[_thread_procs.size()];
     kernel_profiling[i] = new int[_thread_procs.size()];
     for(size_t j = 0; j < _thread_procs.size(); j++)
-      {
-	// set kernel profiling to off
-	kernel_profiling[i][j] = 0;
-	//initialize cycles and calls for each kernel
-	kernel_cycles[i][j] = 0;
-	kernel_calls[i][j] = 0;
-      }
+    {
+      // set kernel profiling to off
+      kernel_profiling[i][j] = 0;
+      //initialize cycles and calls for each kernel
+      kernel_cycles[i][j] = 0;
+      kernel_calls[i][j] = 0;
+    }
   }
-//   start_clock_counter = -1;
-//   profile_num_kernels = 0;
-//   total_kernel_cycles = 0;
-//   total_kernel_stalls = 0;
-//   total_kernel_fu_dependencies = 0;
+  //   start_clock_counter = -1;
+  //   profile_num_kernels = 0;
+  //   total_kernel_cycles = 0;
+  //   total_kernel_stalls = 0;
+  //   total_kernel_fu_dependencies = 0;
   schedule_data = new ScheduleData[_thread_procs.size()];
 
   int count = 0;
@@ -170,13 +170,13 @@ void IssueUnit::Reset()
 
   for (size_t i = 0; i < MAX_NUM_KERNELS; ++i) {
     for(size_t j = 0; j < thread_procs.size(); j++)
-      {
-	// set kernel profiling to off
-	kernel_profiling[i][j] = 0;
-	//initialize cycles and calls for each kernel
-	kernel_cycles[i][j] = 0;
-	kernel_calls[i][j] = 0;
-      }
+    {
+      // set kernel profiling to off
+      kernel_profiling[i][j] = 0;
+      //initialize cycles and calls for each kernel
+      kernel_cycles[i][j] = 0;
+      kernel_calls[i][j] = 0;
+    }
   }
   
   int count = 0;
@@ -254,11 +254,11 @@ IssueUnit::~IssueUnit() {
   }
 
   for(size_t i = 0; i < MAX_NUM_KERNELS; i++)
-    {
-      delete [] kernel_cycles[i];
-      delete [] kernel_calls[i];
-      delete [] kernel_profiling[i];
-    }
+  {
+    delete [] kernel_cycles[i];
+    delete [] kernel_calls[i];
+    delete [] kernel_profiling[i];
+  }
 
   delete [] kernel_cycles;
   delete [] kernel_calls;
@@ -352,47 +352,49 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
 
   int fail_reg = -1;
   bool issued = false;
-  if (fetched_instruction->ReadyToIssue(thread->register_ready, &fail_reg, current_cycle)) {
+  if (fetched_instruction->ReadyToIssue(thread->register_ready, &fail_reg, current_cycle)) {    
     // check functional units
-    if (fetched_instruction->op == Instruction::NOP || fetched_instruction->op == Instruction::SYNC) {
+    if (fetched_instruction->op == Instruction::NOP ||
+        fetched_instruction->op == Instruction::nop ||
+        fetched_instruction->op == Instruction::SYNC) {
       issued = true;
       // These are not being counted as issued for stats.
       // To count them add: thread->issued_this_cycle = fetched_instruction;
       instructions_misc++;
     } 
     else if (fetched_instruction->op == Instruction::SLEEP)
+    {
+      if(thread->end_sleep_cycle < 0)
       {
-	if(thread->end_sleep_cycle < 0)
-	  {
-	    reg_value arg;
-	    Instruction::Opcode failop = Instruction::NOP;
-	    if(thread->ReadRegister(fetched_instruction->args[0], current_cycle, arg, failop))
-	      {
-		thread->end_sleep_cycle = current_cycle + arg.udata;
-		//printf("set end sleep to %d\n", thread->end_sleep_cycle);
-	      }
-	    //else
-	      //printf("failed to read reg\n");
-	  }
-	if(thread->end_sleep_cycle >= 0)
-	  if(current_cycle >= thread->end_sleep_cycle)
-	    {
-	      issued = true;
-	      thread->end_sleep_cycle = -1;
-	    }
+        reg_value arg;
+        Instruction::Opcode failop = Instruction::NOP;
+        if(thread->ReadRegister(fetched_instruction->args[0], current_cycle, arg, failop))
+        {
+          thread->end_sleep_cycle = current_cycle + arg.udata;
+          //printf("set end sleep to %d\n", thread->end_sleep_cycle);
+        }
+        //else
+        //printf("failed to read reg\n");
       }
+      if(thread->end_sleep_cycle >= 0)
+        if(current_cycle >= thread->end_sleep_cycle)
+        {
+          issued = true;
+          thread->end_sleep_cycle = -1;
+        }
+    }
     else if (fetched_instruction->op == Instruction::PROF) {
 #if 0
       if(fetched_instruction->args[0] == 2)
-	{
-	  if(!printed_single_kernel)
-	    {
-	      verbosity = 1;
-	      printed_single_kernel = true;
-	    }
-	  else
-	    verbosity = 0;
-	}
+      {
+        if(!printed_single_kernel)
+        {
+          verbosity = 1;
+          printed_single_kernel = true;
+        }
+        else
+          verbosity = 0;
+      }
 #endif
       // kernel profiling
       int kernel_prof_id = fetched_instruction->args[0]; //kernel id
@@ -414,33 +416,33 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
     }
     // TODO: Need to add these to the ISA
     else if (fetched_instruction->op == Instruction::SETTRIPIPE)
+    {
+      for (size_t i = 0; i < units.size(); i++) 
       {
-	for (size_t i = 0; i < units.size(); i++) 
-	  {
-	    // Double triangle pipelines use 8 MULs, 4 ADDs, leaving 1 and 4 (if we assume 9 MULs, 8 ADDs)
-	    FPMul* munit = dynamic_cast<FPMul*>(units[i]);
-	    if(munit)
-	      munit->width = 1;
-	    FPAddSub* aunit = dynamic_cast<FPAddSub*>(units[i]);
-	    if(aunit)
-	      aunit->width = 4;	    
-	  }
-	issued = true;
+        // Double triangle pipelines use 8 MULs, 4 ADDs, leaving 1 and 4 (if we assume 9 MULs, 8 ADDs)
+        FPMul* munit = dynamic_cast<FPMul*>(units[i]);
+        if(munit)
+          munit->width = 1;
+        FPAddSub* aunit = dynamic_cast<FPAddSub*>(units[i]);
+        if(aunit)
+          aunit->width = 4;	    
       }
+      issued = true;
+    }
     else if (fetched_instruction->op == Instruction::SETBOXPIPE)
+    {
+      for (size_t i = 0; i < units.size(); i++) 
       {
-	for (size_t i = 0; i < units.size(); i++) 
-	  {
-	    // Box pipeline use 6 MULs, 6 ADDs, leaving 3 and 2 (if we assume 9 MULs, 8 ADDs)
-	    FPMul* munit = dynamic_cast<FPMul*>(units[i]);
-	    if(munit)
-	      munit->width = 3;
-	    FPAddSub* aunit = dynamic_cast<FPAddSub*>(units[i]);
-	    if(aunit)
-	      aunit->width = 2;	    
-	  }
-	issued = true;
+        // Box pipeline use 6 MULs, 6 ADDs, leaving 3 and 2 (if we assume 9 MULs, 8 ADDs)
+        FPMul* munit = dynamic_cast<FPMul*>(units[i]);
+        if(munit)
+          munit->width = 3;
+        FPAddSub* aunit = dynamic_cast<FPAddSub*>(units[i]);
+        if(aunit)
+          aunit->width = 2;	    
       }
+      issued = true;
+    }
  
     else if (fetched_instruction->op == Instruction::HALT) {
       halted_count++;
@@ -486,14 +488,14 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
 	    // reset L1 caches when a barrier instruction completes
 	    // TODO: this should be its own instruction
 	    if(fetched_instruction->op == Instruction::BARRIER)
-	      {
-		for(size_t j = 0; j < units.size(); j++)
-		  {
-		    L1Cache* unit = dynamic_cast<L1Cache*>(units[j]);
-		    if(unit)
-		      unit->Clear();
-		  }
-	      }
+            {
+              for(size_t j = 0; j < units.size(); j++)
+              {
+                L1Cache* unit = dynamic_cast<L1Cache*>(units[j]);
+                if(unit)
+                  unit->Clear();
+              }
+            }
 #endif
 
 	    thread->instructions_in_flight++;
@@ -517,21 +519,21 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
       if (fetched_instruction->op == Instruction::SLEEP)
 	instructions_misc++;
       else
-	{
-	  if(fetched_instruction->op != Instruction::HALT)
-	    fu_dependence++;
-	}
+      {
+        if(fetched_instruction->op != Instruction::HALT)
+          fu_dependence++;
+      }
     }
   } 
   else 
+  {
+    if(enable_profiling)
     {
-      if(enable_profiling)
-	{
-	  // All threads point to the same list of Instructions, must protect modifications to it
-	  pthread_mutex_lock(&profile_mutex);
-	  thread->GetFailInstruction(fail_reg)->data_stalls++;
-	  pthread_mutex_unlock(&profile_mutex);
-	}
+      // All threads point to the same list of Instructions, must protect modifications to it
+      pthread_mutex_lock(&profile_mutex);
+      thread->GetFailInstruction(fail_reg)->data_stalls++;
+      pthread_mutex_unlock(&profile_mutex);
+    }
     data_dependence++;
     // find which instruction caused the stall (from old IssueUnit.cc)
     data_depend_bins[thread->GetFailOp(fail_reg)]++;
@@ -542,12 +544,12 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
 
   if (issued) {
     if(enable_profiling)
-      {
-	// All threads point to the same list of Instructions, must protect modifications to it
-	pthread_mutex_lock(&profile_mutex);
-	fetched_instruction->executions++;
-	pthread_mutex_unlock(&profile_mutex);
-      }
+    {
+      // All threads point to the same list of Instructions, must protect modifications to it
+      pthread_mutex_lock(&profile_mutex);
+      fetched_instruction->executions++;
+      pthread_mutex_unlock(&profile_mutex);
+    }
 
     // stats and info
     simd_issue++;
@@ -567,41 +569,41 @@ void IssueUnit::MultipleIssueClockFall() {
   // This just checks for long periods without successful issue
   static unsigned int current_issue_fails = 0;
   if (current_issue_fails > 500000 * thread_procs.size()) 
-    {
-      bool allHalted = true;
-      printf("_-=<WARNING>=-_ 500000 cycles without a successful issue.\n");
-      for (size_t thread_offset = 0;
-	   thread_offset < thread_procs.size();
-	   thread_offset += simd_width) {
-	size_t proc_id = thread_offset;
-	ThreadState* thread = thread_procs[proc_id]->GetActiveThread();
-	Instruction* fetched_instruction = thread->fetched_instruction;
-	if(fetched_instruction->op != Instruction::HALT)
-	  allHalted = false;
-	printf( "Cycle %lld: Thread %d: Instruction %llu (PC:%llu): current op (%s)\n", current_cycle, 
-		static_cast<int>(proc_id), 
-		fetched_instruction->id,
-		thread->program_counter - 1,
-		Instruction::Opnames[fetched_instruction->op].c_str() );
-	printf("\tthread_id = %d, core_id = %d\n", thread->thread_id, (int)thread->core_id);
-	printf("\tregister_ready[%d][%d][%d] = %lld, %lld, %lld\n", fetched_instruction->args[0], fetched_instruction->args[1], fetched_instruction->args[2], thread->register_ready[fetched_instruction->args[0]], thread->register_ready[fetched_instruction->args[1]], thread->register_ready[fetched_instruction->args[2]]);
-      }
-
-      exit(1);
-
-      
-      if(allHalted)
-	{
-	  printf("halting\n");
-	  HaltSystem();
-	}
-      else
-	{
-	  printf("Not halting\n");
-	  verbosity = 1;
-	}
-      
+  {
+    bool allHalted = true;
+    printf("_-=<WARNING>=-_ 500000 cycles without a successful issue.\n");
+    for (size_t thread_offset = 0;
+         thread_offset < thread_procs.size();
+         thread_offset += simd_width) {
+      size_t proc_id = thread_offset;
+      ThreadState* thread = thread_procs[proc_id]->GetActiveThread();
+      Instruction* fetched_instruction = thread->fetched_instruction;
+      if(fetched_instruction->op != Instruction::HALT)
+        allHalted = false;
+      printf( "Cycle %lld: Thread %d: Instruction %llu (PC:%llu): current op (%s)\n", current_cycle, 
+              static_cast<int>(proc_id), 
+              fetched_instruction->id,
+              thread->program_counter - 1,
+              Instruction::Opnames[fetched_instruction->op].c_str() );
+      printf("\tthread_id = %d, core_id = %d\n", thread->thread_id, (int)thread->core_id);
+      printf("\tregister_ready[%d][%d][%d] = %lld, %lld, %lld\n", fetched_instruction->args[0], fetched_instruction->args[1], fetched_instruction->args[2], thread->register_ready[fetched_instruction->args[0]], thread->register_ready[fetched_instruction->args[1]], thread->register_ready[fetched_instruction->args[2]]);
     }
+
+    exit(1);
+
+      
+    if(allHalted)
+    {
+      printf("halting\n");
+      HaltSystem();
+    }
+    else
+    {
+      printf("Not halting\n");
+      verbosity = 1;
+    }
+      
+  }
 
   // Begin standard issue code
   int issue_width = 1;
@@ -659,10 +661,10 @@ void IssueUnit::MultipleIssueClockFall() {
       if (bank_fetched[icache_num][bank_num] < fetch_per_cycle) {
 	bank_fetched[icache_num][bank_num]++;
 	if(thread->program_counter < 0)
-	  {
-	    printf("Error: invalid program counter: %lld\n", thread->program_counter);
-	    exit(1);
-	  }
+        {
+          printf("Error: invalid program counter: %lld\n", thread->program_counter);
+          exit(1);
+        }
 	thread->fetched_instruction = thread->instructions[thread->program_counter];
 	thread->program_counter = thread->next_program_counter;
 	thread->next_program_counter++;
@@ -758,10 +760,10 @@ void IssueUnit::SIMDClockFall() {
     if (bank_fetched[icache_num][bank_num] < fetch_per_cycle) {
       bank_fetched[icache_num][bank_num]++;
       if(thread->program_counter < 0)
-	{
-	  printf("Error: invalid program counter: %lld\n", thread->program_counter);
-	  exit(1);
-	}
+      {
+        printf("Error: invalid program counter: %lld\n", thread->program_counter);
+        exit(1);
+      }
       thread->fetched_instruction = thread->instructions[thread->program_counter];
       thread->program_counter = thread->next_program_counter;
       thread->next_program_counter++;
@@ -815,7 +817,7 @@ void IssueUnit::ClockFall() {
   } else {
     SIMDClockFall();
   }
-    current_cycle++;
+  current_cycle++;
 }
 
 void IssueUnit::print()
@@ -831,20 +833,20 @@ void IssueUnit::print(int total_system_TMs = -1)
 
   // print machine-wide kernel stats
   for (int i = 0; i < MAX_NUM_KERNELS; ++i) 
-    {
-      long long int total_calls = 0;
-      long long int total_cycles = 0;
-      for(size_t j = 0; j < thread_procs.size(); j++)
-	if(kernel_calls[i][j] > 0)
-	  {
-	    total_calls += kernel_calls[i][j];
-	    total_cycles += kernel_cycles[i][j];
-	  }
-      if(total_calls == 0)
-	continue;
+  {
+    long long int total_calls = 0;
+    long long int total_cycles = 0;
+    for(size_t j = 0; j < thread_procs.size(); j++)
+      if(kernel_calls[i][j] > 0)
+      {
+        total_calls += kernel_calls[i][j];
+        total_cycles += kernel_cycles[i][j];
+      }
+    if(total_calls == 0)
+      continue;
       
-      printf("%d\t%lld\t%lld\n", i, total_calls, total_cycles);
-    }
+    printf("%d\t%lld\t%lld\n", i, total_calls, total_cycles);
+  }
   
   
   printf("Data dependence stalls (caused by):\n");
@@ -894,15 +896,15 @@ void IssueUnit::print(int total_system_TMs = -1)
   int total_system_threads = 0;
   float divisor = 0.f;
   if(total_system_TMs == -1)
-    {
-      total_system_threads = thread_procs.size();
-      divisor = 1.f;
-    }
+  {
+    total_system_threads = thread_procs.size();
+    divisor = 1.f;
+  }
   else
-    {
-      total_system_threads = thread_procs.size() * total_system_TMs;
-      divisor = static_cast<float>(total_system_TMs);
-    }
+  {
+    total_system_threads = thread_procs.size() * total_system_TMs;
+    divisor = static_cast<float>(total_system_TMs);
+  }
 
 
   printf("Issue statistics:\n");
@@ -936,21 +938,21 @@ void IssueUnit::AddStats(IssueUnit* otherIssuer)
 
   // Per-instruction stats
   for(int i = 0; i < Instruction::NUM_OPS; i++)
-    {
-      instruction_bins[i] += otherIssuer->instruction_bins[i];
-      unit_contention[i] += otherIssuer->unit_contention[i];
-      data_depend_bins[i] += otherIssuer->data_depend_bins[i];
-    }  
+  {
+    instruction_bins[i] += otherIssuer->instruction_bins[i];
+    unit_contention[i] += otherIssuer->unit_contention[i];
+    data_depend_bins[i] += otherIssuer->data_depend_bins[i];
+  }  
 
   // Profiling kernels
   for (int i = 0; i < MAX_NUM_KERNELS; ++i) 
+  {
+    for(size_t j = 0; j < thread_procs.size(); j++)           
     {
-      for(size_t j = 0; j < thread_procs.size(); j++)           
-	{
-	  kernel_calls[i][j] += otherIssuer->kernel_calls[i][j];
-	  kernel_cycles[i][j] += otherIssuer->kernel_cycles[i][j];
-	}
+      kernel_calls[i][j] += otherIssuer->kernel_calls[i][j];
+      kernel_cycles[i][j] += otherIssuer->kernel_cycles[i][j];
     }
+  }
 
   // Issue statistics
   for (size_t i = 0; i < thread_procs.size(); i++) 

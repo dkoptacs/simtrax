@@ -14,6 +14,29 @@ Instruction::Instruction(Opcode code,
   depends[0] = depends[1] = -1;
   executions = 0;
   data_stalls = 0;
+
+  srcInfo.lineNum = -1;
+  srcInfo.colNum = -1;
+  srcInfo.fileNum = -1;
+  
+}
+
+Instruction::Instruction(Opcode code,
+			 int arg0, int arg1, int arg2,
+			 SourceInfo _srcInfo,
+			 int pc_addr)
+{
+  op = code;
+  args[0] = arg0;
+  args[1] = arg1;
+  args[2] = arg2;
+  pc_address = pc_addr;
+  id = 0;
+  depends[0] = depends[1] = -1;
+  executions = 0;
+  data_stalls = 0;
+  
+  srcInfo = _srcInfo;
 }
 
 Instruction::Instruction(const Instruction& ins) {
@@ -26,6 +49,9 @@ Instruction::Instruction(const Instruction& ins) {
   depends[1] = ins.depends[1];
   executions = ins.executions;
   data_stalls = ins.data_stalls;
+
+  srcInfo = ins.srcInfo;
+
 }
 
 bool Instruction::RayReady(int ray_start, long long int* writes_in_flight, int kNoBlock) const {
@@ -40,259 +66,356 @@ bool Instruction::RayReady(int ray_start, long long int* writes_in_flight, int k
 }
 
 bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, long long int cur_cycle) const {
-  // This function needs to check if the registers that would be read by 
+  // This function needs to check if the registers that would be read by
   // the given op would be ready by the given cycle
   const long long int kNoBlock = 0;
-  switch (op) {
-  case Instruction::ADD:
-  case Instruction::SUB:
-  case Instruction::MUL:
-  case Instruction::BITOR:
-  case Instruction::BITXOR:
-  case Instruction::BITAND:
-  case Instruction::BITSLEFT:
-  case Instruction::BITSRIGHT:
-  case Instruction::ANDN:
-  case Instruction::FPADD:
-  case Instruction::FPSUB:
-  case Instruction::FPRSUB:
-  case Instruction::FPMUL:
-  case Instruction::FPDIV:
-  case Instruction::DIV:
-  case Instruction::FPUN:
-  case Instruction::FPCMPLT:
-  case Instruction::FPMIN:
-  case Instruction::FPMAX:
-  case Instruction::MOVINDRD:
-  case Instruction::MOVINDWR:
-  case Instruction::FPEQ:
-  case Instruction::FPNE:
-  case Instruction::FPLT:
-  case Instruction::FPLE:
-  case Instruction::FPGT:
-  case Instruction::FPGE:
-  case Instruction::EQ:
-  case Instruction::NE:
-  case Instruction::LT:
-  case Instruction::LE:
-  case Instruction::ADDK:
-  case Instruction::ADDKC:
-  case Instruction::RSUB:
-  case Instruction::CMP:
-  case Instruction::CMPU:
-  case Instruction::LW:
-  case Instruction::lbu:
-  case Instruction::bsrl:
-  case Instruction::bsra:
-  case Instruction::bsll:
-
-
-    // check args[1] and args[2] and choose the first fail_reg if there is a fail.
-    if ( (register_ready[args[1]] <= cur_cycle) )
+  switch (op) 
+    {
+    case Instruction::lw:
+    case Instruction::lwc1:
+      // check args[2] and choose the first fail_reg if there is a fail.
+      
       if ((register_ready[args[2]] <= cur_cycle))
 	return true;
       else
 	*fail_reg = args[2];
-    else
-      *fail_reg = args[1];
-    return false;
-    break;
-  case Instruction::STRSIZE:
-  case Instruction::STRSCHED:
-  case Instruction::FPCONV:
-  case Instruction::INTCONV:
-  case Instruction::FPSQRT:
-  case Instruction::FPNEG:
-  case Instruction::FPINVSQRT:
-  case Instruction::FPINV:
-  case Instruction::LOAD:
-  case Instruction::LOADIMM:
-  case Instruction::LOADL1:
-  case Instruction::MOV:
-  case Instruction::PROF:
-  case Instruction::sra:
-  case Instruction::srl:
-  case Instruction::bslli:
-  case Instruction::bsrli:
-  case Instruction::bsrai:
-  case Instruction::brld:
-  case Instruction::brald:
-  case Instruction::braid:
-  case Instruction::bralid:
-  case Instruction::brk:
-  case Instruction::ADDI:
-  case Instruction::ANDI:
-  case Instruction::ORI:
-  case Instruction::XORI:
-  case Instruction::MULI:
-  case Instruction::RSUBI:
-  case Instruction::LWI:
-  case Instruction::lbui:
-  case Instruction::lhui:
-  case Instruction::sext8:
-    // check args[1] and select it if it fails
-    if ( register_ready[args[1]] <= cur_cycle )
-      return true;
-    else {
-      *fail_reg = args[1];
+      
       return false;
-    }
-    break;
-  case Instruction::SW:
-  case Instruction::sb:
-  case Instruction::sh:
-    // check args[0], args[1] and args[2] and choose the first fail_reg if there is a fail.
-    if ((register_ready[args[0]] <= cur_cycle)) 
-      if ((register_ready[args[1]] <= cur_cycle))
-	if ((register_ready[args[2]] <= cur_cycle))
-	  return true;
-	else
-	  *fail_reg = args[2];
-      else
-	*fail_reg = args[1];
-    else
-      *fail_reg = args[0];
-    return false;
-    break;
-  case Instruction::rtsd:
-  case Instruction::BNZ:
-  case Instruction::JMPREG:
-  case Instruction::brd:
-  case Instruction::brad:
-  case Instruction::beqid:
-  case Instruction::bgeid:
-  case Instruction::bgtid:
-  case Instruction::bleid:
-  case Instruction::bltid:
-  case Instruction::bneid:
-  case Instruction::STARTSW:
-  case Instruction::STREAMW:
-  case Instruction::SETSTRID:
-  case Instruction::SEM_ACQ:
-  case Instruction::SEM_REL:
-    // check args[0] for read
-    if ( (register_ready[args[0]] <= cur_cycle)) {
-      return true;
-    } else {
-      *fail_reg = args[0];
-      return false;
-    }
-    break;
-  case Instruction::BLT:
-  case Instruction::BET:
-  case Instruction::STORE:
-  case Instruction::beqd:
-  case Instruction::bged:
-  case Instruction::bgtd:
-  case Instruction::bled:
-  case Instruction::bltd:
-  case Instruction::bned:
-  case Instruction::SWI:
-  case Instruction::sbi:
-  case Instruction::shi:
-    // check args[0] and args[1] for read
-    if (register_ready[args[0]] <= cur_cycle) 
-      if (register_ready[args[1]] <= cur_cycle)
-	return true;
-      else
-	*fail_reg = args[1];
-    else
-      *fail_reg = args[0];
-    return false;
-    break;
-  case Instruction::SPHERE_TEST:
-    // this one doesn't deal with registers ready or not
-    if (!RayReady(args[2], register_ready, kNoBlock))
-      return false;
-    // Check sphere ready
-    // Sphere is center (3), radius (1), id (1)
-    for (int i = 0; i < 5; i++) {
-      if (register_ready[args[1] + i] > cur_cycle) {
-	*fail_reg = args[1]+i;
-	return false;
-      }
-    }
-    return true;
-    break;
+      break;
+      
+    case Instruction::ADD:
+    case Instruction::SUB:
+    case Instruction::MUL:
+    case Instruction::BITOR:
+    case Instruction::BITXOR:
+    case Instruction::BITAND:
+    case Instruction::BITSLEFT:
+    case Instruction::BITSRIGHT:
+    case Instruction::ANDN:
+    case Instruction::FPADD:
+    case Instruction::FPSUB:
+    case Instruction::FPRSUB:
+    case Instruction::FPMUL:
+    case Instruction::FPDIV:
+    case Instruction::DIV:
+    case Instruction::FPUN:
+    case Instruction::FPCMPLT:
+    case Instruction::FPMIN:
+    case Instruction::FPMAX:
+    case Instruction::MOVINDRD:
+    case Instruction::MOVINDWR:
+    case Instruction::FPEQ:
+    case Instruction::FPNE:
+    case Instruction::FPLT:
+    case Instruction::FPLE:
+    case Instruction::FPGT:
+    case Instruction::FPGE:
+    case Instruction::EQ:
+    case Instruction::NE:
+    case Instruction::LT:
+    case Instruction::LE:
+    case Instruction::ADDK:
+    case Instruction::ADDKC:
+    case Instruction::RSUB:
+    case Instruction::CMP:
+    case Instruction::CMPU:
+    case Instruction::LW:
+    case Instruction::lbu:
+    case Instruction::bsrl:
+    case Instruction::bsra:
+    case Instruction::bsll:
+    case Instruction::addu:
 
-    /*
-  case Instruction::TRITEST:
-    if (!RayReady(args[2], register_ready, kNoBlock))
+    //MIPS
+    case Instruction::add_s:
+    case Instruction::and_m:
+    case Instruction::div_s:
+    case Instruction::movn:
+    case Instruction::movn_s:
+    case Instruction::movz_s:
+    case Instruction::mul:
+    case Instruction::mul_s:
+    case Instruction::nor:
+    case Instruction::or_m:
+    case Instruction::slt:
+    case Instruction::sltu:
+    case Instruction::subu:
+    case Instruction::sub_s:
+    case Instruction::xor_m:      
+    case Instruction::sllv:
+    case Instruction::srav:
+    case Instruction::srlv:
+
+    // check args[1] and args[2] and choose the first fail_reg if there is a fail.
+      if ( (register_ready[args[1]] <= cur_cycle) )
+        if ((register_ready[args[2]] <= cur_cycle))
+          return true;
+        else
+          *fail_reg = args[2];
+      else
+        *fail_reg = args[1];
       return false;
-    // Check triangle ready
-    // Triangle is v0, v1, v2 (3 each), id (1)
-    for (int i = 0; i < 10; i++) {
-      if (register_ready[args[1] + i] > cur_cycle) {
-	*fail_reg = args[1]+i;
+      break;
+
+    case Instruction::STRSIZE:
+    case Instruction::STRSCHED:
+    case Instruction::FPCONV:
+    case Instruction::INTCONV:
+    case Instruction::FPSQRT:
+    case Instruction::FPNEG:
+    case Instruction::FPINVSQRT:
+    case Instruction::FPINV:
+    case Instruction::LOAD:
+    case Instruction::LOADIMM:
+    case Instruction::LOADL1:
+    case Instruction::MOV:
+    case Instruction::PROF:
+    case Instruction::sra:
+    case Instruction::srl:
+    case Instruction::bslli:
+    case Instruction::bsrli:
+    case Instruction::bsrai:
+    case Instruction::brld:
+    case Instruction::brald:
+    case Instruction::braid:
+    case Instruction::bralid:
+    case Instruction::brk:
+    case Instruction::ADDI:
+    case Instruction::ANDI:
+    case Instruction::ORI:
+    case Instruction::XORI:
+    case Instruction::MULI:
+    case Instruction::RSUBI:
+    case Instruction::LWI:
+    case Instruction::lbui:
+    case Instruction::lhui:
+    case Instruction::sext8:
+
+    // MIPS
+    case Instruction::addi:
+    case Instruction::addiu:
+    case Instruction::andi:
+    case Instruction::cvt_s_w:
+    case Instruction::mfc1:
+    case Instruction::movf:
+    case Instruction::movt:
+    case Instruction::mov_s:
+    case Instruction::ori:
+    case Instruction::sll:
+    case Instruction::slti:
+    case Instruction::sltiu:
+    case Instruction::sra_m:
+    case Instruction::srl_m:
+    case Instruction::trunc_w_s:
+
+      // check args[1] and select it if it fails
+      if ( register_ready[args[1]] <= cur_cycle )
+        return true;
+      else {
+        *fail_reg = args[1];
         return false;
       }
-    }
-    return true;
-    break;
-    */
+      break;
+      
+    case Instruction::SW:
+    case Instruction::sb:
+    case Instruction::sh:
+      // check args[0], args[1] and args[2] and choose the first fail_reg if there is a fail.
+      if ((register_ready[args[0]] <= cur_cycle))
+        if ((register_ready[args[1]] <= cur_cycle))
+          if ((register_ready[args[2]] <= cur_cycle))
+            return true;
+          else
+            *fail_reg = args[2];
+        else
+          *fail_reg = args[1];
+      else
+        *fail_reg = args[0];
+      return false;
+      break;
+    case Instruction::rtsd:
+    case Instruction::BNZ:
+    case Instruction::JMPREG:
+    case Instruction::brd:
+    case Instruction::brad:
+    case Instruction::beqid:
+    case Instruction::bgeid:
+    case Instruction::bgtid:
+    case Instruction::bleid:
+    case Instruction::bltid:
+    case Instruction::bneid:
+    case Instruction::STARTSW:
+    case Instruction::STREAMW:
+    case Instruction::SETSTRID:
+    case Instruction::SEM_ACQ:
+    case Instruction::SEM_REL:
 
-  case Instruction::BOXTEST:
-    // TODO: this isn't very clean, assuming box registers are 36 - 47
-    for(int i = 36; i < 48; i++)
-      if (register_ready[i] > cur_cycle) 
-	{
-	  *fail_reg = i;
-	  return false;
-	}
-    return true;
-    break;
+    case Instruction::bgez:
+    case Instruction::bgtz:
+    case Instruction::blez:
+    case Instruction::bltz:
+    case Instruction::jr:
+    case Instruction::mtc1:
+      
+      // check args[0] for read
+      if ( (register_ready[args[0]] <= cur_cycle)) {
+        return true;
+      } else {
+        *fail_reg = args[0];
+        return false;
+      }
+      break;
+    case Instruction::BLT:
+    case Instruction::BET:
+    case Instruction::STORE:
+    case Instruction::beqd:
+    case Instruction::bged:
+    case Instruction::bgtd:
+    case Instruction::bled:
+    case Instruction::bltd:
+    case Instruction::bned:
+    case Instruction::SWI:
+    case Instruction::sbi:
+    case Instruction::shi:
 
-  case Instruction::TRITEST:
-    // TODO: this isn't very clean, assuming tri registers are 36 - 50
-    for(int i = 36; i < 51; i++)
-      if (register_ready[i] > cur_cycle) 
-	{
-	  *fail_reg = i;
-	  return false;
-	}
-    return true;
-    break;
+    // MIPS
+    case Instruction::beq:
+    case Instruction::bne:
+    case Instruction::c_eq_s:
+    case Instruction::c_ole_s:
+    case Instruction::c_olt_s:
+    case Instruction::c_ule_s:
+    case Instruction::c_ult_s:
+    case Instruction::div:
+      // check args[0] and args[1] for read
+      if (register_ready[args[0]] <= cur_cycle)
+        if (register_ready[args[1]] <= cur_cycle)
+          return true;
+        else
+          *fail_reg = args[1];
+      else
+        *fail_reg = args[0];
+      return false;
+      break;
 
-  case Instruction::PRINT:
-  case Instruction::PRINTF:
-    if (register_ready[args[0]] <= cur_cycle)
+      // MIPS!
+    case Instruction::sw:
+    case Instruction::swc1:
+      // check args[0] and args[2] for read
+      if (register_ready[args[0]] <= cur_cycle)
+        if (register_ready[args[2]] <= cur_cycle)
+          return true;
+        else
+          *fail_reg = args[2];
+      else
+        *fail_reg = args[0];
+      return false;
+      break;
+      
+    case Instruction::SPHERE_TEST:
+      // this one doesn't deal with registers ready or not
+      if (!RayReady(args[2], register_ready, kNoBlock))
+        return false;
+      // Check sphere ready
+      // Sphere is center (3), radius (1), id (1)
+      for (int i = 0; i < 5; i++) {
+        if (register_ready[args[1] + i] > cur_cycle) {
+          *fail_reg = args[1]+i;
+          return false;
+        }
+      }
       return true;
-    else
-      *fail_reg = args[0];
-    return false;
-    break;
+      break;
+
+      /*
+        case Instruction::TRITEST:
+        if (!RayReady(args[2], register_ready, kNoBlock))
+        return false;
+        // Check triangle ready
+        // Triangle is v0, v1, v2 (3 each), id (1)
+        for (int i = 0; i < 10; i++) {
+        if (register_ready[args[1] + i] > cur_cycle) {
+	*fail_reg = args[1]+i;
+        return false;
+        }
+        }
+        return true;
+        break;
+      */
+
+    case Instruction::BOXTEST:
+      // TODO: this isn't very clean, assuming box registers are 36 - 47
+      for(int i = 36; i < 48; i++)
+        if (register_ready[i] > cur_cycle)
+	{
+	  *fail_reg = i;
+	  return false;
+	}
+      return true;
+      break;
+
+    case Instruction::TRITEST:
+      // TODO: this isn't very clean, assuming tri registers are 36 - 50
+      for(int i = 36; i < 51; i++)
+        if (register_ready[i] > cur_cycle)
+	{
+	  *fail_reg = i;
+	  return false;
+	}
+      return true;
+      break;
+
+    case Instruction::PRINT:
+    case Instruction::PRINTF:
+      if (register_ready[args[0]] <= cur_cycle)
+        return true;
+      else
+        *fail_reg = args[0];
+      return false;
+      break;
 
     //TODO: these global atomic instructions are always ready to issue (this is wrong though)
-  case Instruction::ATOMIC_INC:
-  case Instruction::ATOMIC_ADD:
-  case Instruction::ATOMIC_FPADD:
-  case Instruction::INC_RESET:
-  case Instruction::BARRIER:
-  case Instruction::GLOBAL_READ:
-    return true;
-    break;
+    case Instruction::ATOMIC_INC:
+    case Instruction::ATOMIC_ADD:
+    case Instruction::ATOMIC_FPADD:
+    case Instruction::INC_RESET:
+    case Instruction::BARRIER:
+    case Instruction::GLOBAL_READ:
+      return true;
+      break;
 
     // These instructions don't read normal registers, always ready to issue
-  case Instruction::ENDSW:
-  case Instruction::ENDSR:
-  case Instruction::STARTSR:
-  case Instruction::STREAMR:
-  case Instruction::brlid:
-  case Instruction::brid:
-  case Instruction::NOP:
-  case Instruction::RAND:
-  case Instruction::HALT:
-  case Instruction::SETBOXPIPE:
-  case Instruction::SETTRIPIPE:
-  case Instruction::LOADPIPEGLB:
-  case Instruction::LOADPIPELOC:
-    return true;
-    break;
-  default:
-    printf("Error: Instruction opcode %d has no ReadyToIssue definition\n", op);
-    printf("%s\n", Instruction::Opnames[op].c_str());
-    exit(1);
-    break;
+    case Instruction::ENDSW:
+    case Instruction::ENDSR:
+    case Instruction::STARTSR:
+    case Instruction::STREAMR:
+    case Instruction::brlid:
+    case Instruction::brid:
+    case Instruction::NOP:
+    case Instruction::RAND:
+    case Instruction::HALT:
+    case Instruction::SETBOXPIPE:
+    case Instruction::SETTRIPIPE:
+    case Instruction::LOADPIPEGLB:
+    case Instruction::LOADPIPELOC:
+
+    // MIPS
+    case Instruction::nop:
+    case Instruction::bal:
+    case Instruction::bc1f:
+    case Instruction::bc1t:
+    case Instruction::j:
+    case Instruction::jal:
+    case Instruction::mfhi:
+    case Instruction::mflo:
+    case Instruction::lui:
+      return true;
+      break;
+    default:
+      printf("Error: Instruction opcode %d has no ReadyToIssue definition\n", op);
+      printf("%s\n", Instruction::Opnames[op].c_str());
+      exit(1);
+      break;
   };
 
   printf("Error, Instruction::ReadyToIssue fell through switch\n");
@@ -310,16 +433,16 @@ void Instruction::print() {
 InstructionRecord::InstructionRecord(Instruction& ins,
                                      long long int cycle,
                                      IssueUnit* issue,
-                                     ThreadState* thread, 
+                                     ThreadState* thread,
 				     bool _cache_hit) :
-  cycle_arrived(cycle), instruction(ins), issuer(issue), thread(thread),
-  cache_hit(_cache_hit) {
-}
+    cycle_arrived(cycle), instruction(ins), issuer(issue), thread(thread),
+    cache_hit(_cache_hit) {
+    }
 
 InstructionRecord::InstructionRecord(const InstructionRecord& record) :
-  cycle_arrived(record.cycle_arrived), instruction(record.instruction),
-  issuer(record.issuer), thread(record.thread),
-  write_requests(record.write_requests)
+    cycle_arrived(record.cycle_arrived), instruction(record.instruction),
+    issuer(record.issuer), thread(record.thread),
+    write_requests(record.write_requests)
 {
   for (int i = 0; i < 32; i++) {
     ivalues[i] = record.ivalues[i];
@@ -431,13 +554,13 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("FPCONV"),
 
   // Stream ops
-  std::string("STARTSW"), 
-  std::string("STREAMW"), 
+  std::string("STARTSW"),
+  std::string("STREAMW"),
   std::string("ENDSW"),
-  std::string("STARTSR"), 
-  std::string("STREAMR"), 
+  std::string("STARTSR"),
+  std::string("STREAMR"),
   std::string("ENDSR"),
-  std::string("STRSIZE"), 
+  std::string("STRSIZE"),
   std::string("STRSCHED"),
   std::string("SETSTRID"),
   std::string("GETSTRID"),
@@ -454,11 +577,11 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("FPNE"),
   std::string("FPLT"),
   std::string("FPLE"),
-  std::string("EQ"),  
-  std::string("NE"),  
-  std::string("LT"),  
-  std::string("LE"),  
-  std::string("BNZ"), 
+  std::string("EQ"),
+  std::string("NE"),
+  std::string("LT"),
+  std::string("LE"),
+  std::string("BNZ"),
   std::string("LOADL1"),
   std::string("STORE"),
   std::string("LOADIMM"),
@@ -569,5 +692,69 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("PRINT"),
   std::string("PRINTF"),
   std::string("PROF"),
+
+  // MIPS
+  std::string("addi"),
+  std::string("addiu"),
+  std::string("addu"),
+  std::string("add_s"),
+  std::string("andi"),
+  std::string("and_m"),
+  std::string("bal"),
+  std::string("bc1f"),
+  std::string("bc1t"),
+  std::string("beq"),
+  std::string("bgez"),
+  std::string("bgtz"),
+  std::string("blez"),
+  std::string("bltz"),
+  std::string("bne"),
+  std::string("cvt_s_w"),
+  std::string("c_eq_s"),
+  std::string("c_ole_s"),
+  std::string("c_olt_s"),
+  std::string("c_ule_s"),
+  std::string("c_ult_s"),
+  std::string("div"),
+  std::string("div_s"),
+  std::string("lui"),
+  std::string("lw"),
+  std::string("lwc1"),
+  std::string("mfc1"),
+  std::string("mfhi"),
+  std::string("mflo"),
+  std::string("movf"),
+  std::string("movn"),
+  std::string("movt"),
+  std::string("mov_s"),
+  std::string("movn_s"),
+  std::string("movz_s"),
+  std::string("mtc1"),
+  std::string("mul"),
+  std::string("mul_s"),
+  std::string("j"),
+  std::string("jal"),
+  std::string("jr"),
+  std::string("nop"),
+  std::string("nor"),
+  std::string("ori"),
+  std::string("or_m"),
+  std::string("sll"),
+  std::string("sllv"),
+  std::string("slt"),
+  std::string("slti"),
+  std::string("sltu"),
+  std::string("sltiu"),
+  std::string("sra_m"),
+  std::string("srl_m"),
+  std::string("srav"),
+  std::string("srlv"),
+  std::string("subu"),
+  std::string("sub_s"),
+  std::string("sw"),
+  std::string("swc1"),
+  std::string("trunc_w_s"),
+  std::string("xor_m"),
+  // End MIPS
 };
 

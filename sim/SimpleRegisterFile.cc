@@ -5,8 +5,8 @@
 #include <cassert>
 
 SimpleRegisterFile::SimpleRegisterFile(int num_regs, int _thread_id) :
-  FunctionalUnit(0), 
-  num_registers(num_regs)
+    FunctionalUnit(0), 
+    num_registers(num_regs)
 {
 
   // Hard-code area and energy since they are unlikely to change
@@ -92,14 +92,30 @@ void SimpleRegisterFile::WriteFloat(int which_reg, float value, long long int wh
   fdata[which_reg] = value;
 }
 
+
+// MIPS NOTE: move lui to LocalStore
 bool SimpleRegisterFile::SupportsOp(Instruction::Opcode op) const {
-  if (op == Instruction::MOV || op == Instruction::LOADIMM ||
-      op == Instruction::MOVINDRD || op == Instruction::MOVINDWR)
+  if (op == Instruction::MOV ||
+      op == Instruction::LOADIMM ||
+      op == Instruction::MOVINDRD ||
+      op == Instruction::MOVINDWR ||
+      op == Instruction::lui ||
+      op == Instruction::mfc1 ||
+      op == Instruction::mfhi ||
+      op == Instruction::mflo ||
+      op == Instruction::movf ||
+      op == Instruction::movn ||
+      op == Instruction::movt ||
+      op == Instruction::mov_s ||
+      op == Instruction::movn_s ||
+      op == Instruction::movz_s ||
+      op == Instruction::mtc1)
     return true;
   return false;
 }
 
 bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread) {
+  
   if (issued_this_cycle >= width) return false;
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
@@ -109,45 +125,156 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
   reg_value arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
   switch (ins.op) {
-  case Instruction::MOV:
-    // Read the register
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
-      // bad stuff happened
-      printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
-    }
-    result.udata = arg1.udata;
-    break;
-  case Instruction::LOADIMM:
-    result.idata = ins.args[1];
-    break;
-  case Instruction::MOVINDRD:
-    // indirect move
-    // Read the registers
-    if (!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
-      // bad stuff happened
-      printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
-    }
-    //printf("ins.args[2] = %d, arg2.idata = %d, fdata = %f\n", ins.args[2], arg2.idata, arg2.fdata);
-    if (!thread->ReadRegister(ins.args[1] + arg2.idata, issuer->current_cycle, arg1, failop)) {
-      // bad stuff happened
-      printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
-    }
-    result.udata = arg1.udata;
-    break;
-  case Instruction::MOVINDWR:
-    // indirect move
-    // Read the registers
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
-	!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
-      // bad stuff happened
-      printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
-    }
-    write_reg += arg2.idata;
-    result.udata = arg1.udata;
-    break;
-  default:
-    fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
-    break;
+
+    // MIPS!
+    case Instruction::lui:
+      result.udata = ins.args[1] << 16;
+      break;
+
+    case Instruction::movf:
+      // Read the register
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+      {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error with MIPS movz_s.\n");
+      }
+
+      // Only move if CC is equal to 0.
+      if (thread->compare_register)
+      {
+        issued_this_cycle++;
+        return true;
+      }
+
+      result.idata = arg1.idata;
+      break;
+
+    case Instruction::movt:
+      // Read the register
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+      {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error with MIPS movt.\n");
+      }
+
+      // Only move if CC is not equal to 0.
+      if (!thread->compare_register)
+      {
+        issued_this_cycle++;
+        return true;
+      }
+
+      result.idata = arg1.idata;
+      break;
+
+    case Instruction::movn:
+    case Instruction::movn_s:
+      // Read the registers
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)
+          ||
+          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error with MIPS movn.\n");
+      }
+
+      // Only move if rt is not equal to 0.
+      if (arg2.idata == 0)
+      {
+        issued_this_cycle++;
+        return true;
+      }
+
+      result.udata = arg1.udata;
+      break;
+
+    case Instruction::movz_s:
+      // Read the registers
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)
+          ||
+          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error with MIPS movz_s.\n");
+      }
+
+      // Only move if rt is equal to 0.
+      if (arg2.idata != 0)
+      {
+        issued_this_cycle++;
+        return true;
+      }
+
+      result.fdata = arg1.fdata;
+      break;
+      
+      // MFHI and MFLO don't read normal registers
+    case Instruction::mfhi:
+      result.idata = thread->HI_register;
+      break;
+      
+    case Instruction::mflo:
+      result.idata = thread->LO_register;
+      break;
+
+    case Instruction::mfc1:
+      // Read the register
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
+      }
+      result.udata = arg1.udata;
+      write_reg = ins.args[0];
+      break;
+
+    case Instruction::mtc1:
+      // Read the register
+      if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg1, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
+      }
+      result.udata = arg1.udata;
+      write_reg = ins.args[1];
+      break;
+
+    case Instruction::mov_s:
+    case Instruction::MOV:
+      // Read the register
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
+      }
+      result.udata = arg1.udata;
+      break;
+    case Instruction::LOADIMM:
+      result.idata = ins.args[1];
+      break;
+    case Instruction::MOVINDRD:
+      // indirect move
+      // Read the registers
+      if (!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
+      }
+      //printf("ins.args[2] = %d, arg2.idata = %d, fdata = %f\n", ins.args[2], arg2.idata, arg2.fdata);
+      if (!thread->ReadRegister(ins.args[1] + arg2.idata, issuer->current_cycle, arg1, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
+      }
+      result.udata = arg1.udata;
+      break;
+    case Instruction::MOVINDWR:
+      // indirect move
+      // Read the registers
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
+          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
+      }
+      write_reg += arg2.idata;
+      result.udata = arg1.udata;
+      break;
+    default:
+      fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
+      break;
   };
 
   // Write the value

@@ -7,14 +7,14 @@
 #include <cassert>
 
 FPMul::FPMul(int _latency, int _width) :
-  FunctionalUnit(_latency), width(_width) {
+    FunctionalUnit(_latency), width(_width) {
   issued_this_cycle = 0;
 }
 
 // From FunctionalUnit
 bool FPMul::SupportsOp(Instruction::Opcode op) const {
-  if (op == Instruction::FPMUL)
-    return true;
+  if (op == Instruction::FPMUL || op == Instruction::mul_s)
+  return true;
   else
     return false;
 }
@@ -35,12 +35,13 @@ bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
   // now get the result value
   reg_value result;
   switch (ins.op) {
-  case Instruction::FPMUL:
-    result.fdata = arg1.fdata * arg2.fdata;
-    break;
-  default:
-    fprintf(stderr, "ERROR FPMul FOUND SOME OTHER OP\n");
-    break;
+    case Instruction::mul_s:
+    case Instruction::FPMUL:
+      result.fdata = arg1.fdata * arg2.fdata;
+      break;
+    default:
+      fprintf(stderr, "ERROR FPMul FOUND SOME OTHER OP\n");
+      break;
   };
 
   // Write the value
@@ -66,5 +67,5 @@ void FPMul::print() {
 
 double FPMul::Utilization() {
   return static_cast<double>(issued_this_cycle)/
-    static_cast<double>(width);
+      static_cast<double>(width);
 }

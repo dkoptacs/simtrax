@@ -76,7 +76,9 @@ void DebugUnit::PrintFormatString(int format_addr, ThreadState* thread)
   // Support %f, %d, %u, %c
 
   // All subsequent optional arguments are at consecutive word addresses on the stack
-  int next_arg_addr = format_addr + 4;
+  //int next_arg_addr = format_addr + 4;
+  // MIPS compiler is placing the first arg in an 8-byte block
+  int next_arg_addr = format_addr + 8;
 
   std::string parsed;
   char temp[32];

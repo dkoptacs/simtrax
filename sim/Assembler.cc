@@ -1,50 +1,117 @@
 #include "Assembler.h"
+#include <regex>
+#include <iostream>
+#include <fstream>
+#include <cstdint>
+#include <cassert>
 int Assembler::num_instructions = 0;
 int Assembler::num_regs = 1;
-int Assembler::start_wq = 0;
-int Assembler::start_framebuffer = 0;
-int Assembler::start_camera = 0;
-int Assembler::start_scene = 0;
-int Assembler::start_light = 0;
-int Assembler::start_bg_color = 0;
-int Assembler::start_matls = 0;
-int Assembler::start_permutation = 0;
 
 int jtable_size;
+int jtable_ptr;
+int debug_start;
 int ascii_table_size;
 
-const char *delimeters = ", ()[\t\n"; // includes only left bracket for backwards compatibility with vector registers
+//-------------------------------------------------------------------------
+// regex matchers for various assembly items
+//-------------------------------------------------------------------------
 
-int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions, std::vector<symbol*>& regs, int num_system_regs, std::vector<int>& jump_table, std::vector<std::string>& ascii_literals, int _start_wq, int _start_framebuffer, int _start_camera, int _start_scene, int _start_light, int _start_bg_color, int start_matls, int start_permutation, bool print_symbols)
+// Whitespace
+std::string expWhitespace( "[ \\t]" );
+// Argument separator
+std::string expSeparator( "[ \\t,]" );
+// Comment
+std::string expComment( "#.*" );
+// Any valid name (must contain a non-digit)
+std::string expSymbol( "[0-9]*[a-zA-Z\\$_]+[a-zA-Z\\$_0-9]*" );
+// An integer literal
+std::string expIntLiteral( "[-|\\+]?[0-9]+" ); 
+// An integer offset
+std::string expIntOffset( expSeparator + "+" + expIntLiteral + "\\(" );
+// Declaring a register
+std::string expRegister( "\\tREG" + expWhitespace + "+" + expSymbol );
+// Declaring a label 
+std::string expLabel( expSymbol + ":" );
+// 1-byte type
+std::string expByte( "\\.byte" );
+// 2-byte type
+std::string exp2Byte( "\\.2byte" );
+// 4-byte type
+std::string exp4Byte( "\\.4byte" );
+// String type
+std::string expAscii( "\\.asciz" );
+// Global
+std::string expGlobal( "\\.globl" );
+// ---Ignored data items---
+// Not that useful in the context of the simulator
+std::string expIgnored( "(\\.section)|(\\.data)|(\\.text)|(\\.previous)|(\\.align)|(\\.type)|(\\.ent)|(\\.frame)|(\\.mask)|(\\.fmask)|(\\.set)|(\\.size)|(\\.end)" );
+// Declaring a piece of data
+std::string expData( "((" + expByte + ")|(" + exp2Byte + ")|(" + exp4Byte + ")|(" + expAscii + ")|(" + expGlobal + ")|(" + expIgnored + "))" );
+// ---Special MIPS directives---
+std::string expHi( "\%hi" );
+std::string expLo( "\%lo" );
+std::string expGpRel( "\%gp_rel" );
+std::string expMipsDirective( "((" + expHi + ")|(" + expLo + ")|(" + expGpRel + "))\\(" + expSymbol + "\\)" );
+// Any argument (label, register, integer literal, etc)
+std::string expAssignArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")|(\\+|-)" );
+std::string expArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")" );
+// ---Debug info---
+// Line info
+std::string expSrcInfo( "\\.loc" );
+// Declaring a source file
+std::string expFile( "\\.file" );
+// ELF assignments
+std::string expAssign( "=" );
+// String literal
+std::string expString("\".+\"");
+
+
+
+//-------------------------------------------------------------------------
+
+
+using namespace std;
+using std::regex;
+using std::sregex_iterator;
+
+
+//------------------------------------------------------------------------------
+
+SourceInfo currentSourceInfo;
+
+int Assembler::LoadAssem(char *filename,
+                         std::vector<Instruction*>& instructions,
+                         std::vector<symbol*>& regs,
+                         int num_system_regs,
+                         char*& jump_table,
+                         std::vector<std::string>& ascii_literals,
+			 std::vector<std::string>& sourceNames,
+                         bool print_symbols)
 {
   printf("Loading assembly file %s\n", filename);
-  Assembler::start_wq = _start_wq;
-  Assembler::start_framebuffer = _start_framebuffer;
-  Assembler::start_camera = _start_camera;
-  Assembler::start_scene = _start_scene;
-  Assembler::start_light = _start_light;
-  Assembler::start_bg_color = _start_bg_color;
-  Assembler::start_matls = start_matls;
-  Assembler::start_permutation = start_permutation;
- 
-  FILE *input = fopen(filename, "r");
-  if(!input)
-    {
-      printf("ERROR: cannot open assembly file %s\n", filename);
-      return 0;
-    }
 
+  ifstream input(filename);
+  if(!input.is_open())
+  {
+    printf("ERROR: cannot open assembly file %s\n", filename);
+    return -1;
+  }
   num_instructions = 0;
   jtable_size = 0;
+  jtable_ptr = 0;
+  debug_start = 0;
   ascii_table_size = 0;
-
+  currentSourceInfo.lineNum = -1;
+  currentSourceInfo.colNum = -1;
+  currentSourceInfo.fileNum = -1;
+ 
   /* reserve 4 special purpose registers
      0 -- when used as argument to PRINT, prints a tab (\t)
      1 -- contains thread id
      2 -- contains core id
      3 -- contains L2 id
   */
-  num_regs = 0; 
+  num_regs = 0;
   symbol *temp = new symbol();
 
   temp->names.push_back((char*)malloc(8));
@@ -71,450 +138,833 @@ int Assembler::LoadAssem(char *filename, std::vector<Instruction*>& instructions
   regs.push_back(temp);
 
   std::vector<symbol*> labels;
-  //std::vector<symbol> regs;
+  std::vector<symbol*> elf_vars;
+  std::vector<symbol*> data_table; // holds all .data, for debug purposes
   int lineCount = 1;
-  unsigned int i;
+
+  // Add a data entry for gnu_local_gp that always evaluates to 0
+  temp = new symbol();
+  temp->names.push_back((char*)malloc(15));
+  strcpy(temp->names.at(temp->names.size()-1), "__gnu_local_gp");
+  temp->address = 0;
+  temp->isJumpTable = true;
+  temp->size = 4;
+  labels.push_back(temp);
+  data_table.push_back(temp);
+
+  jtable_size = 4; // accommodate gnu_local_gp
+
   // 1st pass
-  while(!feof(input))
+  while(!input.eof())
     {
-      if(!handleLine(input, 1, instructions, labels, regs, jump_table, ascii_literals))
+      std::string line;
+      getline(input, line);
+      if(!HandleLine(line, 1, instructions, labels, regs, elf_vars, data_table, jump_table, ascii_literals, sourceNames))
 	{
-	  printf("line %d\n", lineCount);
-	  return 0;
+	  printf("Line %d: %s\n", lineCount, line.c_str());
+	  return -1;
 	}
       lineCount++;
     }
-  fclose(input);
-
-  // Fix up the ascii literal labels' addresses now that the jtable size is known.
-  // Ascii literals will go right after the jtable on the stack
-  // This is sort of like pass 1.5
-  for(i=0; i<labels.size(); i++)
-    if(labels.at(i)->isAscii)
-      labels.at(i)->address += jtable_size;
   
-
-  input = fopen(filename, "r");
   lineCount = 1;
+
+  // Interpass - allocate and pre-load gnu_local_gp
+  jump_table = (char*)malloc(jtable_size);
+  ((int32_t*)jump_table)[0] = (int32_t)(temp->address);
+  jtable_ptr += 4;
+  
+  input.clear();
+  input.seekg(0, ios::beg) ;
+
   // 2nd pass
-  //jtable_size = 0; // reset jump table counter
-  while(!feof(input))
+  
+  while(!input.eof())
     {
-      if(!handleLine(input, 2, instructions, labels, regs, jump_table, ascii_literals))
+      std::string line;
+      getline(input, line);
+      if(!HandleLine(line, 2, instructions, labels, regs, elf_vars, data_table, jump_table, ascii_literals, sourceNames))
 	{
-	  printf("line %d\n", lineCount);
-	  return 0;
+	  printf("Line %d: %s\n", lineCount, line.c_str());
+	  return -1;
 	}
       lineCount++;
     }
+  
+  input.close();
+
+  int end_data = debug_start != 0 ? debug_start : jtable_size;
 
   if(print_symbols)
-    {
-      printf("Symbol table:\n");
-      printf("Registers:\nName\tNumber\n");
-      for(i=0; i<regs.size(); i++)
-	printf("%s:\t%d\n", regs.at(i)->names.at(0), regs.at(i)->address);
-      printf("Labels:\nName\tAddress\n");
-      for(i=0; i<labels.size(); i++)
-	{
-	  if(labels.at(i)->isJumpTable)
-	    printf("(jump table label): ");
-	  if(labels.at(i)->isAscii)
-	    printf("(ascii label): ");
-	  printf("%s:\t%d\n", labels.at(i)->names.at(0), labels.at(i)->address);
-	}
-      printf("Jump table\n");
-      for(i=0; i < jump_table.size(); i++)
-	printf("%d: %d\n", (i * 4), jump_table[i]);
-      printf("ASCII literals:\n");
-      int totalStringSize = 0;
-      for(i=0; i < ascii_literals.size(); i++)
-	{
-	  printf("%d: \"%s\"\n", (int)(jump_table.size() * 4) + totalStringSize, ascii_literals[i].c_str());
-	  totalStringSize += ascii_literals[i].length() + 1;
-	}
-    }
+    PrintSymbols(regs, labels, data_table, jump_table, end_data);
 
-  // fill in the symbol table for any unnamed registers
-  for(; num_regs < num_system_regs; num_regs++)
-    {
-      symbol* temp = new symbol();      
-      temp->names.push_back((char*)malloc(8));
-      strcpy(temp->names.at(temp->names.size()-1), "unnamed");
-      temp->address = num_regs;
-      regs.push_back(temp);
-    }    
-
-  return num_regs;
+  return end_data;
 }
 
-int Assembler::handleLine(FILE *input, int pass, std::vector<Instruction*>& instructions, std::vector<symbol*>& labels, std::vector<symbol*>& regs, std::vector<int>& jump_table, std::vector<std::string>& ascii_literals)
+// Parses a single line of assembly
+int Assembler::HandleLine(std::string line,
+                          int pass,
+                          std::vector<Instruction*>& instructions,
+                          std::vector<symbol*>& labels,
+                          std::vector<symbol*>& regs,
+                          std::vector<symbol*>& elf_vars,
+			  std::vector<symbol*>& data_table,
+                          char*& jump_table,
+                          std::vector<std::string>& ascii_literals,
+			  std::vector<std::string>& sourceNames)
 {
-  char line[1000];
-  if(!fgets(line, 1000, input))
-    return 1;
-  char *token = strtok(line, delimeters);
-  if(token==NULL)
-    return 1;
-  if(token[0]=='#')
+
+  std::smatch m;
+
+  // First remove any comments 
+  if(std::regex_search(line, m, std::regex(expComment)))
+    {
+      line = line.substr(0, line.find("#"));
+    }
+
+  // Ignore blank lines
+  if(!std::regex_search(line, m, std::regex("\\S")))
     return 1;
   
+  // Register declaration
+  if(std::regex_search(line, m, std::regex(expRegister)))
+    {
+      return HandleRegister(line, pass, labels, regs, elf_vars);
+    }
+  // Label declaration
+  if(std::regex_search(line, m, std::regex(expLabel)))
+    {
+      return HandleLabel(line, pass, labels, regs, elf_vars);
+    }
+  // Data section item
+  if(std::regex_search(line, m, std::regex(expData)))
+    {
+      return HandleData(line, pass, labels, regs, elf_vars, data_table, jump_table);
+    }
+  // Debug line info
+  if(std::regex_search(line, m, std::regex(expSrcInfo)))
+    {
+      return HandleSourceInfo(line, pass, labels, regs, elf_vars);
+    }
+  // Debug source file declaration
+  if(std::regex_search(line, m, std::regex(expFile)))
+    {
+      return HandleFileName(line, pass, sourceNames);
+    }
+  // ELF assignment
+  if(std::regex_search(line, m, std::regex(expAssign)))
+    {
+      return HandleAssignment(line, pass, labels, regs, elf_vars);
+    }
+  // Otherwise, it must be an instruction
+  return HandleInstruction(line, pass, instructions, labels, regs, elf_vars);
+}
 
-  if(token[strlen(token)-1]==':') // label symbol
-    {      
-      token[strlen(token)-1] = '\0'; // remove the ':'
-      if(pass==1)
+
+// Adds a register declaration
+int Assembler::HandleRegister(std::string line, int pass, std::vector<symbol*>& labels, std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars)
+{
+  // register declarations handled on 1st pass
+  if(pass == 2) 
+    return 1;
+  
+  // Since "REG" is contained in expSymbol, must strip it out
+  std::string stripped = line.substr(line.find("REG") + 3);
+
+  std::smatch m;  
+  if(!std::regex_search(stripped, m, std::regex(expSymbol)))
+    {
+      printf("ERROR: invalid register declaration\n");
+      return 0;
+    }
+ 
+  // check for duplicates
+  if(HasSymbol(m.str(), labels) >= 0 || 
+     HasSymbol(m.str(), regs) >= 0 || 
+     HasSymbol(m.str(), elf_vars) >= 0)
+    {
+      printf("ERROR: symbol %s previously declared\n", m.str().c_str());
+      return 0;
+    }
+     
+  symbol* r = MakeSymbol(m.str());
+  r->address = num_regs++;
+  regs.push_back(r);
+
+  return 1;
+}
+
+
+// Adds a label declaration
+int Assembler::HandleLabel(std::string line, int pass, std::vector<symbol*>& labels, 
+			   std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars)
+{
+
+  // label declarations handled on 1st pass
+  if(pass == 2) 
+    return 1;
+
+  // First get the name of the label
+  std::smatch m;  
+  if(!std::regex_search(line, m, std::regex(expSymbol)))
+    {
+      printf("ERROR: invalid label declaration\n");
+      return 0;
+    }
+  
+  // check for duplicates
+  if(HasSymbol(m.str(), labels) >= 0 || 
+     HasSymbol(m.str(), regs) >= 0 || 
+     HasSymbol(m.str(), elf_vars) >= 0)
+    {
+      printf("ERROR: Symbol %s previously declared\n", m.str().c_str());
+      return 0;
+    }
+  
+  // Check for start of debug section
+  // Must have end of text and data segments
+  if(m.str().compare("$text_end") == 0)
+    for(int i=0; i < labels.size(); i++)
+      if(strcmp(labels[i]->names[0], "$data_end"))
 	{
-	  if(hasSymbol(token, labels)>=0 || hasSymbol(token, regs)>=0) // check for duplicates
+	  debug_start = jtable_size;
+	  break;
+	}
+  if(m.str().compare("$data_end") == 0)
+    for(int i=0; i < labels.size(); i++)
+      if(strcmp(labels[i]->names[0], "$text_end"))
+	{
+	  debug_start = jtable_size;
+	  break;
+	}
+
+  symbol* r = MakeSymbol(m.str());
+  // Address defaults to a PC address. Data labels will have their addresses fixed when data is encountered
+  r->address = num_instructions; 
+  labels.push_back(r);
+  
+  return 1;
+}
+
+
+// Adds data to the data segment (.byte, .asciz, etc)
+int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labels, 
+			  std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars,
+			  std::vector<symbol*>& data_table,
+			  char*& jump_table)
+{
+
+  std::smatch m;
+  std::regex_search(line, m, std::regex(expData));
+  
+  // 1st pass: update the label associated with this declaration if necessary
+  if(pass == 1) 
+    {
+      // Find the label associated with the current item.
+      // Set it as a data label
+      if(labels.size() > 0 && !labels[labels.size()-1]->isJumpTable && !labels[labels.size()-1]->isAscii)
+        {
+	  // If the label associated with this line has instructions under it
+	  if(labels[labels.size()-1]->isText)
 	    {
-	      printf("Assem: ERROR, symbol %s previously declared\n", token);
+	      printf("ERROR: Found label with mixed text/data: %s\n", labels[labels.size()-1]->names[0]);
 	      return 0;
 	    }
-	  symbol *l = new symbol();	  
-	  l->names.push_back((char*)malloc(1000));
-	  strcpy(l->names.at(l->names.size()-1), token);
-	  l->address = num_instructions;
-	  labels.push_back(l);
+	  labels[labels.size()-1]->isJumpTable = true;
+	  labels[labels.size()-1]->address = jtable_size;
 	}
-      token = strtok(NULL, delimeters); // get rid of any empty space, so the instruction is next
-    }
-  if(token==NULL)
-    {
-      return 1;
-    }
-  // declaring a register name
-  if(pass == 1 && strcmp(token, "REG")==0)
-    {
-      int vec = 1;
-      token = strtok(NULL, delimeters);
-      if(token[0]=='V' && token[1]=='E' && token[2]=='C')
+
+      symbol* ds = new symbol();
+      ds->address = jtable_size;      
+
+      // Make space for the entry
+      if(m.str().compare(".asciz") == 0)
 	{
-	  vec = atoi(token + 3);
-	  token = strtok(NULL, delimeters);
+	  if(!std::regex_search(line, m, std::regex(expString)))
+	    {
+	      printf("ERROR: Found .asciz data item without a valid string\n");
+	      return 0;
+	    }
+	  // String length, subtract 2 to get rid of quotes, add one back to accomodate terminating NULL char
+	  // Total = length - 1
+	  ds->size = EscapedToAscii(m.str()).length() - 1;
+	  ds->isAscii = true;
 	}
-      if(hasSymbol(token, labels)>=0 || hasSymbol(token, regs)>=0)
-	{
-	  printf("Assem: ERROR, symbol %s previously declared\n", token);
-	  return 0;
-	}
-      symbol *r = new symbol();
-      r->names.push_back((char*)malloc(1000));      
-      strcpy(r->names.at(r->names.size()-1), token);
-      r->address = num_regs;
-      regs.push_back(r);
-      num_regs+=vec;
+      else if(m.str().compare(".byte") == 0)
+	ds->size = 1;
+      else if(m.str().compare(".2byte") == 0)
+	ds->size = 2;
+      else
+	ds->size = 4;
+
+      data_table.push_back(ds);
+
+      jtable_size += ds->size;
+
+      // We will add the entry to the table on the 2nd pass
+      // once all symbol values are known
       return 1;
     }
 
-  // instruction or other
-  if(strcmp(token, "REG")!=0)
+  else // 2nd pass: compute the value of the data
     {
-      if(pass==1)
+      std::string stripped = line.substr(line.find(m.str()) + m.str().length());
+      if(m.str().compare(".asciz") == 0) // strings
 	{
-	  // Jump tables
-	  if(strcmp(token, ".long") == 0)
-	    {
-	      // if this is the first .long, set the address of the jump table
-	      if(!labels[labels.size()-1]->isJumpTable)
-		{
-		  labels[labels.size()-1]->isJumpTable = true;
-		  labels[labels.size()-1]->address = jtable_size;
-		  
-		}
-	      // Make space for the entry
-	      jtable_size += 4; // local store is byte-addressed, assign 1 word for each entry
-
-	      // We will add the entry to the table on the 2nd pass once all label addresses are known
-	    }
-	  // String literals
-	  else if(strcmp(token, ".asciz") == 0)
-	    {
-	      // if this is the first .asciz, set the address of the string
-	      // string addresses will be offset once the full jump table size is known
-	      if(!labels[labels.size()-1]->isAscii)
-		{
-		  labels[labels.size()-1]->isAscii = true;
-		  labels[labels.size()-1]->address = ascii_table_size;
-		}
-	      // Get the next token which will be the string itself
-	      // Don't use normal delimeters since strings can contain them
-	      token = strtok(NULL, "\t\"");
-	      std::string newString(token);
-	      // Convert "\n" to '\n' and so-forth
-	      newString = escapedToAscii(newString);
-	      // Add it to the table (string literals handled completely by first pass)
-	      ascii_literals.push_back(newString);
-	      // Make space for it
-	      ascii_table_size += newString.length() + 1;
-	    }
-	  else
-	    num_instructions++;
+	  std::regex_search(stripped, m, std::regex(expString));
+	  // Remove quotes
+	  std::string noQuotes = EscapedToAscii(m.str().substr(1, m.str().length() - 2));
+	  
+	  // Copy 1 extra char to get the NULL terminator
+	  memcpy(&(jump_table[jtable_ptr]), noQuotes.c_str(), noQuotes.length() + 1);
+	  jtable_ptr += noQuotes.length() + 1;
 	}
-      else // pass 2
+      else // non-string
 	{
-	  // check for ".long" jump table entries
-	  if(strcmp(token, ".long") == 0)
-	    {
-	      token[strlen(token)] = ' '; // reconstitute the line (broken up by strtok)
-	      int args[4];  
-	      if(!getArgs(token, args, labels, regs) || args[1] != 0 || args[2] != 0 || args[3] != 0)
-		{
-		  printf("WARNING: failed to add jump table entry: %s. This likely means the source uses inheritance. If this label is ever a jump target, the program counter will become invalid.\n", token);
-		  // leave the label in, but make it invalid.
-		  // IssueUnit will throw an error if it is ever reached.
-		  args[0] = -1;
-		}
-	      jump_table.push_back(args[0]); // add the label's address to the jump table
-	    }
-	  else if(strcmp(token, ".asciz") == 0)
-	    {
-	      // .asciz directives are all handled by the first pass
-	      return 1;
-	    }
+	  int args[4];
+	  std::smatch ign;
+	  if(std::regex_search(m.str(), ign, std::regex(expIgnored)))
+	    args[0] = 0;
 	  else
 	    {
-	      token[strlen(token)] = ' '; // reconstitute the line (broken up by strtok)
-	      if(!addInstruction(token, instructions, labels, regs))
+	      if(!GetArgs(stripped, args, labels, regs, elf_vars, expArg) ||
+		 args[1] != 0 || // can only have one argument for data entries
+		 args[2] != 0 ||
+		 args[3] != 0)
 		{
-		  printf("failed to add instruction: %s\n", token);
+		  printf("ERROR: Invalid data entry\n");
 		  return 0;
 		}
 	    }
-	}
-    }
-  return 1;
-}
 
-int Assembler::hasSymbol(char *name, std::vector<symbol*>& syms)
-{
-  unsigned int i, j;
-  for(i=0; i<syms.size(); i++)
-    for(j=0; j<syms.at(i)->names.size(); j++)
-      if(strcmp(syms.at(i)->names.at(j), name)==0)
-	return (int)i;
-  return -1;
-}
-
-int Assembler::addInstruction(char *line, std::vector<Instruction*>& instructions, std::vector<symbol*>& labels, std::vector<symbol*>& regs)
-{
-  int args[4];  
-  if(!getArgs(line, args, labels, regs))
-    {
-      return 0;
-    }
-  Instruction::Opcode opcode = getOpcode(line);
-  if(opcode==Instruction::NUM_OPS)
-    {
-      return 0;
-    }
-  instructions.push_back(new Instruction(opcode,
-					 args[0],
-					 args[1],
-					 args[2], 
-					 instructions.size()));
-  return 1;
-}
-
-Instruction::Opcode Assembler::getOpcode(char *line)
-{
-  for (Instruction::Opcode i = Instruction::ADD; i < Instruction::NUM_OPS; i = (Instruction::Opcode)(i + 1)) {
-    if (strcmp(line, Instruction::Opnames[i].c_str()) == 0)
-      return i;
-  }
-  printf("ERROR - unrecognized instruction: %s\n", line);
-  return Instruction::NUM_OPS;
-}
-
-int Assembler::getArgs(char *line, int* args, std::vector<symbol*>& labels, std::vector<symbol*>& regs)
-{  
-  char *token = strtok(line, delimeters);
-  int i;
-  for(i=0; i<4; i++)
-    {
-      token = strtok(NULL, delimeters);
-      if(token=='\0')
-	{
-	  args[i] = 0;
-	  continue;
-	}
-      if(isImmediateInt(token))
-	{
-	  args[i] = atoi(token);
-	}
-      else if(isImmediateFloat(token))
-	{
-	  union {
-	    float f_val;
-	    int i_val;
-	  };
-	  f_val = static_cast<float>( atof(token) );
-	  args[i] = i_val;
-	}
-      else
-	{
-	  int key_address;
-	  if(isKeyword(token, key_address))
+	  if(m.str().compare(".byte") == 0)
 	    {
-	      args[i] = key_address;
-	      continue;
+	      jump_table[jtable_ptr] = (char)(args[0]);
+	      jtable_ptr += 1;
 	    }
-	  int hasLabel = hasSymbol(token, labels);
-	  int hasReg = hasSymbol(token, regs);
-	  if(hasLabel<0 && hasReg<0)
+	  else if(m.str().compare(".2byte") == 0)
 	    {
-	      printf("ERROR: undefined symbol: %s\n", token);
-	      return 0;
+	      assert(sizeof(int16_t) == 2);
+	      *((int16_t*)(jump_table + jtable_ptr)) = (int16_t)(args[0]);
+	      jtable_ptr += 2;
 	    }
-	  
-	  // at most one of these can be true
-	  if(hasLabel>=0)
-	    args[i] = labels.at(hasLabel)->address;
-	  if(hasReg>=0)
+	  else
 	    {
-	      int offset = 0;
-	      int closing_brace = strlen(token)+2;
-	      if(token + (closing_brace-1)!=NULL && token[closing_brace]==']')
-		{
-		  token[closing_brace] = '\0';
-		  offset = atoi(token + (closing_brace-1));
-		  token[closing_brace-1] = ' ';
-		  token[closing_brace] = ' ';
-		}
-	      args[i] = regs.at(hasReg)->address + offset;
+	      assert(sizeof(int32_t) == 4);
+	      *((int32_t*)(jump_table + jtable_ptr)) = (int32_t)(args[0]);
+	      jtable_ptr += 4;
 	    }
 	}
-    }
-  return 1; 
-}
-
-int Assembler::isImmediateInt(char *token)
-{
-  unsigned int i;
-  for(i=0; i<strlen(token); i++)
-    if(((int)(token[i]) < 48 || (int)(token[i]) > 57) && token[i]!='-')
-	return 0;
-  return 1;
-}
-
-int Assembler::isImmediateFloat(char *token)
-{
-  unsigned int i;
-  for(i=0; i<strlen(token); i++)
-    if(((int)(token[i]) < 48 || (int)(token[i]) > 57) && (token[i]!='-' && token[i]!='.'))
-	return 0;
-  return 1;
-}
-
-int Assembler::isKeyword(char *token, int& value)
-{
-  if(strcmp(token, "start_wq")==0)
-    {
-      value = Assembler::start_wq;
-      return 1;
-    }
-  if(strcmp(token, "start_framebuffer")==0)
-    {
-      value = Assembler::start_framebuffer;
-      return 1;
-    }
-  if(strcmp(token, "start_camera")==0)
-    {
-      value = Assembler::start_camera;
-      return 1;
-    }
-  if(strcmp(token, "start_scene")==0)
-    {
-      value = Assembler::start_scene;
-      return 1;
-    }
-  if(strcmp(token, "start_light")==0)
-    {
-      value = Assembler::start_light;
-      return 1;
-    }
-  if(strcmp(token, "start_bg_color")==0)
-    {
-      value = Assembler::start_bg_color;  
-      return 1;
-    }
-  if(strcmp(token, "start_matls")==0)
-    {
-      value = Assembler::start_matls;  
-      return 1;
-    }
-  if(strcmp(token, "start_permutation")==0)
-    {
-      value = Assembler::start_permutation;  
       return 1;
     }
   return 0;
 }
 
-// Converts strings containing literally escaped characters to their actual ascii equivalent,
-// such as: 
-// "a\nb" 
-// becomes 
+
+// Adds an instruction to the simulator's instruction memory
+int Assembler::HandleInstruction(std::string line, int pass, std::vector<Instruction*>& instructions, 
+				 std::vector<symbol*>& labels, std::vector<symbol*>& regs, 
+				 std::vector<symbol*>& elf_vars)
+{
+  // Have to wait until all labels/data are known before generating instructions
+  // First pass just updates the label associated with the instruction if necessary
+  if(pass == 1)
+    {
+      // Find the label associated with the current item.
+      if(labels.size() > 0 && (labels[labels.size()-1]->isJumpTable || labels[labels.size()-1]->isAscii))
+        {
+	      printf("ERROR: Found label with mixed text/data: %s\n", labels[labels.size()-1]->names[0]);
+	      return 0;
+	}
+      // Set it as a text label
+      if(labels.size() > 0)
+	labels[labels.size()-1]->isText = true;
+      num_instructions++;
+      return 1;
+    }
+  
+  // 2nd pass
+  // Get the op code
+  std::smatch m;
+  if(!std::regex_search(line, m, std::regex(expSymbol)))
+    {
+      printf("ERROR: Malformed assembly line\n");
+      return 0;
+    }
+
+  for (Instruction::Opcode i = Instruction::ADD; i < Instruction::NUM_OPS; i = (Instruction::Opcode)(i + 1)) 
+    {
+      if(m.str().compare(Instruction::Opnames[i]) == 0)
+	{
+	  // Get args, first remove the op from the string
+	  std::string stripped = line.substr(line.find(m.str()) + m.str().length());
+	  int args[4];
+	  if(!GetArgs(stripped, args, labels, regs, elf_vars, expArg))
+	    {
+	      printf("ERROR: Invalid arguments to op: %s\n", Instruction::Opnames[i].c_str());
+	      return 0;
+	    }
+	  instructions.push_back(new Instruction(i, 
+						 args[0], 
+						 args[1], 
+						 args[2], 
+						 currentSourceInfo,
+						 instructions.size()));
+	  return 1;
+	}
+    }
+  
+  // HandleLine assumes Instruction is the default. If this fails, the whole line is invalid
+  printf("ERROR: Malformed assembly line\n");
+  return 0;
+}
+
+
+// Creates a symbol with given name. Uses c-style strings for compatability with old assembler
+symbol* Assembler::MakeSymbol(std::string name)
+{
+  symbol *r = new symbol();
+  r->names.push_back((char*)malloc(1000));
+  strcpy(r->names.at(r->names.size()-1), name.c_str());
+  return r;
+}
+
+
+// Parses/computes assembly arguments and places them in args
+// Arguments can be either to an instruction, or an ELF variable
+int Assembler::GetArgs(std::string line,
+                       int* args,
+                       std::vector<symbol*>& labels,
+                       std::vector<symbol*>& regs,
+                       std::vector<symbol*>& elf_vars,
+		       std::string argMatcher)
+{
+
+  for(int i=0; i < 4; i++)
+    args[i] = 0;
+
+  int argNum = 0;
+  int arg;
+  std::regex args_regex(argMatcher);
+  std::sregex_iterator it = std::sregex_iterator(line.begin(), line.end(), args_regex);
+  std::sregex_iterator end = std::sregex_iterator();
+
+  while(it != end)
+    {
+      // Consume operators and collapse result in to one argument
+      if((it->str().compare("+") == 0))
+	{
+	  it++;
+	  argNum--;
+	  if(!HandleArg(it->str(), labels, regs, elf_vars, arg))
+	    return 0;
+	  args[argNum] += arg;
+	}
+      else if(it->str().compare("-") == 0)
+	{
+	  it++;
+	  argNum--;
+	  if(!HandleArg(it->str(), labels, regs, elf_vars, arg))
+	    return 0;
+	  args[argNum] -= arg;
+	}
+      // Otherwise, it's a standalone argument
+      else if(HandleArg(it->str(), labels, regs, elf_vars, arg))
+	{
+	  args[argNum] = arg;
+	}
+      else
+	return 0;
+      it++;
+      argNum++;
+    }
+
+  return 1;
+}
+
+
+// Parses/computes a single argument
+// Arguments can be either to an instruction, or an ELF variable
+int Assembler::HandleArg(std::string arg,
+			 std::vector<symbol*>& labels,
+			 std::vector<symbol*>& regs,
+			 std::vector<symbol*>& elf_vars,
+			 int &retVal)
+{
+  
+  std::smatch m;  
+  // Mips directives
+  if(std::regex_search(arg, m, std::regex(expMipsDirective)))
+    {
+      return HandleMipsDirective(arg, labels, regs, elf_vars, retVal);
+    }
+
+  // Symbols (must contain a non-digit)
+  if(std::regex_search(arg, m, std::regex(expSymbol)))
+    {
+      int symbolIndex;
+      symbol* symb = NULL;
+      if((symbolIndex = HasSymbol(m.str(), regs)) >= 0)
+	symb = regs[symbolIndex];
+      if((symbolIndex = HasSymbol(m.str(), labels)) >= 0)
+	symb = labels[symbolIndex];
+      if((symbolIndex = HasSymbol(m.str(), elf_vars)) >= 0)
+	symb = elf_vars[symbolIndex];
+
+      if(symb == NULL)
+	{
+	  printf("ERROR: use of undeclared symbol: %s\n", m.str().c_str()); 
+	  return 0;
+	}
+
+      retVal = symb->address;
+      return 1;
+    }
+
+  // Integer literals
+  if(std::regex_search(arg, m, std::regex(expIntLiteral)))
+    {
+      retVal = stoul(m.str());
+      return 1;
+    }
+
+  printf("ERROR: invalid argument: %s\n", arg.c_str());
+  return 0;
+}
+  
+
+// Handles arguments encapsulated int mips modifiers %hi(), %lo(), and %gp_rel()
+int Assembler::HandleMipsDirective(std::string arg,
+				   std::vector<symbol*>& labels,
+				   std::vector<symbol*>& regs,
+				   std::vector<symbol*>& elf_vars,
+				   int &retVal)
+{
+  std::smatch dirType;
+  if(!std::regex_search(arg, dirType, std::regex(expHi)))
+    if(!std::regex_search(arg, dirType, std::regex(expLo)))
+      if(!std::regex_search(arg, dirType, std::regex(expGpRel)))
+	{
+	  printf("ERROR: Unknown MIPS directive\n");
+	  return 0;
+	}
+ 
+  // Remove the directive
+  std::string stripped = arg.substr(arg.find(dirType.str()) + dirType.str().length());
+
+  // Get the argument name
+  std::smatch m;
+  if(!std::regex_search(stripped, m, std::regex(expArg)))
+    {
+      printf("ERROR: Invalid argument to mips directive\n");
+      return 0;
+    }    
+
+  // Can't have registers in mips directives
+  if(HasSymbol(m.str(), regs) >= 0)
+    {
+      printf("ERROR: Found register argument in MIPS directive\n");
+      return 0;
+    }
+
+  // Get the argument value
+  int args[4];
+  if(!GetArgs(m.str(), args, labels, regs, elf_vars, expArg) ||
+     args[1] != 0 || // can only have one argument for directives
+     args[2] != 0 ||
+     args[3] != 0)
+    {
+      printf("ERROR: Invalid mips directive entry\n");
+      return 0;
+    }
+  
+  int labelNum = HasSymbol(m.str(), labels);
+  if(labelNum >= 0)
+    {
+      // Compiler should never try to take the upper/lower half of a PC address
+      if (!labels.at(labelNum)->isJumpTable && !labels.at(labelNum)->isAscii)
+	{
+	  printf("Error: Expected data label in MIPS directive: label = %s\n", 
+		 labels.at(labelNum)->names[0]);
+	  
+	  return 0;
+	}
+    }
+  
+  if (!dirType.str().compare(expHi))
+    retVal = args[0] >> 16;
+  else if (!dirType.str().compare(expLo))
+    retVal = args[0] & 0x0000FFFF;
+  else if (!dirType.str().compare(expGpRel))
+    retVal = args[0];
+
+  return 1;
+}
+
+
+// Debug info: (.loc) associates a file:line:column with an instruction if assembly contains debug info
+int Assembler::HandleSourceInfo(std::string line, int pass,
+				std::vector<symbol*>& labels,
+				std::vector<symbol*>& regs,
+				std::vector<symbol*>& elf_vars)
+{
+  // Source info only matters when instructions are generated (on pass 2).
+  if(pass == 1)
+    return 1;
+  
+  // Strip out ".loc"
+  std::smatch m;  
+  std::regex_search(line, m, std::regex(expSrcInfo));
+  std::string stripped = line.substr(line.find(m.str()) + m.str().length());
+
+  // Strip out non-digits (such as "prologue_end")
+  if(std::regex_search(stripped, m, std::regex("[\\S\\D]")))
+    {
+      stripped = stripped.substr(0, stripped.find(m.str()));
+    }
+    
+
+  int args[4];
+  if(!GetArgs(stripped, args, labels, regs, elf_vars, expArg))
+    {
+      printf("ERROR: Invalid source line info (compiled with -g)\n");
+      return 0;
+    }
+    
+  currentSourceInfo.fileNum = args[0];
+  currentSourceInfo.lineNum = args[1];
+  currentSourceInfo.colNum = args[2];
+
+  return 1;
+}
+
+
+// Debug info: (.file) declares a path to one of the source files, used by .loc
+int Assembler::HandleFileName(std::string line, int pass, std::vector<std::string>& sourceNames)
+{
+
+  if(pass == 2) // ignore .file on pass 2
+    return 1;
+
+  // Strip out the ".file"
+  std::smatch m;  
+  std::regex_search(line, m, std::regex(expFile));
+  std::string stripped = line.substr(line.find(m.str()) + m.str().length());
+  
+  // Strip out file number (implied by order of appearance)
+  if(std::regex_search(stripped, m, std::regex(expIntOffset)))
+    stripped = stripped.substr(stripped.find(m.str()) + m.str().length());
+
+  // Get the file name
+  if(!std::regex_search(stripped, m, std::regex(expString)))
+    {
+      printf("ERROR: Invalid file name declaration (compiled with -g)\n");
+      return 0;
+    }
+
+  // Strip out the enclosing quotes
+  sourceNames.push_back(m.str().substr(1, m.str().length() - 2));
+
+  return 1;
+}
+
+
+// Assignment of temporary assembler-only variable
+int Assembler::HandleAssignment(std::string line, int pass,
+				std::vector<symbol*>& labels,
+				std::vector<symbol*>& regs,
+				std::vector<symbol*>& elf_vars)
+{
+
+  // 1st pass: make an entry for it
+  if(pass == 1)
+    {
+      std::smatch m;  
+      std::regex_search(line, m, std::regex(expSymbol));
+
+      // check for duplicates
+      if(HasSymbol(m.str(), labels) >= 0 || 
+	 HasSymbol(m.str(), regs) >= 0 || 
+	 HasSymbol(m.str(), elf_vars) >= 0)
+	{
+	  printf("ERROR: Symbol %s previously declared\n", m.str().c_str());
+	  return 0;
+	}
+
+      // Then add it to the list
+      symbol* s = MakeSymbol(m.str());
+      s->address = -1;
+      elf_vars.push_back(s);
+
+    }
+  
+  // 2nd pass: calculate its value
+  else
+    {
+      // Strip out the symbol name
+      std::smatch m;  
+      std::regex_search(line, m, std::regex(expSymbol));
+      std::string stripped = line.substr(line.find(m.str()) + m.str().length());
+      
+      int varID = HasSymbol(m.str(), elf_vars);
+      if(varID < 0)
+	{
+	  printf("ERROR: 2nd pass couldn't find ELF assignment symbol: %s\n", m.str().c_str());
+	  return 0;
+	}
+
+      // Get the argument value
+      int args[4];
+      // expAssignArg includes '+'/'-' in the argument matcher, GetArgs will handle them
+      if(!GetArgs(stripped, args, labels, regs, elf_vars, expAssignArg) ||
+	 args[1] != 0 || // can only have one argument for assignments (the assigned value)
+	 args[2] != 0 ||
+	 args[3] != 0)
+	{
+	  printf("ERROR: Invalid ELF assignment\n");
+	  return 0;
+	}
+      
+      // Update the symbol's value
+      elf_vars.at(varID)->address = args[0];
+    }
+
+  return 1; 
+  
+}
+
+
+// If simulator invoked with --print-symbols
+// Prints register names, label names, and the data segment
+// For debug purposes
+void Assembler::PrintSymbols(std::vector<symbol*>& regs, std::vector<symbol*>& labels, std::vector<symbol*>& data_table, char* jump_table, int end_data)
+{
+  int i;
+  printf("Registers:\nName\tNumber\n");
+  for(i=0; i<regs.size(); i++)
+    printf("%s:\t%d\n", regs.at(i)->names.at(0), regs.at(i)->address);
+  printf("Instruction labels:\nName\tPC\n");
+  for(i=0; i<labels.size(); i++)
+    {
+      if(labels.at(i)->isText)
+	printf("%s:\t%d\n", labels.at(i)->names.at(0), labels.at(i)->address);
+    }
+  printf("Data segment:\nName\tAddress\tValue\n");
+  
+  int current_address = 0;
+  for(i=0; i < data_table.size(); i++ )
+    {
+      // No need to print debug info
+      if(current_address >= end_data)
+	break;
+      // Find corresponding symbol (if any)
+      for(int j = 0; j < labels.size(); j++)
+	if((!labels[j]->isText) && (labels[j]->address == current_address))
+	  {
+	      printf("%s", labels[j]->names[0]);
+	      break;
+	  }
+      printf("\t");
+
+      printf("%d\t", current_address);
+
+      if(data_table[i]->isAscii)
+	printf("\"%s\"\n", &(jump_table[current_address]));
+      else if(data_table[i]->size == 1)
+	printf("%d\n", *((char*)(jump_table + current_address)));
+      else if(data_table[i]->size == 2)
+	printf("%d\n", *((short*)(jump_table + current_address)));
+      else if(data_table[i]->size == 4)
+	printf("%d\n", *((int*)(jump_table + current_address)));
+
+      current_address += data_table[i]->size;
+    }
+}
+
+//------------------------------------------------------------------------------
+
+
+// Checks whether or not the given set of symbols (labels, registers, elf_vars), has the specified symbol
+// Returns index or -1
+int Assembler::HasSymbol(std::string name, std::vector<symbol*>& syms)
+{
+  unsigned int i, j;
+  for(i=0; i<syms.size(); i++)
+    for(j=0; j<syms.at(i)->names.size(); j++)
+    {
+      //printf("\t%s\n", syms.at(i)->names.at(j));
+      if(strcmp(syms.at(i)->names.at(j), name.c_str())==0)
+	return (int)i;
+    }
+  return -1;
+}
+
+
+//------------------------------------------------------------------------------
+
+// Converts strings containing literally escaped characters to their ascii equivalent,
+// such as:
+// "a\nb"
+// becomes
 // "a
 //  b"
-std::string Assembler::escapedToAscii(std::string input)
+std::string Assembler::EscapedToAscii(std::string input)
 {
   std::string retval;
   std::string::iterator it = input.begin();
   while (it != input.end())
+  {
+    if (*it == '\\')
     {
-      if (*it == '\\')
-	{
-	  it++;
-	  if(it == input.end())
-	    break;
-	  switch (*it) 
-	    {
-	    case '\'': 
-	      retval += '\''; 
-	      break;
-	    case '\"': 
-	      retval += '\"'; 
-	      break;
-	    case '?': 
-	      retval += '?'; 
-	      break;
-	    case '\\': 
-	      retval += '\\'; 
-	      break;
-	    case '0': 
-	      retval += '\0'; 
-	      break;
-	    case 'a': 
-	      retval += '\a'; 
-	      break;
-	    case 'b': 
-	      retval += '\b'; 
-	      break;
-	    case 'f': 
-	      retval += '\f'; 
-	      break;
-	    case 'n': 
-	      retval += '\n'; 
-	      break;
-	    case 'r': 
-	      retval += '\r'; 
-	      break;
-	    case 't': 
-	      retval += '\t'; 
-	      break;
-	    case 'v': 
-	      retval += '\v'; 
-	      break;
-	    default: 
-	      continue;
-	    }
-	}
-      else
-	retval += *it;
-
       it++;
+      if(it == input.end())
+        break;
+      switch (*it)
+      {
+        case '\'':
+          retval += '\'';
+          break;
+        case '\"':
+          retval += '\"';
+          break;
+        case '?':
+          retval += '?';
+          break;
+        case '\\':
+          retval += '\\';
+          break;
+        case '0':
+          retval += '\0';
+          break;
+        case 'a':
+          retval += '\a';
+          break;
+        case 'b':
+          retval += '\b';
+          break;
+        case 'f':
+          retval += '\f';
+          break;
+        case 'n':
+          retval += '\n';
+          break;
+        case 'r':
+          retval += '\r';
+          break;
+        case 't':
+          retval += '\t';
+          break;
+        case 'v':
+          retval += '\v';
+          break;
+        default:
+          continue;
+      }
     }
+    else
+      retval += *it;
+
+    it++;
+  }
   return retval;
 }
-
-

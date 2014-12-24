@@ -5,34 +5,92 @@
 #include <string.h>
 #include <stdlib.h>
 #include "Instruction.h"
+
+// A label or register name
 struct symbol
 {
   std::vector<char*> names;
   int address;
-  bool isJumpTable;
+  int size;
+  bool isText;
+  bool isJumpTable; // (this means its in the data segment)
   bool isAscii;
 
 symbol() : 
-  isJumpTable(false), isAscii(false)
+  address(-1), isText(false), isJumpTable(false), isAscii(false)
   {}
 };
+
 
 class Assembler
 {
  public:
-  static int start_wq, start_framebuffer, start_camera, start_scene, start_light, start_bg_color, start_matls, start_permutation, num_instructions, num_regs;
-  static int LoadAssem(char *filename, std::vector<Instruction*>& instructions, std::vector<symbol*>& regs, int num_system_regs, std::vector<int>& jump_table, std::vector<std::string>& ascii_literals, int _start_wq, int _start_framebuffer, int _start_camera, int _start_scene, int _start_light, int _start_bg_color, int start_permutation, int start_matls, bool print_symbols);
+  static int num_instructions, num_regs;
+  static int LoadAssem(char *filename, std::vector<Instruction*>& instructions, 
+		       std::vector<symbol*>& regs, int num_system_regs, char*& jump_table, 
+		       std::vector<std::string>& ascii_literals, std::vector<std::string>& sourceNames, 
+		       bool print_symbols);
  private:
-  static int handleLine(FILE *input, int pass, std::vector<Instruction*>& instructions, std::vector<symbol*>& labels, std::vector<symbol*>& regs, std::vector<int>& jump_table, std::vector<std::string>& ascii_literals);
-  static int hasSymbol(char *name, std::vector<symbol*>& syms);  
-  static int addInstruction(char *line, std::vector<Instruction*>& instructions, std::vector<symbol*>& labels, std::vector<symbol*>& regs);
-  static int getArgs(char *line, int* args, std::vector<symbol*>& labels, std::vector<symbol*>& regs);
-  static Instruction::Opcode getOpcode(char *line);
-  static int isImmediateInt(char *token);
-  static int isImmediateFloat(char *token);
-  static int isKeyword(char *token, int& value);
-  static int makeAlias(char *word1, char *word2, std::vector<symbol*>& labels, std::vector<symbol*>& regs);
-  static int unlink(char *word, std::vector<symbol*>& regs);
-  static std::string escapedToAscii(std::string input);
+  static int HandleLine(std::string line, int pass, std::vector<Instruction*>& instructions, 
+			std::vector<symbol*>& labels, std::vector<symbol*>& regs, 
+			std::vector<symbol*>& elf_vars, std::vector<symbol*>& data_table, 
+			char*& jump_table, std::vector<std::string>& ascii_literals, 
+			std::vector<std::string>& sourceNames);
+
+  static int HandleRegister(std::string line, int pass, std::vector<symbol*>& labels, 
+			    std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars);
+
+  static int HandleLabel(std::string line, int pass, std::vector<symbol*>& labels, 
+			 std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars);
+
+  static int HandleData(std::string line, int pass, std::vector<symbol*>& labels, 
+			std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars, 
+			std::vector<symbol*>& data_table, char*& jump_table);
+
+  static int HandleInstruction(std::string line, int pass, std::vector<Instruction*>& instructions, 
+			       std::vector<symbol*>& labels, std::vector<symbol*>& regs, 
+			       std::vector<symbol*>& elf_vars);
+
+  static int HandleArg(std::string arg,
+		       std::vector<symbol*>& labels,
+		       std::vector<symbol*>& regs,
+		       std::vector<symbol*>& elf_vars,
+		       int &retVal);
+
+  static int HandleMipsDirective(std::string arg,
+				 std::vector<symbol*>& labels,
+				 std::vector<symbol*>& regs,
+				 std::vector<symbol*>& elf_vars,
+				 int &retVal);
+
+  static int HandleSourceInfo(std::string line, int pass, 
+			      std::vector<symbol*>& labels,
+			      std::vector<symbol*>& regs,
+			      std::vector<symbol*>& elf_vars);
+
+  static int HandleFileName(std::string line, int pass, std::vector<std::string>& sourceNames);
+
+  static int HandleAssignment(std::string line, int pass,
+			      std::vector<symbol*>& labels,
+			      std::vector<symbol*>& regs,
+			      std::vector<symbol*>& elf_vars);
+    
+  static int HasSymbol(std::string, std::vector<symbol*>& syms);  
+
+
+    
+  static symbol* MakeSymbol(std::string name);
+
+  static int GetArgs(std::string line, int* args, std::vector<symbol*>& labels, 
+		     std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars, 
+		     std::string argMatcher);
+
+
+
+  static void PrintSymbols(std::vector<symbol*>& regs, std::vector<symbol*>& labels, 
+			   std::vector<symbol*>& data_table, char* jump_table, int end_data);
+
+  static std::string EscapedToAscii(std::string input);
+
 };
 #endif

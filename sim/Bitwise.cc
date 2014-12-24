@@ -7,7 +7,7 @@
 #include <cassert>
 
 Bitwise::Bitwise(int _latency, int _width) :
-  FunctionalUnit(_latency), width(_width) {
+    FunctionalUnit(_latency), width(_width) {
   issued_this_cycle = 0;
 }
 
@@ -31,7 +31,20 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::bsrli ||
       op == Instruction::bsrl ||
       op == Instruction::bsrai ||
-      op == Instruction::bsra
+      op == Instruction::bsra ||
+      op == Instruction::bsra ||
+      op == Instruction::andi ||
+      op == Instruction::and_m ||
+      op == Instruction::nor ||
+      op == Instruction::or_m ||
+      op == Instruction::ori ||
+      op == Instruction::sll ||
+      op == Instruction::sra_m ||
+      op == Instruction::srl_m ||
+      op == Instruction::srav ||
+      op == Instruction::srlv ||
+      op == Instruction::sllv ||
+      op == Instruction::xor_m
       )
     return true;
   else
@@ -45,107 +58,157 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   reg_value arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
   // Read the registers
-  switch (ins.op) {
-  case Instruction::BITOR:
-  case Instruction::BITXOR:
-  case Instruction::BITAND:
-  case Instruction::ANDN:
-  case Instruction::BITSLEFT:
-  case Instruction::BITSRIGHT:
-  case Instruction::bsll:
-  case Instruction::bsrl:
-  case Instruction::bsra:
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
-	!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
-      // bad stuff happened
-      printf("Bitwise unit: Error in Accepting instruction. Should have passed.\n");
-    }
-    break;
-  case Instruction::sra:
-  case Instruction::srl:
-  case Instruction::sext8:
-  case Instruction::bslli:
-  case Instruction::bsrli:
-  case Instruction::bsrai:
-  case Instruction::ORI:
-  case Instruction::XORI:
-  case Instruction::ANDI:
-  case Instruction::ANDNI:
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
-      // bad stuff happened
-      printf("Bitwise unit: Error in Accepting instruction. Should have passed.\n");
-    }
-    break;
-  default:
-    fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
-    break;
+  switch (ins.op) 
+    {
+      // 2 register operands
+    case Instruction::and_m:
+    case Instruction::nor:
+    case Instruction::or_m:
+    case Instruction::xor_m:
+    case Instruction::BITOR:
+    case Instruction::BITXOR:
+    case Instruction::BITAND:
+    case Instruction::ANDN:
+    case Instruction::BITSLEFT:
+    case Instruction::BITSRIGHT:
+    case Instruction::bsll:
+    case Instruction::bsrl:
+    case Instruction::bsra:
+    case Instruction::srav:
+    case Instruction::srlv:
+    case Instruction::sllv:
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
+          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+        // bad stuff happened
+        printf("Bitwise unit: Error in Accepting instruction. Should have passed.\n");
+      }
+      break;
+      
+      // 1 register operand
+    case Instruction::ori:
+    case Instruction::andi:
+    case Instruction::sra_m:
+    case Instruction::srl_m:
+    case Instruction::sra:
+    case Instruction::sll:
+    case Instruction::srl:
+    case Instruction::sext8:
+    case Instruction::bslli:
+    case Instruction::bsrli:
+    case Instruction::bsrai:
+    case Instruction::ORI:
+    case Instruction::XORI:
+    case Instruction::ANDI:
+    case Instruction::ANDNI:
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
+        // bad stuff happened
+        printf("Bitwise unit: Error in Accepting instruction. Should have passed.\n");
+      }
+      break;
+    default:
+      fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
+      break;
   };
 
   // now get the result value
   reg_value result;
-  switch (ins.op) {
-  case Instruction::BITOR:
-    result.udata = arg1.udata | arg2.udata;
-    break;
-  case Instruction::BITXOR:
-    result.udata = arg1.udata ^ arg2.udata;
-    break;
-  case Instruction::BITAND:
-    result.udata = arg1.udata & arg2.udata;
-    break;
-  case Instruction::ANDN:
-    result.udata = arg1.udata & ~arg2.udata;
-    break;
-  case Instruction::ORI:
-    result.udata = arg1.udata | ins.args[2];
-    break;
-  case Instruction::XORI:
-    result.udata = arg1.udata ^ ins.args[2];
-    break;
-  case Instruction::ANDI:
-    result.udata = arg1.udata & ins.args[2];
-    break;
-  case Instruction::ANDNI:
-    result.udata = arg1.udata & ~ins.args[2];
-    break;
-  case Instruction::sra: 
-    thread->carry_register = arg1.udata & 1;
-    result.idata = arg1.idata >> 1; // signed data for arithmetic
-    break;
-  case Instruction::srl: 
-    thread->carry_register = arg1.udata & 1;
-    result.udata = arg1.udata >> 1; // unsigned data for logical
-    break;
-  case Instruction::sext8:
-    result.udata = ((arg1.udata << 24) >> 24);
-    break;
-  case Instruction::BITSLEFT:
-    result.udata = arg1.udata << arg2.udata;
-    break;
-  case Instruction::BITSRIGHT:
-    result.udata = arg1.udata >> arg2.udata;
-    break;
-  case Instruction::bslli:
-    result.udata = arg1.udata << ins.args[2];
-    break;
-  case Instruction::bsll:
-    result.udata = arg1.udata << arg2.udata;
-    break;
-  case Instruction::bsrai: // arithmetic
-    result.idata = arg1.idata >> ins.args[2];
-    break;
-  case Instruction::bsra: // arithmetic
-    result.idata = arg1.idata >> arg2.idata;
-    break;
-  case Instruction::bsrli: // logical
-    result.udata = arg1.udata >> ins.args[2];
-    break;
-  case Instruction::bsrl: // logical
-    result.udata = arg1.udata >> arg2.udata;
-    break;
-  default:
-    fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
-    break;
+  switch (ins.op) 
+    {
+    case Instruction::nor:
+      result.udata = ~(arg1.udata | arg1.udata);
+      break;
+      
+    case Instruction::or_m:
+    case Instruction::BITOR:
+      result.udata = arg1.udata | arg2.udata;
+      break;
+      
+    case Instruction::sra_m:
+      result.udata = arg1.idata >> ins.args[2];
+      break;
+
+    case Instruction::srl_m:
+      result.udata = arg1.udata >> ins.args[2];
+      break;
+
+    case Instruction::BITXOR:
+    case Instruction::xor_m:
+      result.udata = arg1.udata ^ arg2.udata;
+      break;
+      
+    case Instruction::and_m:
+    case Instruction::BITAND:
+      result.udata = arg1.udata & arg2.udata;
+      break;
+    case Instruction::ANDN:
+      result.udata = arg1.udata & ~arg2.udata;
+      break;
+      
+      // mips ori immediate is 16-bit 0-extended
+    case Instruction::ori:
+      result.udata = arg1.udata | (0x0000FFFF & ins.args[2]);
+      break;
+    case Instruction::ORI:
+      result.udata = arg1.udata | ins.args[2];
+      break;
+      
+    case Instruction::XORI:
+      result.udata = arg1.udata ^ ins.args[2];
+      break;
+
+      // mips andi immediate is 16-bit 0-extended
+    case Instruction::andi:
+      result.udata = arg1.udata & (0x0000FFFF & ins.args[2]);
+      break;
+    case Instruction::ANDI:
+      result.udata = arg1.udata & ins.args[2];
+      break;
+    case Instruction::ANDNI:
+      result.udata = arg1.udata & ~ins.args[2];
+      break;
+    case Instruction::sra:
+      thread->carry_register = arg1.udata & 1;
+      result.idata = arg1.idata >> 1; // signed data for arithmetic
+      break;
+    case Instruction::srl: 
+      thread->carry_register = arg1.udata & 1;
+      result.udata = arg1.udata >> 1; // unsigned data for logical
+      break;
+    case Instruction::sext8:
+      result.udata = ((arg1.udata << 24) >> 24);
+      break;
+    case Instruction::BITSLEFT:
+      result.udata = arg1.udata << arg2.udata;
+      break;
+    case Instruction::BITSRIGHT:
+      result.udata = arg1.udata >> arg2.udata;
+      break;
+      
+    case Instruction::sll:
+    case Instruction::bslli:
+      result.udata = arg1.udata << ins.args[2];
+      break;
+    case Instruction::bsll:
+    case Instruction::sllv:
+      result.udata = arg1.udata << arg2.udata;
+      break;
+    case Instruction::bsrai: // arithmetic
+      result.idata = arg1.idata >> ins.args[2];
+      break;
+    case Instruction::bsra: // arithmetic
+    case Instruction::srav:
+      result.idata = arg1.idata >> arg2.idata;
+      break;
+    case Instruction::bsrli: // logical
+      result.udata = arg1.udata >> ins.args[2];
+      break;
+    case Instruction::bsrl: // logical
+    case Instruction::srlv:
+      result.udata = arg1.udata >> arg2.udata;
+      break;
+    default:
+      fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
+      break;
   };
 
   // Write the value

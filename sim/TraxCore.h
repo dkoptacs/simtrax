@@ -29,7 +29,7 @@ public:
 
   // sets up issue unit and thread states
   void initialize(const char* icache_params_file, int issue_verbosity, int num_icaches, 
-		  int icache_banks, int simd_width, std::vector<int> jump_table, 
+		  int icache_banks, int simd_width, char* jump_table, int jtable_size,
 		  std::vector<std::string> ascii_literals);
   void EnableRegisterDump(int proc_num);
   void Reset();

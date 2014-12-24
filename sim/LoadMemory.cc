@@ -160,7 +160,7 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
       mem[21].ivalue = bvh->num_nodes;
       int scene_data = start_scene;
 
-      //printf("Scene starts at %d (0x%08x)\n", scene_data, scene_data);
+      printf("Scene starts at %d (0x%08x)\n", scene_data, scene_data);
 
       if(grid_dimensions==-1)
 	bvh->LoadIntoMemory(scene_data, INT_MAX, mem);

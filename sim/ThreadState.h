@@ -46,6 +46,11 @@ public:
   unsigned int thread_id;
   size_t core_id;
   int carry_register;
+
+  // MIPS Stuff
+  int compare_register;
+  int HI_register;
+  int LO_register;
   ThreadState(SimpleRegisterFile* regs,
               std::vector<Instruction*>& instructions,
 	      unsigned int thread_id, unsigned int core_id);

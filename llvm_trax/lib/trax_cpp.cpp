@@ -60,18 +60,27 @@ int loadi( int base, int offset ) {
   assert( base+offset < MEMORY_SIZE );
   return trax_memory_pointer[base+offset].ivalue;
 }
+
+
+
 float loadf( int base, int offset ) {
   assert( base+offset < MEMORY_SIZE );
   return trax_memory_pointer[base+offset].fvalue;
 }
+
+
 void storei( int value, int base, int offset ) {
   assert( base+offset < MEMORY_SIZE );
   trax_memory_pointer[base+offset].ivalue = value;
 }
+
+
 void storef( float value, int base, int offset ) {
   assert( base+offset < MEMORY_SIZE );
   trax_memory_pointer[base+offset].fvalue = value;
 }
+
+
 int trax_getid( int value ) {
   if (value == 1) {
 #ifndef MULTIPLE_THREADS_ONE_CORE
@@ -114,6 +123,7 @@ int atomicinc( int location) {
   }
   return trax_global_registers[location].uvalue++;
 }
+
 int global_reg_read( int location ) {
   return trax_global_registers[location].uvalue;
 }
@@ -124,14 +134,18 @@ float max( float left, float right ) {
   return left > right ? left : right;
 }
 
+
 float invsqrt( float value ) {
   return 1.f / sqrt(value);
 }
 
 
+
 float trax_rand() {
   return drand48();
 }
+
+
 void barrier( int reg_num ) {
   if ( threads && mainCondInit ) {
     // Be counted
@@ -174,6 +188,7 @@ void trax_printi(int value) { printf("Value is %d.\n", value);}
 void trax_printf( float value ) { printf("Value is %f.\n", value);}
 // printf for trax_cpp is defined in stdio
 
+
 int start_framebuffer;
 
 
@@ -189,8 +204,7 @@ void trax_setup( runrtParams_t &opts ) {
   }
 
   // ***IMPORTANT: If you set load_mem_from_file to true, be sure that the 
-  // memory image has the right frame buffer size or you will get weird
-  // images as your results
+  // memory image has the right frame buffer size or you will get weird results
   if ( opts.read_from_mem_file ) {
     // load memory from dump
 	  printf( "Attempting to load memory file '%s'.\n", opts.mem_file_name.c_str() );
@@ -205,18 +219,6 @@ void trax_setup( runrtParams_t &opts ) {
 
     filein >> num_blocks;
     trax_memory_pointer = new FourByte[num_blocks];
-
-    // Original memory file organization, for Backwards compatibility
-    //filein >> start_wq ;
-    //filein >> start_framebuffer ;
-    //filein >> start_scene ;
-    //filein >> start_matls ;
-    //filein >> start_camera ;
-    //filein >> start_bg_color ;
-    //filein >> start_light ;
-    //filein >> end_memory ;
-    //filein >> light_pos[0] >> light_pos[1] >> light_pos[2] ;
-    //filein >> start_permutation ;
 
     for (int i = 0; i < num_blocks; ++i) {
       filein >> trax_memory_pointer[i].ivalue;
@@ -236,11 +238,12 @@ void trax_setup( runrtParams_t &opts ) {
 
       BVH* bvh;
       int grid_dimensions   = -1;
-      Camera* camera        = ReadViewfile::LoadFile( opts.view_file_name.c_str(), FAR );
+      Camera* camera = opts.no_scene ? NULL : ReadViewfile::LoadFile( opts.view_file_name.c_str(), FAR );
       int start_wq, start_scene, start_camera, start_bg_color, start_light, end_memory;
       int start_matls, start_permutation;
       float *light_pos      = new float[3];
-      ReadLightfile::LoadFile( opts.light_file_name.c_str(), light_pos );
+      if(!opts.no_scene)
+	ReadLightfile::LoadFile( opts.light_file_name.c_str(), light_pos );
       int tile_width        = 16;
       int tile_height       = 16;
       int ray_depth         = opts.ray_depth;

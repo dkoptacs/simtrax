@@ -72,22 +72,6 @@ bool WriteQueue::update(ThreadState* thread, int which_reg, long long int which_
 	  requests[(tail+i)%N].udata == val)
 	{
 
-	  // Find the first available cycle on or after ready cycle
-	  // Always allow unknown_latency to enqueue
-	  if(new_cycle != which_cycle && new_cycle != UNKNOWN_LATENCY)
-	    {
-	      int stall_cycles = -1;
-		while(CycleUsed(new_cycle + ++stall_cycles))
-		  {}
-	      
-	      if(stall_cycles > MAX_STALL_CYCLES)
-		{
-		  //TODO: Take the error out and actually limit the queue length (cause a stall instead of exiting)
-		  printf("error: %s stalled for > %d cycles (%d)\n", Instruction::Opnames[new_op].c_str(), MAX_STALL_CYCLES, stall_cycles);
-		  exit(1);
-		}
-	      new_cycle += stall_cycles;
-	    }
 	  requests[(tail+i)%N].ready_cycle = new_cycle;
 	  requests[(tail+i)%N].udata = new_val;
 	  requests[(tail+i)%N].op = new_op;
@@ -100,13 +84,8 @@ bool WriteQueue::update(ThreadState* thread, int which_reg, long long int which_
     }
   
   // If we can't find the write request to be updated, that means it was squashed by a more relevant one
-  //printf("Warning: did not find write to be updated (squashed instruction)\n");
   return false;
   
-  //printf("error: did not find write to be updated\n");
-  //printf("looking for reg %d, cycle %lld, val %u, setting new cycle to %lld\n", which_reg, which_cycle, val, new_cycle);
-  //print();
-  //exit(1);
 }
 
 bool WriteQueue::CycleUsed(long long int cycle) {
@@ -160,7 +139,6 @@ bool WriteQueue::ReadyBy(int which_reg, long long int which_cycle,
   for(int i = 1; i <= num; ++i) {
     if (requests[(head-i+N)%N].which_reg == which_reg) {
       // this magic number represents the number of pipe stages ahead you can read the value
-      //printf("\tin ReadyBy, which_cycle = %lld, ready_cycle = %lld\n", which_cycle, requests[(head-i+N)%N].ready_cycle);
       if (requests[(head-i+N)%N].ready_cycle <= which_cycle) {
 	val.idata = requests[(head-i+N)%N].idata;
 	ready_cycle = requests[(head-i+N)%N].ready_cycle;
@@ -192,6 +170,9 @@ ThreadState::ThreadState(SimpleRegisterFile* regs,
 			 unsigned int _thread_id, unsigned int coreid) :
   thread_id(_thread_id), core_id(coreid), registers(regs), instructions(_instructions) {
   carry_register = 0;
+  compare_register = 0;
+  HI_register = 0;
+  LO_register = 0;
   halted = false;
   sleep_cycles = 0;
   last_issue = 0;
@@ -263,24 +244,6 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
       return true;
     }
 
-  // Find the next available cycle on or after the ready cycle
-  // Unknown latencies can always be enqueue because they will be udpated 
-  // with a real latency later.
-  if(which_cycle != UNKNOWN_LATENCY)
-    while(write_requests.CycleUsed(which_cycle + ++stall_cycles))
-      {}
-
-
-
-  if(stall_cycles > MAX_STALL_CYCLES)
-    {
-      //TODO: Take the error out and actually limit the queue length (cause a stall instead of exiting)
-      printf("error: %s stalled for > %d cycles (%d)\n", Instruction::Opnames[op].c_str(), MAX_STALL_CYCLES, stall_cycles);
-      exit(1);
-    }
-  
-  if(which_cycle != UNKNOWN_LATENCY)
-    which_cycle += stall_cycles;
 
   //if (which_cycle == UNKNOWN_LATENCY || !write_requests.CycleUsed(which_cycle)) 
   //{

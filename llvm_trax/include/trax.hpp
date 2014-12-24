@@ -32,14 +32,14 @@
 #define TRAX_NUM_SAMPLES           17
 #define TRAX_EPSILON               18
 #define TRAX_START_HAMMERSLEY      19
-// 20 is unused (deprecated)
+// unused (deprecated)             20
 #define TRAX_NUM_NODES             21
 #define TRAX_START_COSTS           22
-// 23 is unused (deprecated)
+// unused (deprecated)             23
 #define TRAX_START_ALT_BVH         24
-// 25 is unused (deprecated)
+// unused (deprecated)             25
 #define TRAX_START_SUBTREE_SIZES   26
-// 27 is unused (deprecated)
+// unused (deprecated)             27
 #define TRAX_START_TRIANGLES       28
 #define TRAX_NUM_TRIANGLES         29
 #define TRAX_START_TEX_COORDS      30
@@ -56,44 +56,45 @@
 inline float sqrt(const float &x){
   return 1.0f / invsqrt(x);
 }
+
 #endif
 inline int GetXRes() {
-  return loadi( 0, 1 );
+  return loadi( 0, TRAX_XRES );
 }
 inline float GetInvXRes() {
-  return loadf( 0, 2 );
+  return loadf( 0, TRAX_INV_XRES );
 }
 inline int GetYRes() {
-  return loadi( 0, 4 );
+  return loadi( 0, TRAX_YRES );
 }
 inline float GetInvYRes() {
-  return loadf( 0, 5 );
+  return loadf( 0, TRAX_INV_YRES );
 }
 inline int GetFrameBuffer() {
-  return loadi( 0, 7 );
+  return loadi( 0, TRAX_START_FB );
 }
 
 inline int GetBVH() {
-  return loadi( 0, 8 );
+  return loadi( 0, TRAX_START_SCENE );
 }
 inline int GetMaterials() {
-  return loadi( 0, 9 );
+  return loadi( 0, TRAX_START_MATLS );
 }
 inline int GetCamera() {
-  return loadi( 0, 10 );
+  return loadi( 0, TRAX_START_CAMERA );
 }
 inline int GetBackground() {
-  return loadi( 0, 11 );
+  return loadi( 0, TRAX_START_BG );
 }
 inline int GetLight() {
-  return loadi( 0, 12 );
+  return loadi( 0, TRAX_START_LIGHT );
 }
 
 inline int GetStartTriangles() {
-  return loadi( 0, 28 );
+  return loadi( 0, TRAX_START_TRIANGLES );
 }
 inline int GetNumTriangles() {
-  return loadi( 0, 29 );
+  return loadi( 0, TRAX_NUM_TRIANGLES );
 }
 
 inline int GetThreadID() {
@@ -105,8 +106,6 @@ inline int GetCoreID() {
 inline int GetL2ID() {
   return trax_getid(3);
 }
-
-// More functions to appear (BVH, Tris, etc.)
 
 // Macros to undo a work around from the old compiler
 // Shouldn't need to use these except on legacy code

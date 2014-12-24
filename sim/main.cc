@@ -89,7 +89,7 @@ unsigned int num_L2s;
 // global verbosity flag
 int trax_verbosity;
 
-void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, FILE* profile_output);
+void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, std::vector<std::string> srcNames, FILE* profile_output);
 
 // Utility for tracking simulation time
 double clockdiff(clock_t clock1, clock_t clock2) {
@@ -595,8 +595,10 @@ int main(int argc, char* argv[]) {
   std::vector<symbol*> regs;
 
   // Assembler needs somewhere to store the jump table and string literals, to be loaded in to local stores after assembly
-  std::vector<int> jump_table;
+  char* jump_table;
   std::vector<std::string> ascii_literals;
+  // Also needs somewhere to put file names for debug info if compiled with -g
+  std::vector<std::string> source_names;
 
   // Instruction Memory
   std::vector<Instruction*> instructions;
@@ -812,14 +814,15 @@ int main(int argc, char* argv[]) {
   // Done preparing units, fill in instructions
   // declaration moved above
 
+  int jtable_size = 0;
   if(assem_file != NULL) {
-    int numRegs = Assembler::LoadAssem(assem_file, instructions, regs, num_regs, jump_table, ascii_literals, start_wq, start_framebuffer, start_camera, start_scene, start_light, start_bg_color, start_matls, start_permutation, print_symbols);
-    if(numRegs <= 0) {
+    jtable_size = Assembler::LoadAssem(assem_file, instructions, regs, num_regs, jump_table, ascii_literals, source_names, print_symbols);
+    if(jtable_size < 0) {
       printf("assembler returned an error, exiting\n");
       exit(-1);
     }
     if(trax_verbosity)
-      printf("assembly uses %d registers\n", numRegs);
+      printf("data segment: %d bytes\n", jtable_size);
   }
   else {
     printf("Error: no assembly program specified\n");
@@ -844,7 +847,7 @@ int main(int argc, char* argv[]) {
 
   // initialize the cores
   for (size_t i = 0; i < cores.size(); ++i) {
-    cores[i]->initialize(icache_params_file, issue_verbosity, num_icaches, icache_banks, simd_width, jump_table, ascii_literals);
+    cores[i]->initialize(icache_params_file, issue_verbosity, num_icaches, icache_banks, simd_width, jump_table, jtable_size, ascii_literals);
   }
 
   // Check that there are units for each instruction in the program
@@ -854,9 +857,21 @@ int main(int argc, char* argv[]) {
        instructions[i]->op == Instruction::BARRIER ||
        instructions[i]->op == Instruction::MOV ||
        instructions[i]->op == Instruction::LOADIMM ||
+       instructions[i]->op == Instruction::lui ||
        instructions[i]->op == Instruction::MOVINDRD ||
        instructions[i]->op == Instruction::MOVINDWR ||
        instructions[i]->op == Instruction::NOP ||
+       instructions[i]->op == Instruction::nop ||
+       instructions[i]->op == Instruction::mfc1 ||
+       instructions[i]->op == Instruction::mfhi ||
+       instructions[i]->op == Instruction::mflo ||
+       instructions[i]->op == Instruction::movf ||
+       instructions[i]->op == Instruction::movn ||
+       instructions[i]->op == Instruction::movt ||
+       instructions[i]->op == Instruction::mov_s ||
+       instructions[i]->op == Instruction::movn_s ||
+       instructions[i]->op == Instruction::movz_s ||
+       instructions[i]->op == Instruction::mtc1 ||
        instructions[i]->op == Instruction::PROF ||
        instructions[i]->op == Instruction::SETBOXPIPE ||
        instructions[i]->op == Instruction::SETTRIPIPE ||
@@ -995,7 +1010,7 @@ int main(int argc, char* argv[]) {
 	  }
 	else
 	  {
-	    PrintProfile(assem_file, instructions, profile_output);
+	    PrintProfile(assem_file, instructions, source_names, profile_output);
 	    fclose(profile_output);
 	  }
       }
@@ -1423,7 +1438,7 @@ void StrReplace(char* str, char old, char replace)
     }
 }
 
-void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, FILE* profile_output)
+void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, std::vector<std::string> srcNames, FILE* profile_output)
 {
   FILE* input = fopen(assem_file, "r");
   if(!input)
@@ -1432,7 +1447,7 @@ void PrintProfile(const char* assem_file, std::vector<Instruction*>& instruction
     }
   else
     {
-      fprintf(profile_output, "Assembly:\tNum Executions\tData Stall Cycles\n");
+      fprintf(profile_output, "Assembly:\tNum Executions\tData Stall Cycles\tSource File\tSource Line\n");
       int line_num = 0;
       bool isInstruction = false;
       int instruction_num = 0;
@@ -1446,6 +1461,7 @@ void PrintProfile(const char* assem_file, std::vector<Instruction*>& instruction
 	    {
 	      continue;
 	    }
+
 	  line_num++;
 	  memcpy(temp, line, strlen(line) + 1);
 	  char *token = strtok(temp, delimeters);
@@ -1461,7 +1477,8 @@ void PrintProfile(const char* assem_file, std::vector<Instruction*>& instruction
 	      token = strtok(NULL, delimeters); // get rid of any empty space, so the instruction is next
 	    }
 	  
-	  if(token != NULL && strcmp(token, Instruction::Opnames[instructions[instruction_num]->op].c_str()) == 0)
+	  //printf("instruction_num = %d, size = %d\n", instruction_num, instructions.size());
+	  if(instruction_num < instructions.size() && token != NULL && strcmp(token, Instruction::Opnames[instructions[instruction_num]->op].c_str()) == 0)
 	    {
 	      isInstruction = true;
 	    }
@@ -1475,7 +1492,17 @@ void PrintProfile(const char* assem_file, std::vector<Instruction*>& instruction
 	  
 	  if(isInstruction)
 	    {
-	      fprintf(profile_output, "\t%lld\t%lld", instructions[instruction_num]->executions, instructions[instruction_num]->data_stalls);
+	      if(instructions[instruction_num]->srcInfo.fileNum < 0)
+		{
+		  fprintf(profile_output, "\t%lld\t%lld", 
+			  instructions[instruction_num]->executions, instructions[instruction_num]->data_stalls);
+		}
+	      else
+		{
+		  fprintf(profile_output, "\t%lld\t%lld\t%s\t%d", 
+			  instructions[instruction_num]->executions, instructions[instruction_num]->data_stalls,
+			  srcNames.at(instructions[instruction_num]->srcInfo.fileNum).c_str(), instructions[instruction_num]->srcInfo.lineNum);
+		}
 	      instruction_num++;
 	    }
 	  fprintf(profile_output, "\n");

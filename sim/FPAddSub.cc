@@ -11,7 +11,7 @@
 #include <cstdlib>
 
 FPAddSub::FPAddSub(int _latency, int _width) :
-  FunctionalUnit(_latency), width(_width) {
+    FunctionalUnit(_latency), width(_width) {
   issued_this_cycle = 0;
 }
 
@@ -22,7 +22,9 @@ bool FPAddSub::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::FPRSUB ||
       op == Instruction::RAND ||
       op == Instruction::COS ||
-      op == Instruction::SIN)
+      op == Instruction::SIN ||
+      op == Instruction::add_s ||
+      op == Instruction::sub_s)
     return true;
   else
     return false;
@@ -44,27 +46,30 @@ bool FPAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadStat
   // Compute results
   reg_value result;
   switch (ins.op) {
-  case Instruction::FPADD:
-    result.fdata = arg1.fdata + arg2.fdata;
-    break;
-  case Instruction::FPSUB:
-    result.fdata = arg1.fdata - arg2.fdata;
-    break;
-  case Instruction::FPRSUB:
-    result.fdata = arg2.fdata - arg1.fdata;
-    break;
-  case Instruction::RAND:
-    result.fdata = drand48();
-    break;
-  case Instruction::COS:
-    result.fdata = cos(arg1.fdata);
-    break;
-  case Instruction::SIN:
-    result.fdata = sin(arg1.fdata);
-    break;
-  default:
-    fprintf(stderr, "ERROR FPADDSUB FOUND SOME OTHER OP\n");
-    break;
+    case Instruction::add_s:
+    case Instruction::FPADD:
+      result.fdata = arg1.fdata + arg2.fdata;
+      break;
+
+    case Instruction::sub_s:
+    case Instruction::FPSUB:
+      result.fdata = arg1.fdata - arg2.fdata;
+      break;
+    case Instruction::FPRSUB:
+      result.fdata = arg2.fdata - arg1.fdata;
+      break;
+    case Instruction::RAND:
+      result.fdata = drand48();
+      break;
+    case Instruction::COS:
+      result.fdata = cos(arg1.fdata);
+      break;
+    case Instruction::SIN:
+      result.fdata = sin(arg1.fdata);
+      break;
+    default:
+      fprintf(stderr, "ERROR FPADDSUB FOUND SOME OTHER OP\n");
+      break;
   };
 
   // Write the value
@@ -91,5 +96,5 @@ void FPAddSub::print() {
 
 double FPAddSub::Utilization() {
   return static_cast<double>(issued_this_cycle)/
-    static_cast<double>(width);
+      static_cast<double>(width);
 }

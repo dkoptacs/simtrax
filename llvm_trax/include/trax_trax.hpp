@@ -6,63 +6,69 @@
 extern "C"
 {
   // Global Memory
-  extern int loadi( int base, int offset = 0 ) asm("llvm.trax.loadi");
-  extern float loadf( int base, int offset = 0 ) asm("llvm.trax.loadf");
-  extern void storei( int value, int base, int offset = 0 ) asm("llvm.trax.storei");
-  extern void storef( float value, int base, int offset = 0 ) asm("llvm.trax.storef");
-  extern int trax_getid( int value ) asm("llvm.trax.getid");
+  extern int loadi( int base, int offset = 0 ) asm("llvm.mips.loadi");
+  extern float loadf( int base, int offset = 0 ) asm("llvm.mips.loadf");
+  extern void storei( int value, int base, int offset = 0 ) asm("llvm.mips.storei");
+  extern void storef( float value, int base, int offset = 0 ) asm("llvm.mips.storef");
 
   // Arithmetic
-  extern int atomicinc( int location ) asm("llvm.trax.atominc");
-  extern int global_reg_read( int location ) asm("llvm.trax.globalrrd");
-  extern float min( float left, float right ) asm("llvm.trax.min");
-  extern float max( float left, float right ) asm("llvm.trax.max");
-  extern float invsqrt( float value ) asm("llvm.trax.invsqrt");
+  extern int atomicinc( int location ) asm("llvm.mips.atominc");
+  extern float min( float left, float right ) asm("llvm.mips.min");
+  extern float max( float left, float right ) asm("llvm.mips.max");
+  extern float invsqrt( float value ) asm("llvm.mips.invsqrt");
+
+  // Misc
+  extern int global_reg_read( int location ) asm("llvm.mips.globalrrd");
+  extern int trax_getid( int value ) asm("llvm.mips.getid");
+  
   // Random
-  extern float trax_rand( ) asm("llvm.trax.rand");
-  // Barrier
-  extern int trax_inc_reset( int reg_num ) asm("llvm.trax.increset");
-  extern void trax_barrier( int reg_num ) asm("llvm.trax.barrier");
-  extern void trax_semacq( int reg_num ) asm("llvm.trax.semacq");
-  extern void trax_semrel( int reg_num ) asm("llvm.trax.semrel");
+  extern float trax_rand( ) asm("llvm.mips.rand");
+
+  // Synchronization
+  extern int trax_inc_reset( int reg_num ) asm("llvm.mips.increset");
+  extern void trax_barrier( int reg_num ) asm("llvm.mips.barrier");
+  extern void trax_semacq( int reg_num ) asm("llvm.mips.semacq");
+  extern void trax_semrel( int reg_num ) asm("llvm.mips.semrel");
+
   // Noise
-  extern void trax_write_srf( float reg1, float reg2, float reg3 ) asm("llvm.trax.writesrf");
-  extern void trax_write_sri( int reg1, int reg2, int reg3 ) asm("llvm.trax.writesri");
-  extern float trax_callnoise( ) asm("llvm.trax.callnoise");
+  extern void trax_write_srf( float reg1, float reg2, float reg3 ) asm("llvm.mips.writesrf");
+  extern void trax_write_sri( int reg1, int reg2, int reg3 ) asm("llvm.mips.writesri");
+  extern float trax_callnoise( ) asm("llvm.mips.callnoise");
   
   // Streams
   // Stream writes
-  extern void start_stream_write( int stream_id ) asm("llvm.trax.startsw");
-  extern void stream_writei( int value ) asm("llvm.trax.streamwi");
-  extern void stream_writef( float value ) asm("llvm.trax.streamwf");
-  extern void end_stream_write() asm("llvm.trax.endsw");
+  extern void start_stream_write( int stream_id ) asm("llvm.mips.startsw");
+  extern void stream_writei( int value ) asm("llvm.mips.streamwi");
+  extern void stream_writef( float value ) asm("llvm.mips.streamwf");
+  extern void end_stream_write() asm("llvm.mips.endsw");
   // Stream reads
-  extern int start_stream_read() asm("llvm.trax.startsr");
-  extern int stream_readi() asm("llvm.trax.streamri");
-  extern float stream_readf() asm("llvm.trax.streamrf");
-  extern void end_stream_read() asm("llvm.trax.endsr");
+  extern int start_stream_read() asm("llvm.mips.startsr");
+  extern int stream_readi() asm("llvm.mips.streamri");
+  extern float stream_readf() asm("llvm.mips.streamrf");
+  extern void end_stream_read() asm("llvm.mips.endsr");
   // Stream scheduling
-  extern int stream_size( int stream_id ) asm("llvm.trax.streamsize");
-  extern int stream_schedule( int schedule_id ) asm("llvm.trax.streamschedule");
-  extern void set_stream_read_id( int stream_id ) asm("llvm.trax.setstreamid");
+  extern int stream_size( int stream_id ) asm("llvm.mips.streamsize");
+  extern int stream_schedule( int schedule_id ) asm("llvm.mips.streamschedule");
+  extern void set_stream_read_id( int stream_id ) asm("llvm.mips.setstreamid");
 
   // Debug
-  extern void profile( int prof_id ) asm("llvm.trax.profile");
-  extern int loadl1( int base, int offset = 0 )asm("llvm.trax.loadl1");
-  //extern int loadl2( int base, int offset = 0 )asm("llvm.trax.loadl2");
-  extern void trax_printi(int value) asm("llvm.trax.printi");      // print integer
-  extern void trax_printf( float value ) asm("llvm.trax.printf");  // print float (unfortunately this uses the "printf" name)
-  extern void trax_printformat(int string_addr) asm("llvm.trax.printformat"); // 'equivalent' to stdio::printf
-
+  extern void profile( int prof_id ) asm("llvm.mips.profile");
+  extern int loadl1( int base, int offset = 0 )asm("llvm.mips.loadl1");
+  //extern int loadl2( int base, int offset = 0 )asm("llvm.mips.loadl2");
+  extern void trax_printi(int value) asm("llvm.mips.printi");      // print integer
+  extern void trax_printf( float value ) asm("llvm.mips.printf");  // print float (unfortunately this uses the "printf" name)
+  extern void trax_printformat(const char** string_addr) asm("llvm.mips.printformat"); // 'equivalent' to stdio::printf
+  
 }
 
 // simplified printf for trax
 extern int printf ( const char * format, ... );
 
 
-inline void barrier( int reg_num = 5 ) {
-  trax_inc_reset( reg_num );
+inline int barrier( int reg_num = 5 ) {
+  int reg_val = trax_inc_reset( reg_num );
   trax_barrier( reg_num );
+  return reg_val;
 }
 
 inline float trax_noise( float x, float y, float z ) {

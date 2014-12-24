@@ -26,8 +26,16 @@
 #define BEGIN_COUNT_CYCLES 0
 #define END_COUNT_CYCLES 1
 
+// Debug info about which source the instruction came from
+struct SourceInfo
+{
+  int fileNum;
+  int lineNum;
+  int colNum;
+};
+
 class Instruction {
-public:
+ public:
   int pc_address;
   long long int id;
   long long int depends[2];
@@ -62,7 +70,7 @@ public:
     FPCONV,      // dst, source (int->float)
 
     // Stream queue ops
-    STARTSW,     // source 
+    STARTSW,     // source
     STREAMW,     // source
     ENDSW,
     STARTSR,     // dst
@@ -196,20 +204,89 @@ public:
     // End MBlaze additions
 
     SLEEP,       // src (num sleep cycles)
-    SYNC,        // 
+    SYNC,        //
     NOP,         //
     HALT,        //
     PRINT,       // which_reg
     PRINTF,      // src (containing addr to format string)
     PROF,        // kernel_id, unused, unused
     // end profiling instructions
-    NUM_OPS      //
+
+    // MIPS Instructions
+    addi,
+    addiu,
+    addu,
+    add_s,
+    andi,
+    and_m,
+    bal,
+    bc1f,
+    bc1t,
+    beq,
+    bgez,
+    bgtz,
+    blez,
+    bltz,
+    bne,
+    cvt_s_w,
+    c_eq_s,
+    c_ole_s,
+    c_olt_s,
+    c_ule_s,
+    c_ult_s,
+    div,
+    div_s,
+    lui,
+    lw,
+    lwc1,
+    mfc1,
+    mfhi,
+    mflo,
+    movf,
+    movn,
+    movt,
+    mov_s,
+    movn_s,
+    movz_s,
+    mtc1,
+    mul,
+    mul_s,
+    j,
+    jal,
+    jr,
+    nop,
+    nor,
+    ori,
+    or_m,
+    sll,
+    sllv,
+    slt,
+    slti,
+    sltu,
+    sltiu,
+    sra_m,
+    srl_m,
+    srav,
+    srlv,
+    subu,
+    sub_s,
+    sw,
+    swc1,
+    trunc_w_s,
+    xor_m,
+    // End MIPS
+
+    NUM_OPS
   };
 
   static std::string Opnames[NUM_OPS];
 
   Instruction(Opcode code,
               int arg0, int arg1, int arg2,
+              int pc_addr = 0);
+  Instruction(Opcode code,
+              int arg0, int arg1, int arg2,
+	      SourceInfo _srcInfo,
               int pc_addr = 0);
   Instruction(const Instruction& ins);
 
@@ -220,16 +297,17 @@ public:
   Opcode op;
   int args[3];
 
-  // For "profiling"
+  // For profiling/debugging
   // Keep track of performance data
   long long int executions;
   long long int data_stalls;
+  SourceInfo srcInfo;
   
-  
+
   // Since we're assuming an in-order processor, we never have to wait
   // for the destination register (since anyone that depended on it
   // before would have blocked the processor)
-  
+
 };
 
 // A helper class that contains an instruction and
@@ -240,7 +318,7 @@ class ThreadState;
 class WriteRequest;
 
 class InstructionRecord {
-public:
+ public:
   long long int cycle_arrived;
   InstructionRecord(Instruction& ins,
                     long long int cycle,
@@ -251,7 +329,7 @@ public:
   InstructionRecord(const InstructionRecord& record);
 
   Instruction instruction;
-  
+
   IssueUnit* issuer;
   ThreadState* thread;
   bool cache_hit;
@@ -267,7 +345,7 @@ public:
 };
 
 class InstructionQueue {
-public:
+ public:
   InstructionQueue();
   int TopMatches(long long int cycle, int num_check) const;
   int LastMatches(long long int cycle, int num_check) const;
@@ -282,7 +360,7 @@ public:
 
 // Same as above, but sorted on push based on cycle_arrived
 class InstructionPriorityQueue : public InstructionQueue {
-public:
+ public:
   InstructionPriorityQueue();
   void Push(InstructionRecord* record);
 
