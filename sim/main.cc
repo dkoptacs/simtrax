@@ -1,7 +1,6 @@
 #include "Bitwise.h"
 #include "BranchUnit.h"
 #include "BVH.h"
-#include "Animation.h"
 #include "Camera.h"
 #include "ConversionUnit.h"
 #include "CustomLoadMemory.h"
@@ -411,7 +410,7 @@ int main(int argc, char* argv[]) {
   bool pack_stream_boundaries           = 0;
   disable_usimm                         = 0; // globally defined for use above
   BVH* bvh;
-  Animation *animation                  = NULL;
+  //Animation *animation                  = NULL;
   ThreadProcessor::SchedulingScheme scheduling_scheme = ThreadProcessor::SIMPLE;
   int total_simulation_threads          = 1;
   char *usimm_config_file               = NULL;
@@ -730,8 +729,8 @@ int main(int argc, char* argv[]) {
       // just set the model file equal to the keyframe file and load it the same way
       // first frame will be loaded exactly the same way, memory loader doesn't need to change.
       // subsequent frames will be updated by the Animation, directly in simulator's memory
-      if(keyframe_file != NULL)
-        model_file = keyframe_file;
+      //if(keyframe_file != NULL)
+      //model_file = keyframe_file;
 
       if(!no_scene && model_file == NULL) {
         printf("ERROR: No model data supplied.\n");
@@ -762,24 +761,6 @@ int main(int argc, char* argv[]) {
     }
   } // end else for memory dump file
 
-  // Once the model has been loaded and the BVH has been built, set up the animation if there is one
-  if(keyframe_file != NULL) {
-    if(duplicate_bvh) {
-      if(trax_verbosity) {
-        printf("primary bvh starts at %d, secondary at %d\n", bvh->start_nodes, bvh->start_secondary_nodes);
-        printf("primary triangles start at %d, secondary at %d\n", bvh->start_tris, bvh->start_secondary_tris);
-      }
-      animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-                                &bvh->tri_orders, bvh->inorder_tris.size(), 
-                                bvh->start_tris, bvh->start_nodes,
-                                bvh->start_secondary_tris, bvh->start_secondary_nodes);
-    }
-    else {
-      animation = new Animation(keyframe_file, num_frames, memory->getData(), bvh->num_nodes,
-                                &bvh->tri_orders, bvh->inorder_tris.size(), 
-                                bvh->start_tris, bvh->start_nodes);
-    }
-  }
 
   // Set up incremental output if option is specified
   if(incremental_output) {
@@ -953,444 +934,397 @@ int main(int argc, char* argv[]) {
 
 
   // Now run the simulation
-  while(true) {
 
-    prev_frame_time = clock();
-    if(serial_execution)
-      SerialExecution(args, num_cores * num_L2s);
-
-    else {
-      for(int i = 0; i < total_simulation_threads; ++i) {
-        printf("Creating thread %d...\n", (int)i);
-        pthread_create( &threadids[i], &attr, CoreThread, (void *)&args[i] );
-      }
-
-      // Wait for machine to halt
-      for(int i = 0; i < total_simulation_threads; ++i) {
-        pthread_join( threadids[i], NULL );
-      }
+  //while(true) { // put a loop here for multiple frames
+  
+  prev_frame_time = clock();
+  if(serial_execution)
+    SerialExecution(args, num_cores * num_L2s);
+  
+  else {
+    for(int i = 0; i < total_simulation_threads; ++i) {
+      printf("Creating thread %d...\n", (int)i);
+      pthread_create( &threadids[i], &attr, CoreThread, (void *)&args[i] );
     }
-    curr_frame_time = clock();
-    printf("\t <== Frame time: %12.1f s ==>\n", clockdiff(prev_frame_time, curr_frame_time));
-
-
-    // After reaching this point, the machine has halted.
-    // Take a look and print relevant stats
-
-
-    // If the scene was animated, make sure the BVH is still valid after all the geometry moved
-    if(animation != NULL) {
-      if(trax_verbosity)
-        printf("verifying BVH...\n");
-
-      if(duplicate_bvh)
-        bvh->verifyTree(animation->getRotateAddress(), memory->getData(), 0);
-      else
-        bvh->verifyTree(animation->start_nodes, memory->getData(), 0);
-
-      if(trax_verbosity)
-        printf("BVH verification complente\n");
+    
+    // Wait for machine to halt
+    for(int i = 0; i < total_simulation_threads; ++i) {
+      pthread_join( threadids[i], NULL );
     }
-
-    // Write the BVH for this frame to a dot file if desired
-    if(animation != NULL && dot_depth > 0) {
-      char dotfile[80];
-      sprintf(dotfile, "rotatedBVH%d.dot", animation->current_frame);
-      printf("BVH 1 SAH cost: %f\n", bvh->computeSAHCost(animation->getRotateAddress(), memory->getData()));
-      bvh->writeDOT(dotfile, animation->getRotateAddress(), memory->getData(), 0, dot_depth);
-    }
-
-
-    if(run_profile)
-      {
-        FILE* profile_output = fopen("profile.out", "w");      
-	if(!profile_output)
-	  {
-	    printf("Error: could not open \"profile.out\". Profiling data not written.\n");
-	  }
-	else
-	  {
-	    PrintProfile(assem_file, instructions, source_names, profile_output);
-	    fclose(profile_output);
-	  }
-      }
-
-
-    if(print_cpi) {
-
-      // Print the resting state of each core? (they should all be halted)
-      if(trax_verbosity) {
-        for (size_t i = 0; i < num_cores * num_L2s; ++i) {
-          printf("<=== Core %d ===>\n", (int)i);
-          cores[i]->issuer->print();
-        }
-      }
-
-      // Count the system-wide stats, sum/average of all cores
-      for (size_t i = 0; i < num_cores * num_L2s; ++i) {
-        if(trax_verbosity)
-          printf("\n ## Core %d ##\n", (int)i);
-
-        NormalizeUtilization(cores[i]->cycle_num, cores[i]->utilizations);
-
-        if(trax_verbosity)
-          PrintUtilization(cores[i]->module_names, cores[i]->utilizations);
-          
-        //if(trax_verbosity)
-          //cores[i]->L1->PrintStats();
-          
-        // After core 0 has been printed, use it to hold the sums of all other cores' stats
-        if(i != 0)
-          cores[0]->AddStats(cores[i]);
-      }
-
-      // Print system-wide stats
-      if((num_cores * num_L2s) > 1 || !trax_verbosity) {
-        printf("System-wide instruction stats (sum/average of all cores):\n");
-        cores[0]->issuer->print(num_cores * num_L2s);
-        PrintUtilization(cores[0]->module_names, cores[0]->utilizations, num_cores * num_L2s);
-      }
-
-      // get highest cycle count
-      long long int cycle_count = 0;
-      for(size_t i = 0; i < num_cores * num_L2s; ++i) {
-        if(cores[i]->cycle_num > cycle_count) 
-          cycle_count = cores[i]->cycle_num;
-      }
-
-      printf("System-wide L1 stats (sum of all TMs):\n");
-      cores[0]->L1->PrintStats();
-      printf("\n");
-
-
-      // Print L2 stats and gather agregate data
-      long long int L2_accesses = 0;
-      long long int L2_misses = 0;
-      double L2_area = 0;
-      double L2_energy = 0;
-      for(size_t i = 0; i < num_L2s; ++i) {
-        printf(" -= L2 #%d =-\n", (int)i);
-        L2s[i]->PrintStats();
-        L2_accesses += L2s[i]->accesses;
-        L2_misses += L2s[i]->misses;
-        printf("\n");
-        L2_area += L2s[i]->area;
-        L2_energy += L2s[i]->energy * (L2s[i]->accesses - L2s[i]->stores);
-      }
-      L2_energy /= 1000000000.f;
-
-      // for linesize just use the first L2
-      L2Cache* L2 = L2s[0];
-
-      // print bandwidth numbers
-      int word_size = 4;
-      int L1_line_size = (int)pow( 2.f, static_cast<float>(cores[0]->L1->line_size) );
-      int L2_line_size = (int)pow( 2.f, static_cast<float>(L2->line_size) );
-      float Hz = 1000000000;
-      printf("Bandwidth numbers for %dMHz clock (GB/s):\n", static_cast<int>(Hz/1000000));
-      printf("   L1 to register bandwidth: \t %f\n", static_cast<float>(cores[0]->L1->accesses) * word_size / cycle_count);
-      printf("   L2 to L1 bandwidth: \t\t %f\n", static_cast<float>(cores[0]->L1->bus_transfers) * word_size * L1_line_size / cycle_count);
-
-      double DRAM_BW;
-      if(disable_usimm) {
-        DRAM_BW = static_cast<float>(L2_misses) * word_size * L2_line_size / cycle_count;
-      }
-      else {
-        long long int total_lines_transfered = 0;
-        for(int c=0; c < NUM_CHANNELS; c++)
-          total_lines_transfered += stats_reads_completed[c];
-        DRAM_BW = static_cast<float>(total_lines_transfered) * L2_line_size * word_size / cycle_count;
-      }
-      printf("   memory to L2 bandwidth: \t %f\n", DRAM_BW);
-
-
-      if(trax_verbosity) {
-        printf("Final Global Register values: imgSize=%d\n", image_width*image_height);
-        globals.print();
-      }
-
-      //printf("L1 energy(J) = %f, area(mm2) = %f\n", (cores[0]->L1->energy * cores[0]->L1->accesses) / 1000000000.f, cores[0]->L1->area * num_cores * num_L2s);
-
-      LocalStore* ls_unit = NULL;
-      for(size_t i = 0; i < cores[0]->issuer->units.size(); i++) {
-        ls_unit = dynamic_cast<LocalStore*>(cores[0]->issuer->units[i]);
-        if(ls_unit) 
-          break;
-      }
-
-      double L1_area = cores[0]->L1->area * num_cores * num_L2s;
-      double icache_area = cores[0]->issuer->GetArea() * num_cores * num_L2s;
-      double compute_area = core_size * num_cores * num_L2s;
-      double register_area = cores[0]->thread_procs[0]->thread_states[0]->registers->GetArea() * cores[0]->num_thread_procs * num_cores * num_L2s;
-      double localstore_area = 0;
-      if(!ls_unit)
-        printf("Warning: could not find localstore unit to compute area/energy\n");
-      else
-        localstore_area = ls_unit->GetArea() * num_cores * num_L2s;
-
-      if(ignore_dcache_area)
+  }
+  curr_frame_time = clock();
+  printf("\t <== Frame time: %12.1f s ==>\n", clockdiff(prev_frame_time, curr_frame_time));
+  
+  
+  // After reaching this point, the machine has halted.
+  // Take a look and print relevant stats
+  
+  if(run_profile)
+    {
+      FILE* profile_output = fopen("profile.out", "w");      
+      if(!profile_output)
 	{
-	  L1_area = 0;
-	  L2_area = 0;
+	  printf("Error: could not open \"profile.out\". Profiling data not written.\n");
 	}
+      else
+	{
+	  PrintProfile(assem_file, instructions, source_names, profile_output);
+	  fclose(profile_output);
+	}
+    }
+  
+  
+  if(print_cpi) {
+    
+    // Print the resting state of each core? (they should all be halted)
+    if(trax_verbosity) {
+      for (size_t i = 0; i < num_cores * num_L2s; ++i) {
+	printf("<=== Core %d ===>\n", (int)i);
+	cores[i]->issuer->print();
+      }
+    }
+    
+    // Count the system-wide stats, sum/average of all cores
+    for (size_t i = 0; i < num_cores * num_L2s; ++i) {
+      if(trax_verbosity)
+	printf("\n ## Core %d ##\n", (int)i);
       
+      NormalizeUtilization(cores[i]->cycle_num, cores[i]->utilizations);
 
-      double total_area = L1_area + L2_area + compute_area + icache_area + localstore_area + register_area;
-
-      printf("\n");
-
-      printf("Chip area (mm2):\n");
-      printf("   Functional units: \t %f\n", compute_area);
-      printf("   L1 data caches: \t %f\n", L1_area);
-      printf("   L2 data caches: \t %f\n", L2_area);
-      printf("   Instruction caches: \t %f\n", icache_area);
-      printf("   Localstore units: \t %f\n", localstore_area);
-      printf("   Register files: \t %f\n", register_area);
-      printf("   ------------------------------\n");
-      printf("   Total: \t\t %f\n", total_area);
-
-      printf("\n");
-
-      // core 0 contains the aggregate accesses
-      double L1_energy = (cores[0]->L1->energy * (cores[0]->L1->accesses - cores[0]->L1->stores)) / 1000000000.f;
-
-      double compute_energy = 0;
-      double icache_energy = 0;
-      double localstore_energy = 0;
-      double register_energy = 0;
-      double DRAM_power = 0;
-      double DRAM_energy = 0;
-
-      // Calculate compute energy and icache energy
-      for(int i = 0; i < Instruction::NUM_OPS; i++) {
-
-        // icache energy, 1 activation per instruction
-        icache_energy += cores[0]->issuer->GetEnergy() * cores[0]->issuer->instruction_bins[i];
-
-        // localstore energy, 1 activation per localstore op
-        if(ls_unit->SupportsOp((Instruction::Opcode)(i)))
-          localstore_energy += ls_unit->GetEnergy() * cores[0]->issuer->instruction_bins[i];
-
-        // RF access energy, each instruction assumed to cause 3 activates (2 reads, 1 write)
-        if(i != Instruction::NOP)
-          register_energy += cores[0]->thread_procs[0]->thread_states[0]->registers->GetEnergy() * cores[0]->issuer->instruction_bins[i] * 3;
-
-        // compute energy, 1 FU activation per op
-        for(size_t j = 0; j < cores[0]->issuer->units.size(); j++) {
-          if(cores[0]->issuer->units[j]->SupportsOp((Instruction::Opcode)(i))) 
-             compute_energy += cores[0]->issuer->instruction_bins[i] * cores[0]->issuer->units[j]->GetEnergy();
-        }
-      }
-
-      // convert nanojoules to joules
-      compute_energy /= 1000000000.f;
-      icache_energy /= 1000000000.f;
-      localstore_energy /= 1000000000.f;
-      register_energy /= 1000000000.f;
-
-      DRAM_power = getUsimmPower() / 1000;
-
-      double FPS = Hz/static_cast<double>(cycle_count);
-
-      DRAM_energy = DRAM_power / FPS;
-      double total_energy = compute_energy + L1_energy + L2_energy + icache_energy + localstore_energy + register_energy + DRAM_energy;
-
-
-      printf("Energy consumption (Joules):\n");
-      printf("   Functional units: \t %f\n", compute_energy);
-      printf("   L1 data caches: \t %f\n", L1_energy);
-      printf("   L2 data caches: \t %f\n", L2_energy);
-      printf("   Instruction caches: \t %f\n", icache_energy);
-      printf("   Localstore units: \t %f\n", localstore_energy);
-      printf("   Register files: \t %f\n", register_energy);
-      printf("   DRAM: \t\t %f\n", DRAM_energy);
-      printf("   ------------------------------\n");
-      printf("   Total: \t\t %f\n", total_energy);
-      printf("   Power draw (watts): \t %f\n\n", (total_energy / (1.f / FPS)));
-
-      printf("FPS Statistics:\n");
-      printf("   Total clock cycles: \t\t %lld\n", cycle_count);
-      printf("   FPS assuming %dMHz clock: \t %.4lf\n", (int)Hz / 1000000, FPS);
-
-      printf("\n\n");
-
-      if(!disable_usimm)
-        printUsimmStats();
-    }  // end print_cpu
-
-    fflush(stdout);
-
-    if(print_png) {
-
-      // Write out PNG using lodepng
-      const int imgNameLen = strlen(output_prefix);
-      bool outputPrefixHasExtension = false;
-      for(int i=imgNameLen-1; i>=0; --i) {
-        if(output_prefix[i]=='\\' || output_prefix[i]=='/')
-          break;
-        if(output_prefix[i]=='.') {
-          outputPrefixHasExtension = true;
-          break;
-        }
-      }
-      const bool outputPrefixHasPNG = (imgNameLen > 3 && output_prefix[imgNameLen-3]=='p' && 
-                                       output_prefix[imgNameLen-2]=='n' && output_prefix[imgNameLen-1]=='g');
-
-      if((strcasecmp(image_type, "png") == 0 & !outputPrefixHasExtension) || outputPrefixHasPNG) {
-        // figure out actual name to use for saving
-        char outputName[512];
-        if(animation != NULL) {
-          if(outputPrefixHasPNG) {
-            char *outName1 = new char[imgNameLen];
-            memcpy(outName1, output_prefix, (imgNameLen-4)*sizeof(char));
-            sprintf(outputName, "%s.%d.%s", outName1, animation->current_frame, image_type);
-            delete[] outName1;
-          }
-          else {
-            sprintf(outputName, "%s.%d.%s", output_prefix, animation->current_frame, image_type);
-          }
-        }
-        else {
-          if(outputPrefixHasPNG) {
-            sprintf(outputName, "%s", output_prefix);
-          }
-          else {
-            sprintf(outputName, "%s.png", output_prefix);
-          }
-        }
-
-        // save using lodePNG
-        unsigned char *imgRGBA = new unsigned char[4*image_width*image_height];
-        unsigned char *curImgPixel = imgRGBA;
-        for(int j = (int)(image_height - 1); j >= 0; j--) {
-          for(unsigned int i = 0; i < image_width; i++, curImgPixel+=4) {
-            const int index = start_framebuffer + 3 * (j * image_width + i);
-
-            float rgb[3];
-            rgb[0] = memory->getData()[index + 0].fvalue;
-            rgb[1] = memory->getData()[index + 1].fvalue;
-            rgb[2] = memory->getData()[index + 2].fvalue;
-
-            curImgPixel[0] = (char)(int)(rgb[0] * 255);
-            curImgPixel[1] = (char)(int)(rgb[1] * 255);
-            curImgPixel[2] = (char)(int)(rgb[2] * 255);
-            curImgPixel[3] = 255;
-          }
-        }
-
-        unsigned char* png;
-        size_t pngsize;
-
-        unsigned error = lodepng_encode32(&png, &pngsize, imgRGBA, image_width, image_height);
-        if(!error)
-          lodepng_save_file(png, pngsize, outputName);
-        else
-          printf("error %u: %s\n", error, lodepng_error_text(error));
-
-        free(png);
-        delete[] imgRGBA;
-      }
-
-      // Other formats, use convert
-      else {
-        char command_buf[512];
-        if(animation != NULL)
-          sprintf(command_buf, "convert PPM:- %s.%d.%s", output_prefix, animation->current_frame, image_type);
-        else
-          sprintf(command_buf, "convert PPM:- %s.%s", output_prefix, image_type);
-#ifndef WIN32
-        FILE* output = popen(command_buf, "w");
-#else
-        FILE* output = popen(command_buf, "wb");
-#endif
-        if(!output)
-          perror("Failed to open out.png");
-
-#if OBJECTID_MAP
-        srand( (unsigned)time( NULL ) );
-        const int num_ids = 100000;
-        float id_colors[num_ids][3];
-        for (int i = 0; i < num_ids; i++) {
-          id_colors[i][0] = drand48();
-          id_colors[i][1] = drand48();
-          id_colors[i][2] = drand48();
-        }
-#endif
-
-        fprintf(output, "P6\n%d %d\n%d\n", image_width, image_height, 255);
-        for(int j = image_height - 1; j >= 0; j--) {
-          for(int i = 0; i < image_width; i++) {
-            const int index = start_framebuffer + 3 * (j * image_width + i);
-
-            float rgb[3];
-#if OBJECTID_MAP
-            int object_id = memory->getData()[index].ivalue;
-
-            switch (object_id) {
-              case -1:
-                rgb[0] = .2;
-                rgb[1] = .1;
-                rgb[2] = .5;
-                break;
-              case 0:
-                rgb[0] = 1.;
-                rgb[1] = .4;
-                rgb[2] = 1.;
-                break;
-              case 1:
-                rgb[0] = .2;
-                rgb[1] = .3;
-                rgb[2] = 1.;
-                break;
-              case 2:
-                rgb[0] = 1.;
-                rgb[1] = .3;
-                rgb[2] = .2;
-                break;
-              default:
-                rgb[0] = id_colors[object_id % num_ids][0];
-                rgb[1] = id_colors[object_id % num_ids][1];
-                rgb[2] = id_colors[object_id % num_ids][2];
-                break;
-            };
-#else
-            // for gradient/colors we have the result
-            rgb[0] = memory->getData()[index + 0].fvalue;
-            rgb[1] = memory->getData()[index + 1].fvalue;
-            rgb[2] = memory->getData()[index + 2].fvalue;
-#endif
-            fprintf(output, "%c%c%c",
-              (char)(int)(rgb[0] * 255),
-              (char)(int)(rgb[1] * 255),
-              (char)(int)(rgb[2] * 255));
-          }
-        }
-        pclose(output);
-      }
+      if(trax_verbosity)
+	PrintUtilization(cores[i]->module_names, cores[i]->utilizations);
+      
+      //if(trax_verbosity)
+      //cores[i]->L1->PrintStats();
+      
+      // After core 0 has been printed, use it to hold the sums of all other cores' stats
+      if(i != 0)
+	cores[0]->AddStats(cores[i]);
     }
-    else
-      exit(0);
-
-    // reset the cores for a fresh frame (enforce "cache coherency" modified scene data)
-    // only one section (one L2) of the chip does any scene modification, so this is fine
-    // We keep the writes local and coherent within that L2 for the duration of a frame
-    globals.Reset();
+    
+    // Print system-wide stats
+    if((num_cores * num_L2s) > 1 || !trax_verbosity) {
+      printf("System-wide instruction stats (sum/average of all cores):\n");
+      cores[0]->issuer->print(num_cores * num_L2s);
+      PrintUtilization(cores[0]->module_names, cores[0]->utilizations, num_cores * num_L2s);
+    }
+    
+    // get highest cycle count
+    long long int cycle_count = 0;
     for(size_t i = 0; i < num_cores * num_L2s; ++i) {
-      cores[i]->Reset();
+      if(cores[i]->cycle_num > cycle_count) 
+	cycle_count = cores[i]->cycle_num;
     }
-
-    for(size_t i = 0; i < num_L2s; i++)
-      L2s[i]->Reset();
-    if(animation == NULL)
-      break;
-    if(!animation->loadNextFrame())
-      break;
-    frames_since_rebuild++;
-    if(bvh!=NULL && frames_since_rebuild == rebuild_frequency) {
-      bvh->rebuild(memory->getData());
-      frames_since_rebuild = 0;
+    
+    printf("System-wide L1 stats (sum of all TMs):\n");
+    cores[0]->L1->PrintStats();
+    printf("\n");
+    
+    
+    // Print L2 stats and gather agregate data
+    long long int L2_accesses = 0;
+    long long int L2_misses = 0;
+    double L2_area = 0;
+    double L2_energy = 0;
+    for(size_t i = 0; i < num_L2s; ++i) {
+      printf(" -= L2 #%d =-\n", (int)i);
+      L2s[i]->PrintStats();
+      L2_accesses += L2s[i]->accesses;
+      L2_misses += L2s[i]->misses;
+      printf("\n");
+      L2_area += L2s[i]->area;
+      L2_energy += L2s[i]->energy * (L2s[i]->accesses - L2s[i]->stores);
     }
-  } // end outer while(true)
+    L2_energy /= 1000000000.f;
+    
+    // for linesize just use the first L2
+    L2Cache* L2 = L2s[0];
+    
+    // print bandwidth numbers
+    int word_size = 4;
+    int L1_line_size = (int)pow( 2.f, static_cast<float>(cores[0]->L1->line_size) );
+    int L2_line_size = (int)pow( 2.f, static_cast<float>(L2->line_size) );
+    float Hz = 1000000000;
+    printf("Bandwidth numbers for %dMHz clock (GB/s):\n", static_cast<int>(Hz/1000000));
+    printf("   L1 to register bandwidth: \t %f\n", static_cast<float>(cores[0]->L1->accesses) * word_size / cycle_count);
+    printf("   L2 to L1 bandwidth: \t\t %f\n", static_cast<float>(cores[0]->L1->bus_transfers) * word_size * L1_line_size / cycle_count);
+    
+    double DRAM_BW;
+    if(disable_usimm) {
+      DRAM_BW = static_cast<float>(L2_misses) * word_size * L2_line_size / cycle_count;
+    }
+    else {
+      long long int total_lines_transfered = 0;
+      for(int c=0; c < NUM_CHANNELS; c++)
+	total_lines_transfered += stats_reads_completed[c];
+      DRAM_BW = static_cast<float>(total_lines_transfered) * L2_line_size * word_size / cycle_count;
+    }
+    printf("   memory to L2 bandwidth: \t %f\n", DRAM_BW);
+    
+    
+    if(trax_verbosity) {
+      printf("Final Global Register values: imgSize=%d\n", image_width*image_height);
+      globals.print();
+    }
+    
+    //printf("L1 energy(J) = %f, area(mm2) = %f\n", (cores[0]->L1->energy * cores[0]->L1->accesses) / 1000000000.f, cores[0]->L1->area * num_cores * num_L2s);
+    
+    LocalStore* ls_unit = NULL;
+    for(size_t i = 0; i < cores[0]->issuer->units.size(); i++) {
+      ls_unit = dynamic_cast<LocalStore*>(cores[0]->issuer->units[i]);
+      if(ls_unit) 
+	break;
+    }
+    
+    double L1_area = cores[0]->L1->area * num_cores * num_L2s;
+    double icache_area = cores[0]->issuer->GetArea() * num_cores * num_L2s;
+    double compute_area = core_size * num_cores * num_L2s;
+    double register_area = cores[0]->thread_procs[0]->thread_states[0]->registers->GetArea() * cores[0]->num_thread_procs * num_cores * num_L2s;
+    double localstore_area = 0;
+    if(!ls_unit)
+      printf("Warning: could not find localstore unit to compute area/energy\n");
+    else
+      localstore_area = ls_unit->GetArea() * num_cores * num_L2s;
+    
+    if(ignore_dcache_area)
+      {
+	L1_area = 0;
+	L2_area = 0;
+      }
+    
+    
+    double total_area = L1_area + L2_area + compute_area + icache_area + localstore_area + register_area;
+    
+    printf("\n");
+    
+    printf("Chip area (mm2):\n");
+    printf("   Functional units: \t %f\n", compute_area);
+    printf("   L1 data caches: \t %f\n", L1_area);
+    printf("   L2 data caches: \t %f\n", L2_area);
+    printf("   Instruction caches: \t %f\n", icache_area);
+    printf("   Localstore units: \t %f\n", localstore_area);
+    printf("   Register files: \t %f\n", register_area);
+    printf("   ------------------------------\n");
+    printf("   Total: \t\t %f\n", total_area);
+    
+    printf("\n");
+    
+    // core 0 contains the aggregate accesses
+    double L1_energy = (cores[0]->L1->energy * (cores[0]->L1->accesses - cores[0]->L1->stores)) / 1000000000.f;
+    
+    double compute_energy = 0;
+    double icache_energy = 0;
+    double localstore_energy = 0;
+    double register_energy = 0;
+    double DRAM_power = 0;
+    double DRAM_energy = 0;
+    
+    // Calculate compute energy and icache energy
+    for(int i = 0; i < Instruction::NUM_OPS; i++) {
+      
+      // icache energy, 1 activation per instruction
+      icache_energy += cores[0]->issuer->GetEnergy() * cores[0]->issuer->instruction_bins[i];
+      
+      // localstore energy, 1 activation per localstore op
+      if(ls_unit->SupportsOp((Instruction::Opcode)(i)))
+	localstore_energy += ls_unit->GetEnergy() * cores[0]->issuer->instruction_bins[i];
+      
+      // RF access energy, each instruction assumed to cause 3 activates (2 reads, 1 write)
+      if(i != Instruction::NOP)
+	register_energy += cores[0]->thread_procs[0]->thread_states[0]->registers->GetEnergy() * cores[0]->issuer->instruction_bins[i] * 3;
+      
+      // compute energy, 1 FU activation per op
+      for(size_t j = 0; j < cores[0]->issuer->units.size(); j++) {
+	if(cores[0]->issuer->units[j]->SupportsOp((Instruction::Opcode)(i))) 
+	  compute_energy += cores[0]->issuer->instruction_bins[i] * cores[0]->issuer->units[j]->GetEnergy();
+      }
+    }
+    
+    // convert nanojoules to joules
+    compute_energy /= 1000000000.f;
+    icache_energy /= 1000000000.f;
+    localstore_energy /= 1000000000.f;
+    register_energy /= 1000000000.f;
+    
+    DRAM_power = getUsimmPower() / 1000;
+    
+    double FPS = Hz/static_cast<double>(cycle_count);
+    
+    DRAM_energy = DRAM_power / FPS;
+    double total_energy = compute_energy + L1_energy + L2_energy + icache_energy + localstore_energy + register_energy + DRAM_energy;
+    
+    
+    printf("Energy consumption (Joules):\n");
+    printf("   Functional units: \t %f\n", compute_energy);
+    printf("   L1 data caches: \t %f\n", L1_energy);
+    printf("   L2 data caches: \t %f\n", L2_energy);
+    printf("   Instruction caches: \t %f\n", icache_energy);
+    printf("   Localstore units: \t %f\n", localstore_energy);
+    printf("   Register files: \t %f\n", register_energy);
+    printf("   DRAM: \t\t %f\n", DRAM_energy);
+    printf("   ------------------------------\n");
+    printf("   Total: \t\t %f\n", total_energy);
+    printf("   Power draw (watts): \t %f\n\n", (total_energy / (1.f / FPS)));
+    
+    printf("FPS Statistics:\n");
+    printf("   Total clock cycles: \t\t %lld\n", cycle_count);
+    printf("   FPS assuming %dMHz clock: \t %.4lf\n", (int)Hz / 1000000, FPS);
+    
+    printf("\n\n");
+    
+    if(!disable_usimm)
+      printUsimmStats();
+  }  // end print_cpu
+  
+  fflush(stdout);
+  
+  if(print_png) {
+    
+    // Write out PNG using lodepng
+    const int imgNameLen = strlen(output_prefix);
+    bool outputPrefixHasExtension = false;
+    for(int i=imgNameLen-1; i>=0; --i) {
+      if(output_prefix[i]=='\\' || output_prefix[i]=='/')
+	break;
+      if(output_prefix[i]=='.') {
+	outputPrefixHasExtension = true;
+	break;
+      }
+    }
+    const bool outputPrefixHasPNG = (imgNameLen > 3 && output_prefix[imgNameLen-3]=='p' && 
+				     output_prefix[imgNameLen-2]=='n' && output_prefix[imgNameLen-1]=='g');
+    
+    if((strcasecmp(image_type, "png") == 0 & !outputPrefixHasExtension) || outputPrefixHasPNG) {
+      // figure out actual name to use for saving
+      char outputName[512];
+      
+      if(outputPrefixHasPNG) {
+	sprintf(outputName, "%s", output_prefix);
+      }
+      else {
+	sprintf(outputName, "%s.png", output_prefix);
+      }
+      
+      
+      // save using lodePNG
+      unsigned char *imgRGBA = new unsigned char[4*image_width*image_height];
+      unsigned char *curImgPixel = imgRGBA;
+      for(int j = (int)(image_height - 1); j >= 0; j--) {
+	for(unsigned int i = 0; i < image_width; i++, curImgPixel+=4) {
+	  const int index = start_framebuffer + 3 * (j * image_width + i);
+	  
+	  float rgb[3];
+	  rgb[0] = memory->getData()[index + 0].fvalue;
+	  rgb[1] = memory->getData()[index + 1].fvalue;
+	  rgb[2] = memory->getData()[index + 2].fvalue;
+	  
+	  curImgPixel[0] = (char)(int)(rgb[0] * 255);
+	  curImgPixel[1] = (char)(int)(rgb[1] * 255);
+	  curImgPixel[2] = (char)(int)(rgb[2] * 255);
+	  curImgPixel[3] = 255;
+	}
+      }
+      
+      unsigned char* png;
+      size_t pngsize;
+      
+      unsigned error = lodepng_encode32(&png, &pngsize, imgRGBA, image_width, image_height);
+      if(!error)
+	lodepng_save_file(png, pngsize, outputName);
+      else
+	printf("error %u: %s\n", error, lodepng_error_text(error));
+      
+      free(png);
+      delete[] imgRGBA;
+    }
+    
+    // Other formats, use convert
+    else {
+      char command_buf[512];
+      sprintf(command_buf, "convert PPM:- %s.%s", output_prefix, image_type);
+#ifndef WIN32
+      FILE* output = popen(command_buf, "w");
+#else
+      FILE* output = popen(command_buf, "wb");
+#endif
+      if(!output)
+	perror("Failed to open out.png");
+      
+#if OBJECTID_MAP
+      srand( (unsigned)time( NULL ) );
+      const int num_ids = 100000;
+      float id_colors[num_ids][3];
+      for (int i = 0; i < num_ids; i++) {
+	id_colors[i][0] = drand48();
+	id_colors[i][1] = drand48();
+	id_colors[i][2] = drand48();
+      }
+#endif
+      
+      fprintf(output, "P6\n%d %d\n%d\n", image_width, image_height, 255);
+      for(int j = image_height - 1; j >= 0; j--) {
+	for(int i = 0; i < image_width; i++) {
+	  const int index = start_framebuffer + 3 * (j * image_width + i);
+	  
+	  float rgb[3];
+#if OBJECTID_MAP
+	  int object_id = memory->getData()[index].ivalue;
+	  
+	  switch (object_id) {
+	  case -1:
+	    rgb[0] = .2;
+	    rgb[1] = .1;
+	    rgb[2] = .5;
+	    break;
+	  case 0:
+	    rgb[0] = 1.;
+	    rgb[1] = .4;
+	    rgb[2] = 1.;
+	    break;
+	  case 1:
+	    rgb[0] = .2;
+	    rgb[1] = .3;
+	    rgb[2] = 1.;
+	    break;
+	  case 2:
+	    rgb[0] = 1.;
+	    rgb[1] = .3;
+	    rgb[2] = .2;
+	    break;
+	  default:
+	    rgb[0] = id_colors[object_id % num_ids][0];
+	    rgb[1] = id_colors[object_id % num_ids][1];
+	    rgb[2] = id_colors[object_id % num_ids][2];
+	    break;
+	  };
+#else
+	  // for gradient/colors we have the result
+	  rgb[0] = memory->getData()[index + 0].fvalue;
+	  rgb[1] = memory->getData()[index + 1].fvalue;
+	  rgb[2] = memory->getData()[index + 2].fvalue;
+#endif
+	  fprintf(output, "%c%c%c",
+		  (char)(int)(rgb[0] * 255),
+		  (char)(int)(rgb[1] * 255),
+		  (char)(int)(rgb[2] * 255));
+	}
+      }
+      pclose(output);
+    }
+  }
+  else
+    exit(0);
+  
+  // reset the cores for a fresh frame
+  globals.Reset();
+  for(size_t i = 0; i < num_cores * num_L2s; ++i) {
+    cores[i]->Reset();
+  }
+  
+  for(size_t i = 0; i < num_L2s; i++)
+    L2s[i]->Reset();
+  
+  //} // put a loop around all this for multiple frames (see loop comment above)
   
   // clean up thread stuff
   pthread_attr_destroy(&attr);
