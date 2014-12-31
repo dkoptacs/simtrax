@@ -169,6 +169,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::LOADIMM:
     case Instruction::LOADL1:
     case Instruction::MOV:
+    case Instruction::move:
     case Instruction::PROF:
     case Instruction::sra:
     case Instruction::srl:
@@ -254,6 +255,8 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::bgtz:
     case Instruction::blez:
     case Instruction::bltz:
+    case Instruction::beqz:
+    case Instruction::bnez:
     case Instruction::jr:
     case Instruction::mtc1:
       
@@ -588,6 +591,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("SPHERE_TEST"),
   //std::string("TRITEST"),
   std::string("MOV"),
+  std::string("move"),
   std::string("MOVINDRD"),
   std::string("MOVINDWR"),
   std::string("BLT"),
@@ -704,6 +708,8 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("bc1f"),
   std::string("bc1t"),
   std::string("beq"),
+  std::string("beqz"),
+  std::string("bnez"),
   std::string("bgez"),
   std::string("bgtz"),
   std::string("blez"),

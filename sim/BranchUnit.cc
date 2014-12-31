@@ -45,6 +45,8 @@ bool BranchUnit::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::bc1f ||
       op == Instruction::bc1t ||
       op == Instruction::beq ||
+      op == Instruction::beqz ||
+      op == Instruction::bnez ||
       op == Instruction::bgez ||
       op == Instruction::bgtz ||
       op == Instruction::blez ||
@@ -84,6 +86,8 @@ bool BranchUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
     case Instruction::rtsd:
 
     case Instruction::bgez:
+  case Instruction::beqz:
+  case Instruction::bnez:
     case Instruction::bgtz:
     case Instruction::blez:
     case Instruction::bltz:
@@ -219,10 +223,22 @@ bool BranchUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
         thread->next_program_counter = ins.args[2];      
       break;
 
+
     case Instruction::bgez:
       if (arg.idata >= 0)
         thread->next_program_counter = ins.args[1];      
       break;
+      
+  case Instruction::beqz:
+    if (arg.idata == 0)
+      thread->next_program_counter = ins.args[1];      
+    break;
+
+  case Instruction::bnez:
+    if (arg.idata != 0)
+      thread->next_program_counter = ins.args[1];
+    break;
+
 
     case Instruction::bgtz:
       if (arg.idata > 0)

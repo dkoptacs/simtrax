@@ -57,7 +57,7 @@ extern "C"
   //extern int loadl2( int base, int offset = 0 )asm("llvm.mips.loadl2");
   extern void trax_printi(int value) asm("llvm.mips.printi");      // print integer
   extern void trax_printf( float value ) asm("llvm.mips.printf");  // print float (unfortunately this uses the "printf" name)
-  extern void trax_printformat(const char** string_addr) asm("llvm.mips.printformat"); // 'equivalent' to stdio::printf
+  extern void trax_printformat(const char** string_addr) asm("llvm.mips.printfmstr"); // 'equivalent' to stdio::printf
   
 }
 

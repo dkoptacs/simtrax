@@ -106,6 +106,7 @@ class Instruction {
     LOADIMM,     // dst, value(imm)
     SPHERE_TEST, // dst(unused), SPHERE, RAY
     MOV,         // dst, source
+    move,        // dst, source
     MOVINDRD,    // dst, base source, offset reg
     MOVINDWR,    // base dst, source, offset reg
     BLT,         // source1, source2, jmp(imm)
@@ -223,6 +224,8 @@ class Instruction {
     bc1f,
     bc1t,
     beq,
+    beqz,
+    bnez,
     bgez,
     bgtz,
     blez,

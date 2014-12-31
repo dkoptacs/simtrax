@@ -61,7 +61,7 @@ def main():
     # for different register groups (saved, temp, arguments, etc.), but
     # I'm not yet sure if LLVM emits assembly with the special names, or
     # if it always uses generic names for these registers.
-    for r in xrange(2, 28):
+    for r in xrange(1, 28):
         sys.stdout.write('\tREG\t$%d\n'%r)
         reg_list.append("${0}".format(r))
 
