@@ -37,56 +37,56 @@ void SimpleRegisterFile::EnableDump(char *filename) {
 
 int SimpleRegisterFile::ReadInt(int which_reg, long long int which_cycle) const {
   if (buffer) {
-    RegisterTrace temp = {which_cycle, RegisterTrace::Read, which_reg, thread_id};
-    buffer->AddItem(temp);
+    //RegisterTrace temp = {which_cycle, RegisterTrace::Read, which_reg, thread_id};
+    //buffer->AddItem(temp);
   }
   assert (which_reg >= 0 && which_reg < num_registers);
   return idata[which_reg];
 }
 unsigned int SimpleRegisterFile::ReadUint(int which_reg, long long int which_cycle) const {
   if (buffer) {
-    RegisterTrace temp = {which_cycle, RegisterTrace::Read, which_reg, thread_id};
-    buffer->AddItem(temp);
+    //RegisterTrace temp = {which_cycle, RegisterTrace::Read, which_reg, thread_id};
+    //buffer->AddItem(temp);
   }
   assert (which_reg >= 0 && which_reg < num_registers);
   return udata[which_reg];
 }
 float SimpleRegisterFile::ReadFloat(int which_reg, long long int which_cycle) const {
   if (buffer) {
-    RegisterTrace temp = {which_cycle, RegisterTrace::Read, which_reg, thread_id};
-    buffer->AddItem(temp);
+    //RegisterTrace temp = {which_cycle, RegisterTrace::Read, which_reg, thread_id};
+    //buffer->AddItem(temp);
   }
   assert (which_reg >= 0 && which_reg < num_registers);
   return fdata[which_reg];
 }
 void SimpleRegisterFile::ReadForwarded(int which_reg, long long int which_cycle) const {
   if (buffer) {
-    RegisterTrace temp = {which_cycle, RegisterTrace::Read, which_reg, thread_id};
-    buffer->AddItem(temp);
+    //RegisterTrace temp = {which_cycle, RegisterTrace::Read, which_reg, thread_id};
+    //buffer->AddItem(temp);
   }
   assert (which_reg >= 0 && which_reg < num_registers);
 }
 
 void SimpleRegisterFile::WriteInt(int which_reg, int value, long long int which_cycle) {
   if (buffer) {
-    RegisterTrace temp = {which_cycle, RegisterTrace::Write, which_reg, thread_id};
-    buffer->AddItem(temp);
+    //RegisterTrace temp = {which_cycle, RegisterTrace::Write, which_reg, thread_id};
+    //buffer->AddItem(temp);
   }
   assert (which_reg >= 0 && which_reg < num_registers);
   idata[which_reg] = value;
 }
 void SimpleRegisterFile::WriteUint(int which_reg, unsigned int value, long long int which_cycle) {
   if (buffer) {
-    RegisterTrace temp = {which_cycle, RegisterTrace::Write, which_reg, thread_id};
-    buffer->AddItem(temp);
+    //RegisterTrace temp = {which_cycle, RegisterTrace::Write, which_reg, thread_id};
+    //buffer->AddItem(temp);
   }
   assert (which_reg >= 0 && which_reg < num_registers);
   udata[which_reg] = value;
 }
 void SimpleRegisterFile::WriteFloat(int which_reg, float value, long long int which_cycle) {
   if (buffer) {
-    RegisterTrace temp = {which_cycle, RegisterTrace::Write, which_reg, thread_id};
-    buffer->AddItem(temp);
+    //RegisterTrace temp = {which_cycle, RegisterTrace::Write, which_reg, thread_id};
+    //buffer->AddItem(temp);
   }
   assert (which_reg >= 0 && which_reg < num_registers);
   fdata[which_reg] = value;
@@ -109,6 +109,7 @@ bool SimpleRegisterFile::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::mov_s ||
       op == Instruction::movn_s ||
       op == Instruction::movz_s ||
+      op == Instruction::move ||
       op == Instruction::mtc1)
     return true;
   return false;
@@ -124,13 +125,14 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
   reg_value result;
   reg_value arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
-  switch (ins.op) {
-
-    // MIPS!
+  switch (ins.op) 
+    {
+      
+      // MIPS!
     case Instruction::lui:
       result.udata = ins.args[1] << 16;
       break;
-
+      
     case Instruction::movf:
       // Read the register
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
@@ -237,6 +239,7 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
 
     case Instruction::mov_s:
     case Instruction::MOV:
+    case Instruction::move:
       // Read the register
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
         // bad stuff happened

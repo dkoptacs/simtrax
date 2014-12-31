@@ -847,6 +847,7 @@ int main(int argc, char* argv[]) {
        instructions[i]->op == Instruction::mfhi ||
        instructions[i]->op == Instruction::mflo ||
        instructions[i]->op == Instruction::movf ||
+       instructions[i]->op == Instruction::move ||
        instructions[i]->op == Instruction::movn ||
        instructions[i]->op == Instruction::movt ||
        instructions[i]->op == Instruction::mov_s ||

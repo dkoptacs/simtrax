@@ -2,8 +2,8 @@
 # else.
 EXE=simtrax
 
-CXX ?= g++
-CXXFLAGS ?= -g -Wall -O3 -pthread
+CXX = g++-4.9
+CXXFLAGS = -g -Wall -O3 -pthread --std=c++11
 
 LDFLAGS ?=
 
