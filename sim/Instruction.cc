@@ -1,5 +1,6 @@
 #include "Instruction.h"
 #include "WriteRequest.h"
+#include "SimpleRegisterFile.h"
 #include <stdlib.h>
 
 Instruction::Instruction(Opcode code,
@@ -377,6 +378,22 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
       return false;
       break;
 
+    // Read special mips registers
+    case Instruction::mfhi:
+      if (register_ready[HI_REG] <= cur_cycle)
+        return true;
+      else
+        *fail_reg = HI_REG;
+      return false;
+      break;
+    case Instruction::mflo:
+      if (register_ready[LO_REG] <= cur_cycle)
+        return true;
+      else
+        *fail_reg = LO_REG;
+      return false;
+      break;
+
     //TODO: these global atomic instructions are always ready to issue (this is wrong though)
     case Instruction::ATOMIC_INC:
     case Instruction::ATOMIC_ADD:
@@ -409,8 +426,6 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::bc1t:
     case Instruction::j:
     case Instruction::jal:
-    case Instruction::mfhi:
-    case Instruction::mflo:
     case Instruction::lui:
       return true;
       break;

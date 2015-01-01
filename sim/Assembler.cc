@@ -23,11 +23,13 @@ std::string expSeparator( "[ \\t,]" );
 // Comment
 std::string expComment( "#.*" );
 // Any valid name (must contain a non-digit)
-std::string expSymbol( "[0-9]*[a-zA-Z\\$_]+[a-zA-Z\\$_0-9]*" );
+std::string expSymbol( "[0-9]*[\\.a-zA-Z\\$_]+[\\.a-zA-Z\\$_0-9]*" );
 // An integer literal
 std::string expIntLiteral( "[-|\\+]?[0-9]+" ); 
 // An integer offset
 std::string expIntOffset( expSeparator + "+" + expIntLiteral + "\\(" );
+// Integer arithmetic (different from offset since it gets collapsed in to another arg).
+std::string expArithmetic( "\\)[\\+-]" );
 // Declaring a register
 std::string expRegister( "\\tREG" + expWhitespace + "+" + expSymbol );
 // Declaring a label 
@@ -53,8 +55,9 @@ std::string expLo( "\%lo" );
 std::string expGpRel( "\%gp_rel" );
 std::string expMipsDirective( "((" + expHi + ")|(" + expLo + ")|(" + expGpRel + "))\\(" + expSymbol + "\\)" );
 // Any argument (label, register, integer literal, etc)
-std::string expAssignArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")|(\\+|-)" );
-std::string expArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")" );
+//std::string expAssignArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")|(\\+|-)" );
+std::string expArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")|(" + expArithmetic + ")" );
+//std::string expArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")|(\\+|-)" );
 // ---Debug info---
 // Line info
 std::string expSrcInfo( "\\.loc" );
@@ -552,21 +555,17 @@ int Assembler::GetArgs(std::string line,
   while(it != end)
     {
       // Consume operators and collapse result in to one argument
-      if((it->str().compare("+") == 0))
+      std::smatch m;
+      if(std::regex_search(it->str(), m, std::regex(expArithmetic)))
 	{
 	  it++;
 	  argNum--;
 	  if(!HandleArg(it->str(), labels, regs, elf_vars, arg))
 	    return 0;
-	  args[argNum] += arg;
-	}
-      else if(it->str().compare("-") == 0)
-	{
-	  it++;
-	  argNum--;
-	  if(!HandleArg(it->str(), labels, regs, elf_vars, arg))
-	    return 0;
-	  args[argNum] -= arg;
+	  if((m.str().compare("+") == 0))
+	    args[argNum] += arg;
+	  else if(m.str().compare("-") == 0)
+	    args[argNum] -= arg;
 	}
       // Otherwise, it's a standalone argument
       else if(HandleArg(it->str(), labels, regs, elf_vars, arg))
@@ -816,7 +815,8 @@ int Assembler::HandleAssignment(std::string line, int pass,
       // Get the argument value
       int args[4];
       // expAssignArg includes '+'/'-' in the argument matcher, GetArgs will handle them
-      if(!GetArgs(stripped, args, labels, regs, elf_vars, expAssignArg) ||
+      //if(!GetArgs(stripped, args, labels, regs, elf_vars, expAssignArg) ||
+      if(!GetArgs(stripped, args, labels, regs, elf_vars, expArg) ||
 	 args[1] != 0 || // can only have one argument for assignments (the assigned value)
 	 args[2] != 0 ||
 	 args[3] != 0)

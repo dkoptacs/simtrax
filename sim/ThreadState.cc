@@ -171,8 +171,6 @@ ThreadState::ThreadState(SimpleRegisterFile* regs,
   thread_id(_thread_id), core_id(coreid), registers(regs), instructions(_instructions) {
   carry_register = 0;
   compare_register = 0;
-  HI_register = 0;
-  LO_register = 0;
   halted = false;
   sleep_cycles = 0;
   last_issue = 0;

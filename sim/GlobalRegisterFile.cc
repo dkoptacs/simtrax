@@ -85,8 +85,38 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
   if (issued_this_cycle >= 1) return false;
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
-  reg_value arg;
+  reg_value arg0, arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
+
+  // Read the thread register(s) containing the global register ID / other arguments
+  switch(ins.op)
+    {
+    case Instruction::ATOMIC_ADD:
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
+	  !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) 
+	{
+	  // bad stuff happened
+	  printf("Error in GlobalRegisterFile. Should have passed.\n");
+	}
+      break;
+    case Instruction::BARRIER:
+    case Instruction::SEM_ACQ:
+    case Instruction::SEM_REL:
+      if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop)) 
+	{
+	  // bad stuff happened
+	  printf("Error in GlobalRegisterFile. Should have passed.\n");
+	}
+      break;
+    
+    default:
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) 
+	{
+	  // bad stuff happened
+	  printf("Error in GlobalRegisterFile. Should have passed.\n");
+	}
+      break;
+    }
 
   // now get the result value
   reg_value result;
@@ -94,13 +124,11 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
   pthread_mutex_lock(&global_mutex);
   switch (ins.op) {
   case Instruction::ATOMIC_INC:
-    // Instruction is ATOMIC_INC: Copy args[1]++ to args[0]
-    // args[1] is a global register, args[0] is a thread register
-    result.udata = ReadUint(ins.args[1]);
-    //printf(">=Atomic Inc %d = %d\n", ins.args[0], result.idata);
+    // Instruction is ATOMIC_INC: Copy globalreg[args[1]]++ to args[0]
     // postincrement
+    result.udata = ReadUint(arg1.udata);
     
-    // report if enough cycles have passed
+    // report if enough cycles have passed (--atominc-report)
     if (report_period > 0 && last_report_cycle + report_period < issuer->current_cycle) {
 #ifndef WIN32
       timeval current_time;
@@ -125,38 +153,32 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       fflush(stdout);
       last_report_cycle += report_period;
     }
-    
 
-    WriteUint(ins.args[1], result.udata+1);
+    WriteUint(arg1.udata, result.udata+1);
     break;
   case Instruction::ATOMIC_ADD:
-    // Instruction is ATOMIC_ADD: Copy args[1]+=args[2] to args[0]
-    // args[1] is a global register, args[0] and args[2] are local to the thread
-    // Read the register
-    if (!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg, failop)) {
-      // bad stuff happened
-      printf("Error in GlobalRegisterFile. Should have passed.\n");
-    }
-    result.udata = ReadUint(ins.args[1]) + arg.udata;
+    // Instruction is ATOMIC_ADD: Copy globalreg[args[1]]+=args[2] to globalreg[args[0]]
 
-    WriteUint(ins.args[1], result.udata);
+    result.udata = ReadUint(arg1.udata) + arg2.udata;
+
+    WriteUint(arg1.udata, result.udata);
 
     break;
 
   case Instruction::GLOBAL_READ:
-    result.udata = ReadUint(ins.args[1]);
+    result.udata = ReadUint(arg1.udata);
     break;
 
   case Instruction::INC_RESET:
-    result.udata = ReadUint(ins.args[1]);
+    result.udata = ReadUint(arg1.udata);
     if(result.udata == total_system_threads - 1)
-      WriteUint(ins.args[1], 0);
+      WriteUint(arg1.udata, 0);
     else
-      WriteUint(ins.args[1], result.udata + 1);
+      WriteUint(arg1.udata, result.udata + 1);
     break;
 
   case Instruction::BARRIER:
-    result.udata = ReadUint(ins.args[0]);
+    result.udata = ReadUint(arg0.udata);
     if(result.udata != 0)
       {
 	pthread_mutex_unlock(&global_mutex);
@@ -167,11 +189,8 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
     // Warning: The programmer is required to generate semaphore acquire and semaphore release in the correct order
     // The HW will not prevent a thread from releasing a semaphore before acquiring it (thus releasing someone else's hold on it)
   case Instruction::SEM_ACQ:
-    // Read the thread-local register which holds the desired global register ID
-    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg, failop))
-      printf("Error in GlobalRegisterFile:SEM_ACQ. Failed to read register.\n");
     // Now read the global register
-    result.udata = ReadUint(arg.idata);
+    result.udata = ReadUint(arg0.udata);
     // Check if the semaphore is already locked
     if(result.udata != 0)
       {
@@ -179,17 +198,13 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
 	return false; // instruction fails to issue, will automatically retry
       }
     else // Otherwise, lock it (set it to 1)
-      WriteUint(arg.idata, 1);
+      WriteUint(arg0.udata, 1);
     break;
 
   case Instruction::SEM_REL:
-    // Read the thread-local register which holds the desired global register ID
-    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg, failop))
-      printf("Error in GlobalRegisterFile:SEM_ACQ. Failed to read register.\n");
-
     // Warning: No valid state checking done here! Just release it no matter what
     // Write 0 to the specified global register
-    WriteUint(arg.idata, 0);
+    WriteUint(arg0.udata, 0);
     break;
 
   default:
@@ -198,22 +213,23 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
   };
 
 
+  // Apply thread register writes, or undo global writes if thread-write fails
   if(ins.op != Instruction::BARRIER     // barrier doesn't write anything to thread's RF
-     && ins.op != Instruction::SEM_ACQ  // semaphore ops don't write anything to threads RF
+     && ins.op != Instruction::SEM_ACQ  // semaphore ops don't write anything to thread's RF
      && ins.op != Instruction::SEM_REL) 
     {
       if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
 	// pipeline hazzard, undo changes
 	switch (ins.op) {
 	case Instruction::ATOMIC_INC:
-	  WriteUint(ins.args[1], result.udata);
+	  WriteUint(arg1.udata, result.udata);
 	  break;
 	case Instruction::ATOMIC_ADD:
-	  result.udata = ReadUint(ins.args[1]) - arg.udata;
-	  WriteUint(ins.args[1], result.udata);
+	  result.udata = ReadUint(arg1.udata) - arg2.udata;
+	  WriteUint(arg1.udata, result.udata);
 	  break;
 	case Instruction::INC_RESET:
-	  WriteUint(ins.args[1], result.udata);
+	  WriteUint(arg1.udata, result.udata);
 	  break;
 	default:
 	  break;
@@ -225,7 +241,6 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
 
   pthread_mutex_unlock(&global_mutex);
   issued_this_cycle++;
-  //printf("global reg returning true\n");
   return true;
 }
 

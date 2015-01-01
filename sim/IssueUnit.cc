@@ -312,21 +312,19 @@ void IssueUnit::ClockRise() {
 
 void IssueUnit::IssueVerbosity(ThreadState* thread, Instruction* fetched_instruction, size_t proc_id) {
   if (verbosity == 1) {
-    printf( "Cycle %lld: Thread %d: Instruction %llu (PC:%llu): ISSUED (%s)\n", current_cycle, 
+    printf( "Cycle %lld: Thread %d: Instruction PC: %d (%s), ISSUED\n", current_cycle, 
 	    static_cast<int>(proc_id), 
-	    fetched_instruction->id,
-	    thread->program_counter - 1,
+	    fetched_instruction->pc_address,
 	    Instruction::Opnames[fetched_instruction->op].c_str() );
   } else if (verbosity > 1) {
     sprintf( buf, "%s %d %d %d\n", Instruction::Opnames[fetched_instruction->op].c_str(),
 	     fetched_instruction->args[0], fetched_instruction->args[1], fetched_instruction->args[2]);
     fprintf( thread_trace[proc_id], "%s", buf );
     fprintf( all_trace, "%s", buf );
-    sprintf( buf, "Cycle %lld: Thread %d: Instruction %llu (PC:%llu): ISSUED (%s)\n", current_cycle, 
-	     static_cast<int>(proc_id), 
-	     fetched_instruction->id,
-	     thread->program_counter,
-	     Instruction::Opnames[fetched_instruction->op].c_str() );
+    sprintf( buf, "Cycle %lld: Thread %d: Instruction PC: %d (%s), ISSUED\n", current_cycle, 
+	    static_cast<int>(proc_id), 
+	    fetched_instruction->pc_address,
+	    Instruction::Opnames[fetched_instruction->op].c_str() );
     fprintf( thread_trace[proc_id], "%s", buf );
     fprintf( all_trace, "%s", buf );
   }

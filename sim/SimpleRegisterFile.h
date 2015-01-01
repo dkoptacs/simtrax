@@ -8,6 +8,9 @@
 #include "DiskBuffer.h"
 #include <stdint.h>
 
+#define HI_REG 4
+#define LO_REG 5
+
 // Hard-code these values since we only use one type of register file
 #define RF_AREA .0147665
 #define RF_ENERGY .0079

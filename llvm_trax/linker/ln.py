@@ -5,6 +5,7 @@
 
 import sys
 import re
+import os
 
 #STACK_OFFSET = 1024
 STACK_OFFSET = 8192
@@ -14,6 +15,7 @@ needsMemcpy = False
 needsExtendsf = False
 
 reg_list = ["$zero", "$at", "$gp", "$sp", "$fp", "$ra"]
+opnames = []
 
 mips_names = ["and",
               "or",
@@ -47,13 +49,27 @@ keep_directives = [".byte",
 
 def main():
     global reg_list
+    global opnames
 
+    lnPath = "" + os.path.dirname(os.path.realpath(__file__))
+
+    try:
+        mipsNamesIn = open(lnPath + "/mipsnames.txt")
+    except:
+        sys.stderr.write('ln.py failed to open mipsnames.txt.\n')
+        sys.exit()
+
+    for line in mipsNamesIn:
+        opnames.append("" + line.strip())
+
+    mipsNamesIn.close()
+        
     # print preamble
     sys.stdout.write('#BEGIN Preamble\n')
 
     # Append a list of the registers to the top of the assembly file.
-    #sys.stdout.write("\tREG\t%hi\n")   # <-- special register
-    #sys.stdout.write("\tREG\t%lo\n")   # <-- special register
+    sys.stdout.write("\tREG\t$HI\n")   # <-- special register (not directly addressed by assembly)
+    sys.stdout.write("\tREG\t$LO\n")   # <-- special register (not directly addressed by assembly)
     sys.stdout.write("\tREG\t$zero\n") # <-- always zero
     sys.stdout.write("\tREG\t$at\n")   # <-- assembler temporary
 
@@ -124,6 +140,7 @@ def main():
 
 def LinkFile(filename, fileid):
 
+
     #global needsMemset
     #global needsMemcpy
     #global needsExtendsf
@@ -190,8 +207,8 @@ def LinkFile(filename, fileid):
 
         elif (len(temp) > 0) and (temp[0] == '.' and tokens[0] not in keep_directives):
             newline = '#' + line
-        elif (tokens[0] in keep_directives) or '=' in temp:
-            newline = line
+        #elif (tokens[0] in keep_directives):
+        #    newline = line
         
         #elif len(temp) > 0 and (((temp[0:6] not in keep_directives) or ((":" not in temp) and ("=" in temp)))):
         #elif (len(temp) > 0) and (temp[0:6] not in keep_directives):
@@ -201,8 +218,6 @@ def LinkFile(filename, fileid):
         #    newline = line
         
         else:
-
-            
 
             newline = ''
 
@@ -228,13 +243,17 @@ def LinkFile(filename, fileid):
                             is_label = True
                             break
 
-                # replace periods with underscores
-                #if is_label == False and tok[-1] != ':':
-                tok = tok.replace('.', '_')
+                # replace periods with underscores, except in string literals
+                if tok in opnames:
+                    tok = tok.replace('.', '_')
 
                 # append '_m' to conflicting MIPS instructions
                 if tok in mips_names:
                     tok += "_m"
+
+
+
+                
 
                 # remove any comments
                 if tok[0] == '#':

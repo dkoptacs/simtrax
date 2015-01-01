@@ -59,19 +59,21 @@ bool FPDiv::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
 
   // Compute the value
   reg_value result;
+  // Special results for div
+  reg_value resultHI;
+  reg_value resultLO;
   switch (ins.op) {
 
     case Instruction::div:
       if (arg2.idata == 0)
       {
-        printf("dividing by zero!\n");
-        thread->LO_register = 0x7FFFFFFF;
-        thread->HI_register = 0x7FFFFFFF;
+        printf("dividing by zero! (Instruction PC: %d)\n", ins.pc_address);
+	exit(1);
       }
       else
       {
-        thread->LO_register = arg1.idata / arg2.idata;
-        thread->HI_register = arg1.idata % arg2.idata;
+        resultLO.idata = arg1.idata / arg2.idata;
+        resultHI.idata = arg1.idata % arg2.idata;
       }
       
       break;
@@ -82,7 +84,7 @@ bool FPDiv::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
     case Instruction::DIV:
       if (arg1.idata == 0) {
         printf("dividing by zero!\n");
-        result.idata = 0x7FFFFFFF;
+	exit(1);
       } else {
         // This is actually a reverse divide
         result.idata = arg2.idata/arg1.idata;
@@ -97,11 +99,20 @@ bool FPDiv::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
   };
 
   // Write the value
-  if (ins.op == Instruction::div);
-  else if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
-    // pipeline hazzard
-    return false;
-  }
+  if (ins.op == Instruction::div)
+    {
+      if (!thread->QueueWrite(HI_REG, resultHI, write_cycle, ins.op, &ins) || 
+	  !thread->QueueWrite(LO_REG, resultLO, write_cycle, ins.op, &ins)) 
+	{
+	  // pipeline hazzard
+	  return false;
+	}
+    }
+  else if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) 
+    {
+      // pipeline hazzard
+      return false;
+    }
   issued_this_cycle++;
   return true;
 }

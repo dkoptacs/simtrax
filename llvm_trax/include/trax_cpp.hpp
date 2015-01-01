@@ -48,7 +48,7 @@ void trax_printf( float value );
 typedef struct runrtParams_tt runrtParams_t;		// temp -> see below
 void trax_setup( runrtParams_t &parsedParams );
 void trax_cleanup( runrtParams_t &parsedParams );
-void barrier( int reg_num = 5 );
+void barrier( int reg_num );
 void trax_semacq( int reg_num );
 void trax_semrel( int reg_num );
 float trax_noise( float x, float y, float z );

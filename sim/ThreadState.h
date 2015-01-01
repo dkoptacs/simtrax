@@ -49,8 +49,6 @@ public:
 
   // MIPS Stuff
   int compare_register;
-  int HI_register;
-  int LO_register;
   ThreadState(SimpleRegisterFile* regs,
               std::vector<Instruction*>& instructions,
 	      unsigned int thread_id, unsigned int core_id);

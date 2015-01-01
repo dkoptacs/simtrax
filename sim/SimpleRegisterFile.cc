@@ -210,11 +210,23 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       
       // MFHI and MFLO don't read normal registers
     case Instruction::mfhi:
-      result.idata = thread->HI_register;
+      // Read the register
+      if (!thread->ReadRegister(HI_REG, issuer->current_cycle, arg1, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error in Accepting instruction (mfhi). Should have passed.\n");
+      }
+      result.udata = arg1.udata;
+      write_reg = ins.args[0];
       break;
       
     case Instruction::mflo:
-      result.idata = thread->LO_register;
+      // Read the register
+      if (!thread->ReadRegister(LO_REG, issuer->current_cycle, arg1, failop)) {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error in Accepting instruction (mflo). Should have passed.\n");
+      }
+      result.udata = arg1.udata;
+      write_reg = ins.args[0];
       break;
 
     case Instruction::mfc1:

@@ -6,6 +6,8 @@
 #include <float.h>
 #include <stdlib.h>
 
+#define RA_REG 38
+
 BranchUnit::BranchUnit(int _latency, int _width) :
     FunctionalUnit(_latency), width(_width) {
   issued_this_cycle = 0;
@@ -184,7 +186,7 @@ bool BranchUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
 
       // store the address of the next instruction in $ra
       result.udata = thread->program_counter + 1;
-      if(!thread->QueueWrite(35, result, write_cycle, ins.op, &ins))
+      if(!thread->QueueWrite(RA_REG, result, write_cycle, ins.op, &ins))
 	{
 	  printf("\n\nERROR in bal\n\n");
 	  exit(1);
@@ -198,7 +200,7 @@ bool BranchUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
 
       // store the address of the next instruction in $ra
       result.udata = thread->program_counter + 1;
-      if(!thread->QueueWrite(35, result, write_cycle, ins.op, &ins))
+      if(!thread->QueueWrite(RA_REG, result, write_cycle, ins.op, &ins))
 	{
 	  printf("\n\nERROR in jal\n\n");
 	  exit(1);

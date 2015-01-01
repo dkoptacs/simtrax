@@ -65,7 +65,7 @@ extern "C"
 extern int printf ( const char * format, ... );
 
 
-inline int barrier( int reg_num = 5 ) {
+inline int barrier( int reg_num ) {
   int reg_val = trax_inc_reset( reg_num );
   trax_barrier( reg_num );
   return reg_val;
