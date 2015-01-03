@@ -72,6 +72,10 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   const long long int kNoBlock = 0;
   switch (op) 
     {
+    case Instruction::lb:
+    case Instruction::lbu:
+    case Instruction::lh:
+    case Instruction::lhu:
     case Instruction::lw:
     case Instruction::lwc1:
       // check args[2] and choose the first fail_reg if there is a fail.
@@ -121,7 +125,6 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::CMP:
     case Instruction::CMPU:
     case Instruction::LW:
-    case Instruction::lbu:
     case Instruction::bsrl:
     case Instruction::bsra:
     case Instruction::bsll:
@@ -305,6 +308,8 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
       // MIPS!
     case Instruction::sw:
     case Instruction::swc1:
+    case Instruction::lwl:
+    case Instruction::lwr:
       // check args[0] and args[2] for read
       if (register_ready[args[0]] <= cur_cycle)
         if (register_ready[args[2]] <= cur_cycle)
@@ -654,8 +659,11 @@ std::string Instruction::Opnames[NUM_OPS] = {
   // local read/writes
   std::string("LW"), //
   std::string("LWI"), //
+  std::string("lb"),
   std::string("lbu"),
   std::string("lbui"),
+  std::string("lh"),
+  std::string("lhu"),
   std::string("lhui"),
   std::string("SW"), //
   std::string("SWI"), //
@@ -741,6 +749,8 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("lui"),
   std::string("lw"),
   std::string("lwc1"),
+  std::string("lwl"),
+  std::string("lwr"),
   std::string("mfc1"),
   std::string("mfhi"),
   std::string("mflo"),

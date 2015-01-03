@@ -40,15 +40,19 @@ std::string expByte( "\\.byte" );
 std::string exp2Byte( "\\.2byte" );
 // 4-byte type
 std::string exp4Byte( "\\.4byte" );
+// Arbitrary-byte type
+std::string expSpace( "\\.space" );
 // String type
 std::string expAscii( "\\.asciz" );
 // Global
 std::string expGlobal( "\\.globl" );
+// Constructors section
+std::string expConstructors( "\\.ctors" );
 // ---Ignored data items---
 // Not that useful in the context of the simulator
-std::string expIgnored( "(\\.section)|(\\.data)|(\\.text)|(\\.previous)|(\\.align)|(\\.type)|(\\.ent)|(\\.frame)|(\\.mask)|(\\.fmask)|(\\.set)|(\\.size)|(\\.end)" );
+std::string expIgnored( "(\\.data)|(\\.text)|(\\.previous)|(\\.align)|(\\.type)|(\\.ent)|(\\.frame)|(\\.mask)|(\\.fmask)|(\\.set)|(\\.size)|(\\.end)" );
 // Declaring a piece of data
-std::string expData( "((" + expByte + ")|(" + exp2Byte + ")|(" + exp4Byte + ")|(" + expAscii + ")|(" + expGlobal + ")|(" + expIgnored + "))" );
+std::string expData( "((" + expByte + ")|(" + exp2Byte + ")|(" + exp4Byte + ")|(" + expSpace + ")|(" + expAscii + ")|(" + expGlobal + ")|(" + expIgnored + "))" );
 // ---Special MIPS directives---
 std::string expHi( "\%hi" );
 std::string expLo( "\%lo" );
@@ -198,6 +202,13 @@ int Assembler::LoadAssem(char *filename,
 
   int end_data = debug_start != 0 ? debug_start : jtable_size;
 
+
+  // Last label is .TRaX_INIT, but contains no code in the assembly file
+  // Assembler must add initialization by hand
+
+  AddTRaXInitialize(instructions, labels, regs, jump_table, end_data);
+
+
   if(print_symbols)
     PrintSymbols(regs, labels, data_table, jump_table, end_data);
 
@@ -229,6 +240,11 @@ int Assembler::HandleLine(std::string line,
   if(!std::regex_search(line, m, std::regex("\\S")))
     return 1;
   
+  // Constructors section
+  if(std::regex_search(line, m, std::regex(expConstructors)))
+    {
+      return HandleConstructors(line, pass, labels, regs, elf_vars);
+    }  
   // Register declaration
   if(std::regex_search(line, m, std::regex(expRegister)))
     {
@@ -307,6 +323,14 @@ int Assembler::HandleLabel(std::string line, int pass, std::vector<symbol*>& lab
   if(pass == 2) 
     return 1;
 
+  // Delete previous label if nothing underneath it
+  if(labels.size() > 0)
+    {
+      symbol* top = labels[labels.size()-1];
+      if(!top->isAscii && !top->isJumpTable && !top->isText)
+	labels.pop_back();
+    }
+
   // First get the name of the label
   std::smatch m;  
   if(!std::regex_search(line, m, std::regex(expSymbol)))
@@ -381,6 +405,7 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
       ds->address = jtable_size;      
 
       // Make space for the entry
+      // Strings
       if(m.str().compare(".asciz") == 0)
 	{
 	  if(!std::regex_search(line, m, std::regex(expString)))
@@ -392,6 +417,28 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
 	  // Total = length - 1
 	  ds->size = EscapedToAscii(m.str()).length() - 1;
 	  ds->isAscii = true;
+	}
+      // Arbitrary size
+      else if(m.str().compare(".space") == 0) 
+	{
+	  std::string stripped = line.substr(line.find(m.str()) + m.str().length());
+	  int args[4];
+	  std::smatch exp;
+	  // 2 pass assembler can only handle immediate integers for declaring .space
+	  if(!std::regex_search(stripped, exp, std::regex(expSeparator + "+" + expIntLiteral)))
+	    {
+	      printf("ERROR: Unknown size for .space allocation\n");
+	      return 0;
+	    }
+	  if(!GetArgs(stripped, args, labels, regs, elf_vars, expArg) ||
+	     args[1] != 0 || // can only have one argument for data entries
+	     args[2] != 0 ||
+	     args[3] != 0)
+	    {
+	      printf("ERROR: Invalid .space allocation\n");
+	      return 0;
+	    }
+	  ds->size = args[0];
 	}
       else if(m.str().compare(".byte") == 0)
 	ds->size = 1;
@@ -440,7 +487,15 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
 		}
 	    }
 
-	  if(m.str().compare(".byte") == 0)
+	  if(m.str().compare(".space") == 0)
+	    {
+	      int args[4];
+	      // Error handling is done on 1st pass
+	      GetArgs(stripped, args, labels, regs, elf_vars, expArg);
+	      for(int i=0; i < args[0]; i++)
+		jump_table[jtable_ptr++] = (char)(0);
+	    }
+	  else if(m.str().compare(".byte") == 0)
 	    {
 	      jump_table[jtable_ptr] = (char)(args[0]);
 	      jtable_ptr += 1;
@@ -683,7 +738,7 @@ int Assembler::HandleMipsDirective(std::string arg,
       // Compiler should never try to take the upper/lower half of a PC address
       if (!labels.at(labelNum)->isJumpTable && !labels.at(labelNum)->isAscii)
 	{
-	  printf("Error: Expected data label in MIPS directive: label = %s\n", 
+	  printf("ERROR: Expected data label in MIPS directive: label = %s\n", 
 		 labels.at(labelNum)->names[0]);
 	  
 	  return 0;
@@ -834,6 +889,20 @@ int Assembler::HandleAssignment(std::string line, int pass,
 }
 
 
+int Assembler::HandleConstructors(std::string line, int pass, std::vector<symbol*>& labels, 
+				  std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars)
+{
+  if(pass == 2)
+    return 1;
+  // Create a special label that will hold the address of the constructors code
+  symbol* r = MakeSymbol(".ctors");
+  r->address = -1;
+  labels.push_back(r);
+
+  return 1;
+}
+
+
 // If simulator invoked with --print-symbols
 // Prints register names, label names, and the data segment
 // For debug purposes
@@ -876,6 +945,8 @@ void Assembler::PrintSymbols(std::vector<symbol*>& regs, std::vector<symbol*>& l
 	printf("%d\n", *((short*)(jump_table + current_address)));
       else if(data_table[i]->size == 4)
 	printf("%d\n", *((int*)(jump_table + current_address)));
+      else
+	printf("(%d bytes)\n", data_table[i]->size);
 
       current_address += data_table[i]->size;
     }
@@ -892,12 +963,80 @@ int Assembler::HasSymbol(std::string name, std::vector<symbol*>& syms)
   for(i=0; i<syms.size(); i++)
     for(j=0; j<syms.at(i)->names.size(); j++)
     {
-      //printf("\t%s\n", syms.at(i)->names.at(j));
       if(strcmp(syms.at(i)->names.at(j), name.c_str())==0)
 	return (int)i;
     }
   return -1;
 }
+
+
+// Adds instructions that the compiler doesn't generate.
+// Namely, branches to global constructors followed by a brach to main
+void Assembler::AddTRaXInitialize(std::vector<Instruction*>& instructions,
+				  std::vector<symbol*>& labels,
+				  std::vector<symbol*>& regs,
+				  char*& jump_table,
+				  int end_data)
+{
+
+  labels[labels.size()-1]->isText = true;
+
+  SourceInfo tmpSrcInfo;
+
+  // Create branches to global constructors
+  int ctorsLabelID = HasSymbol(".ctors", labels);
+  if(ctorsLabelID >= 0)
+    {
+      int startCtors = labels[ctorsLabelID]->address;
+      int endCtors = end_data;
+      for(int i = ctorsLabelID + 1; i < labels.size(); i++)
+	if(labels[i]->isJumpTable)
+	  {
+	    endCtors = labels[i]->address;
+	    break;
+	  }
+      
+      while(startCtors < endCtors)
+	{
+	  // Add a jump and link with nop branch delay for each constructor
+	  instructions.push_back(new Instruction(Instruction::jal,
+						 *((int*)(jump_table + startCtors)),
+						 0, 
+						 0, 
+						 tmpSrcInfo,
+						 instructions.size()));
+	  instructions.push_back(new Instruction(Instruction::nop,
+						 0,
+						 0, 
+						 0, 
+						 tmpSrcInfo,
+						 instructions.size()));
+	  startCtors += 4; // instruction addresses have to be 4 bytes
+	}
+    }
+
+  // Return to the preamble created by the linker
+  int startID = HasSymbol(".start", labels);
+  if(startID < 0)
+    {
+      printf("ERROR: Assembler found no .start label\n");
+      exit(1);
+    }
+  instructions.push_back(new Instruction(Instruction::j,
+					 labels[startID]->address,
+					 0, 
+					 0, 
+					 tmpSrcInfo,
+					 instructions.size()));
+
+  instructions.push_back(new Instruction(Instruction::nop,
+					 0,
+					 0, 
+					 0, 
+					 tmpSrcInfo,
+					 instructions.size()));
+}
+
 
 
 //------------------------------------------------------------------------------

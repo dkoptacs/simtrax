@@ -88,6 +88,10 @@ unsigned int num_L2s;
 // global verbosity flag
 int trax_verbosity;
 
+// Assembler needs somewhere to put file names for debug info if compiled with -g
+// Global because many units may want use of this for better error reporting
+std::vector<std::string> source_names;
+
 void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, std::vector<std::string> srcNames, FILE* profile_output);
 
 // Utility for tracking simulation time
@@ -576,8 +580,6 @@ int main(int argc, char* argv[]) {
   // Assembler needs somewhere to store the jump table and string literals, to be loaded in to local stores after assembly
   char* jump_table;
   std::vector<std::string> ascii_literals;
-  // Also needs somewhere to put file names for debug info if compiled with -g
-  std::vector<std::string> source_names;
 
   // Instruction Memory
   std::vector<Instruction*> instructions;

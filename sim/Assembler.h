@@ -78,6 +78,8 @@ class Assembler
   static int HasSymbol(std::string, std::vector<symbol*>& syms);  
 
 
+  static int HandleConstructors(std::string line, int pass, std::vector<symbol*>& labels, 
+				std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars);
     
   static symbol* MakeSymbol(std::string name);
 
@@ -86,6 +88,11 @@ class Assembler
 		     std::string argMatcher);
 
 
+  static void AddTRaXInitialize(std::vector<Instruction*>& instructions,
+			 std::vector<symbol*>& labels,
+			 std::vector<symbol*>& regs,
+			 char*& jump_table,
+			 int end_data);
 
   static void PrintSymbols(std::vector<symbol*>& regs, std::vector<symbol*>& labels, 
 			   std::vector<symbol*>& data_table, char* jump_table, int end_data);

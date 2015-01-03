@@ -32,6 +32,11 @@ struct SourceInfo
   int fileNum;
   int lineNum;
   int colNum;
+
+SourceInfo() : 
+  fileNum(-1), lineNum(-1), colNum(-1)
+  {}
+
 };
 
 class Instruction {
@@ -154,8 +159,11 @@ class Instruction {
     // local read/writes
     LW,          // dst, addr(reg), offset(reg)
     LWI,         // dst, addr(reg), offset(imm)
-    lbu,         // dst, addr(reg) -- load byte unsigned
+    lb,          // dst, offset(reg) -- load byte
+    lbu,         // dst, offset(reg) -- load byte unsigned
     lbui,        // dst, addr(reg), offset(imm) -- load byte unsigned immediate
+    lh,          // dst, offset(reg) -- load halfword
+    lhu,         // dst, offset(reg) -- load halfword unsigned
     lhui,        // dst, addr(reg), offset(imm) -- load halfword unsigned immediate
     SW,          // value(reg), addr(reg), offset(reg)
     SWI,         // value(reg), addr(reg), offset(imm)
@@ -242,6 +250,8 @@ class Instruction {
     lui,
     lw,
     lwc1,
+    lwl,
+    lwr,
     mfc1,
     mfhi,
     mflo,

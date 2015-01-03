@@ -28,10 +28,10 @@ mips_names = ["and",
 keep_directives = [".byte",
                    ".2byte",
                    ".4byte",
-                   ".globl",
+                   ".space",
                    ".file",
                    ".loc"]
-                   #".section",
+                   #".globl",
                    #".data",
                    #".text",
                    #".previous",
@@ -94,16 +94,20 @@ def main():
     sys.stdout.write('\tREG\t$fcc0\n')
     reg_list.append("$fcc0")
 
-
-    sys.stdout.write('start:\n')
     
     # Set up the stack pointer. In MIPS, the value of $zero is always 0. That
-    # is also the case in MicroBlaze. 
+    # is also the case in MicroBlaze.
+    sys.stdout.write('.TRaX_START_PREAMBLE:\n')
     sys.stdout.write("\txor_m\t$zero, $zero, $zero\n")
     sys.stdout.write("\txor_m\t$gp, $gp, $gp\n")
     sys.stdout.write("\taddi\t$sp, $zero, {0}\n".format(STACK_OFFSET))
+
+    # Add a jump to TRaX initialization 
+    sys.stdout.write('\tbal\t$ra, .TRaX_INIT\n')
+    sys.stdout.write('\tnop\n')
     
-    # Set up a jump and return to main to start the program.    
+    # Set up a jump and return to main to start the program.
+    sys.stdout.write('.start:\n')
     sys.stdout.write('\tbal\t$ra, main\n')
     sys.stdout.write('\tnop\n')
     sys.stdout.write('\tHALT\n')
@@ -115,13 +119,16 @@ def main():
     sys.stdout.write('\tHALT\n')
     sys.stdout.write('#END Preamble\n')
     # Need a label to separate the preamble text section
-    sys.stdout.write('TRaX_END_PREAMBLE:\n')
+    sys.stdout.write('.TRaX_END_PREAMBLE:\n')
 
     fileid = 0
 
     LinkFile(sys.argv[1], fileid)
     fileid += 1
 
+    # Add a label for TRaX initialization 
+    sys.stdout.write('.TRaX_INIT:\n')
+    sys.stdout.write('# .TRaX_INIT instructions are not emmited by compiler, but added by assembler\n')
 
     ## for filename in sys.argv[2:]:
     ##     if filename.find("memset.s") != -1:
@@ -198,6 +205,9 @@ def LinkFile(filename, fileid):
             endDirective = temp.find("z")
             startString = temp.find("\"")
             newline = temp[0:endDirective + 1] + "\t" + temp[startString:] + "\n"
+
+        elif temp.find(".ctors") >= 0:
+            newline = line
         
         # comment out directives but leave them in:
         #    comment out assignment directives "="
