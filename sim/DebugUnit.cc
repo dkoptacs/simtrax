@@ -71,14 +71,14 @@ void DebugUnit::PrintFormatString(int format_addr, ThreadState* thread)
 
   // load the address of the string
   char* str = ((char *)(ls_unit->storage[thread->thread_id]) + string_stack_addr);
-  
+
   // Now parse the format string:
   // Support %f, %d, %u, %c
 
   // All subsequent optional arguments are at consecutive word addresses on the stack
   //int next_arg_addr = format_addr + 4;
-  // MIPS compiler is placing the first arg in an 8-byte block
-  int next_arg_addr = format_addr + 8;
+  // MIPS compiler is placing the first vararg 12-bytes away from the string address
+  int next_arg_addr = format_addr + 12;
 
   std::string parsed;
   char temp[32];
@@ -96,8 +96,12 @@ void DebugUnit::PrintFormatString(int format_addr, ThreadState* thread)
 	  switch(*str)
 	    {
 	    case 'f': // %f
+	      // align to 8-byte boundary
+	      next_arg_addr = (next_arg_addr % 8) ? next_arg_addr + 4 : next_arg_addr;
 	      sprintf(temp, "%f",
-		      ((FourByte *)((char *)(ls_unit->storage[thread->thread_id]) + next_arg_addr))->fvalue);
+		      *(((double *)((char *)(ls_unit->storage[thread->thread_id]) + next_arg_addr))));
+	      // floats get promoted to double for variadic functions, add an extra 4
+	      next_arg_addr += 4; 
 	      break;
 	    case 'd': // %d
 	      sprintf(temp, "%d",

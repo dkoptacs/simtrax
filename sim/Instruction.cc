@@ -78,6 +78,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::lhu:
     case Instruction::lw:
     case Instruction::lwc1:
+    case Instruction::FTOD:
       // check args[2] and choose the first fail_reg if there is a fail.
       
       if ((register_ready[args[2]] <= cur_cycle))
@@ -310,6 +311,8 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::swc1:
     case Instruction::lwl:
     case Instruction::lwr:
+    case Instruction::swl:
+    case Instruction::swr:
       // check args[0] and args[2] for read
       if (register_ready[args[0]] <= cur_cycle)
         if (register_ready[args[2]] <= cur_cycle)
@@ -575,6 +578,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("FPINVSQRT"),
   std::string("FPINV"),
   std::string("FPCONV"),
+  std::string("FTOD"),
 
   // Stream ops
   std::string("STARTSW"),
@@ -783,6 +787,8 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("subu"),
   std::string("sub_s"),
   std::string("sw"),
+  std::string("swl"),
+  std::string("swr"),
   std::string("swc1"),
   std::string("trunc_w_s"),
   std::string("xor_m"),

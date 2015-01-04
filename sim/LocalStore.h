@@ -26,6 +26,8 @@ public:
   void LoadJumpTable(char* jump_table, int _size);
   reg_value LoadWordLeft(ThreadState* thread, int address, int write_reg, long long int current_cycle);
   reg_value LoadWordRight(ThreadState* thread, int address, int write_reg, long long int current_cycle);
+  void StoreWordLeft(ThreadState* thread, int address, reg_value write_val);
+  void StoreWordRight(ThreadState* thread, int address, reg_value write_val);
 
   int jtable_size;
   int width;

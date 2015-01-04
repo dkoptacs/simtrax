@@ -14,6 +14,7 @@ ConversionUnit::ConversionUnit(int _latency, int _width) :
 // From FunctionalUnit
 bool ConversionUnit::SupportsOp(Instruction::Opcode op) const {
   if (op == Instruction::FPCONV ||
+      op == Instruction::FTOD ||
       op == Instruction::INTCONV ||
       op == Instruction::cvt_s_w ||
       op == Instruction::trunc_w_s)
@@ -25,37 +26,68 @@ bool ConversionUnit::SupportsOp(Instruction::Opcode op) const {
 bool ConversionUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread) {
   if (issued_this_cycle >= width) return false;
   int write_reg = ins.args[0];
+  int write_reg2 = ins.args[1];
   long long int write_cycle = issuer->current_cycle + latency;
   reg_value arg1;
+  reg_value arg2;
   Instruction::Opcode failop = Instruction::NOP;
   // Read the register
-  if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
-    // should never happen
-    printf("Error in conversionUnit.\n");
-  }
+  if(ins.op == Instruction::FTOD)
+    {
+      if (!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) 
+	{
+	  // should never happen
+	  printf("Error in conversionUnit.\n");
+	}
+    }
+  else
+    {
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) 
+	{
+	  // should never happen
+	  printf("Error in conversionUnit.\n");
+	}
+    }
 
   // Get result value
-  reg_value result;
-  switch (ins.op) {
+  reg_value result, result2;
+  double d;
+  switch (ins.op) 
+    {
     case Instruction::cvt_s_w:
     case Instruction::FPCONV:
       result.fdata = static_cast<float>(arg1.idata);
       break;
-
+      
     case Instruction::trunc_w_s:
     case Instruction::INTCONV:
       result.idata = static_cast<int>(arg1.fdata);
       break;
+    case Instruction::FTOD: // float to double (destination is 2 registers)
+      d = static_cast<double>(arg2.fdata);
+      // no good way to cast from double to long long without changing bits
+      memcpy(&result.udata, (char*)&d, 4); 
+      memcpy(&result2.udata, ((char*)&d) + 4, 4); 
+      break;
     default:
       fprintf(stderr, "ERROR ConversionUnit FOUND SOME OTHER OP\n");
       break;
-  };
+    };
 
-  // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
-    // pipeline hazzard
-    return false;
-  }
+  // Write the value(s)
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) 
+    {
+      // pipeline hazzard
+      return false;
+    }
+  if(ins.op == Instruction::FTOD)
+    {
+      if (!thread->QueueWrite(write_reg2, result2, write_cycle, ins.op, &ins)) {
+	// pipeline hazzard
+	return false;
+      }
+    }
+  
   issued_this_cycle++;
   return true;
 }

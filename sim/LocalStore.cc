@@ -50,6 +50,8 @@ bool LocalStore::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::lwl ||
       op == Instruction::lwr ||
       op == Instruction::sw ||
+      op == Instruction::swl ||
+      op == Instruction::swr ||
       op == Instruction::lwc1 ||
       op == Instruction::swc1)
     return true;
@@ -122,21 +124,30 @@ bool LocalStore::IssueStore(reg_value write_val, int address, ThreadState* threa
     }*/
   
   static int max_addr = 0;
-  if (address > max_addr) {
+  if (address > max_addr) 
     max_addr = address;
-  }
+
+  if(ins.op == Instruction::swl)
+    StoreWordLeft(thread, address, write_val);
+  else if(ins.op == Instruction::swr)
+    StoreWordRight(thread, address, write_val);
   // write write_val to mem[address] for thread
-  if (ins.op == Instruction::sb || ins.op == Instruction::sbi) {
-    ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue =
+  else if (ins.op == Instruction::sb || ins.op == Instruction::sbi) 
+    {
+      ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue =
         (((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue & ~(BITMASK)) +
         (write_val.udata & BITMASK);
-  } else if (ins.op == Instruction::sh || ins.op == Instruction::shi) {
-    ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue =
+    } 
+  else if (ins.op == Instruction::sh || ins.op == Instruction::shi) 
+    {
+      ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue =
         (((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue & ~(HALFMASK)) +
         (write_val.udata & HALFMASK);
-  } else {
-    ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue = write_val.udata;
-  }
+    } 
+  else 
+    {
+      ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue = write_val.udata;
+    }
 
   return true;
 }
@@ -179,6 +190,8 @@ bool LocalStore::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
     case Instruction::sh:
     case Instruction::swc1:
     case Instruction::sw:
+    case Instruction::swl:
+    case Instruction::swr:
       if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop))
       {
         // something bad
@@ -340,9 +353,7 @@ reg_value LocalStore::LoadWordLeft(ThreadState* thread, int address, int write_r
     }
   
   // address is most significant of 4 consecutive bytes
-
-  reg_value leftWord, rightWord;
-  int wordBoundary = address - (address % 4); // find the previous word boundary
+  int wordBoundary = address - (address % 4); // find the aligned word boundary
   result.udata = ((FourByte *)((char *)(storage[thread->thread_id]) + wordBoundary))->uvalue;
 
   unsigned int discardBits = (3 - (address - wordBoundary)) * 8;
@@ -367,7 +378,7 @@ reg_value LocalStore::LoadWordRight(ThreadState* thread, int address, int write_
       exit(1);
     }
   
-  int wordBoundary = address - (address % 4); // find the previous word boundary
+  int wordBoundary = address - (address % 4); // find the aligned word boundary
   result.udata = ((FourByte *)((char *)(storage[thread->thread_id]) + wordBoundary))->uvalue;
 
   // mask off any bytes after the word boundary
@@ -378,4 +389,50 @@ reg_value LocalStore::LoadWordRight(ThreadState* thread, int address, int write_
   // Keep most significant bytes from register data
   result.udata |= (oldVal.udata & regMask); 
   return result;
+}
+
+
+void LocalStore::StoreWordLeft(ThreadState* thread, int address, reg_value write_val)
+{
+  reg_value result;
+  reg_value oldVal;
+  // address is most significant of 4 consecutive bytes
+  int wordBoundary = address - (address % 4); // find the aligned word boundary
+  oldVal.udata = ((FourByte *)((char *)(storage[thread->thread_id]) + wordBoundary))->uvalue;
+
+  unsigned int discardBits = (3 - (address - wordBoundary)) * 8;
+  unsigned int memMask = ~(0xFFFFFFFFu >> discardBits);
+  // Shift register data to proper word alignment
+  write_val.udata = write_val.udata >> discardBits;
+  // Keep remaining bytes from memory data
+  oldVal.udata &= memMask; 
+
+  // Combine the two
+  result.udata = write_val.udata | oldVal.udata;
+  // Store it
+  ((FourByte *)((char *)(storage[thread->thread_id]) + wordBoundary))->uvalue = result.udata;
+
+}
+
+void LocalStore::StoreWordRight(ThreadState* thread, int address, reg_value write_val)
+{
+  reg_value result;
+  reg_value oldVal;
+  // address is most significant of 4 consecutive bytes
+  int wordBoundary = address - (address % 4); // find the aligned word boundary
+  oldVal.udata = ((FourByte *)((char *)(storage[thread->thread_id]) + wordBoundary))->uvalue;
+
+  // mask off any bytes after the word boundary
+  unsigned int discardBits = (address - wordBoundary) * 8;
+  unsigned int memMask = ~(0xFFFFFFFFu << discardBits);
+  // Shift register data to word alignment
+  write_val.udata = write_val.udata << discardBits;
+  // Keep remaining bytes from memory data
+  oldVal.udata &= memMask;
+
+    // Combine the two
+  result.udata = write_val.udata | oldVal.udata;
+  // Store it
+  ((FourByte *)((char *)(storage[thread->thread_id]) + wordBoundary))->uvalue = result.udata;
+
 }

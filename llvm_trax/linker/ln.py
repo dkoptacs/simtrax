@@ -126,6 +126,15 @@ def main():
     LinkFile(sys.argv[1], fileid)
     fileid += 1
 
+    if needsExtendsf:
+        sys.stdout.write('#promote a float to a double\n')
+        sys.stdout.write('#since TRaX does not support double, this does nothing\n')
+        sys.stdout.write('#other 32 bits of the double will be undefined\n')
+        sys.stdout.write('__extendsfdf2:\n')
+        sys.stdout.write('\tFTOD $2 $3 $f12\n')
+        sys.stdout.write('\tjr $ra\n')
+        sys.stdout.write('\tnop\n')
+
     # Add a label for TRaX initialization 
     sys.stdout.write('.TRaX_INIT:\n')
     sys.stdout.write('# .TRaX_INIT instructions are not emmited by compiler, but added by assembler\n')
@@ -150,7 +159,7 @@ def LinkFile(filename, fileid):
 
     #global needsMemset
     #global needsMemcpy
-    #global needsExtendsf
+    global needsExtendsf
     global reg_list
     global keep_directives
 
@@ -242,8 +251,8 @@ def LinkFile(filename, fileid):
                 ##     needsMemset = True
                 ## if tok == "memcpy":
                 ##     needsMemcpy = True
-                ## if tok == "__extendsfdf2":
-                ##     needsExtendsf = True
+                if tok == "__extendsfdf2":
+                    needsExtendsf = True
 
                 # determine if the token is a label name
                 is_label = False

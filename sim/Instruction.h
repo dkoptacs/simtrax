@@ -73,6 +73,7 @@ class Instruction {
     FPINVSQRT,   // dst, source
     FPINV,       // dst, source
     FPCONV,      // dst, source (int->float)
+    FTOD,        // dst(hi), dst(lo), src 
 
     // Stream queue ops
     STARTSW,     // source
@@ -284,6 +285,8 @@ class Instruction {
     subu,
     sub_s,
     sw,
+    swl,
+    swr,
     swc1,
     trunc_w_s,
     xor_m,
