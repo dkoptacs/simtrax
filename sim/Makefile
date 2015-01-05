@@ -3,7 +3,7 @@
 EXE=simtrax
 
 #CXX = g++-4.9
-CXX = g++
+CXX = ../llvm_trax/clang-3.5.0/bin/clang++
 CXXFLAGS = -g -Wall -O3 -pthread --std=c++11
 
 LDFLAGS ?=

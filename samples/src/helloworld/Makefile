@@ -21,7 +21,7 @@ SIMDIR=../../../sim
 LLVM_TRAXDIR=../../../llvm_trax
 
 # Directories that should be in LLVM_Trax
-BINDIR=${LLVM_TRAXDIR}/bin
+BINDIR=${LLVM_TRAXDIR}/llvm-3.5.0.src/Release+Asserts/bin
 LIBDIR=${LLVM_TRAXDIR}/lib
 INCLUDEDIR=${LLVM_TRAXDIR}/include
 LINKERDIR=${LLVM_TRAXDIR}/linker
@@ -39,7 +39,7 @@ MEMORYFILE=\"memory.mem\"
 
 # Should not need to edit below this point unless you know what you're doing
 # The compiler to use for the executable
-CXX=g++
+CXX=${LLVM_TRAXDIR}/clang-3.5.0/bin/clang++
 CXXFILENAMES=-DVIEWFILE=${VIEWFILE} -DMODELFILE=${MODELFILE} -DLIGHTFILE=${LIGHTFILE} -DMEMORYFILE=${MEMORYFILE}
 CXXFLAGS=-DTRAX=0 -DWIDTH=${WIDTH} -DHEIGHT=${HEIGHT} ${CXXFILENAMES} -I${SIMDIR} -I${INCLUDEDIR} -pthread -O3 -g
 CXXSIMFILES=${SIMDIR}/LoadMemory.cc ${SIMDIR}/OBJLoader.cc ${SIMDIR}/OBJListLoader.cc ${SIMDIR}/IWLoader.cc ${SIMDIR}/BVH.cc ${SIMDIR}/Grid.cc ${SIMDIR}/Camera.cc ${SIMDIR}/ReadLightfile.cc ${SIMDIR}/ReadViewfile.cc ${SIMDIR}/Material.cc ${SIMDIR}/Triangle.cc ${SIMDIR}/MTLLoader.cc ${SIMDIR}/PPM.cc ${SIMDIR}/TGALoader.cc ${SIMDIR}/CustomLoadMemory.cc ${SIMDIR}/lodepng.cc
@@ -50,11 +50,14 @@ CXXLIBS=${LIBDIR}/trax_cpp.cpp
 #TRAXC=llvm-gcc
 
 # clang is preferred.
-TRAXC=clang
-TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR} -target mips -S -O3
+TRAXC=${LLVM_TRAXDIR}/clang-3.5.0/bin/clang++
+#TRAXC=clang++
+TRAXCFLAGS=-DTRAX=1 -I${INCLUDEDIR} -target mipsel -S -O3
 
 all: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
 default: mkdirs ${BINARYOUTPUT} ${TRAXOUTPUT}
+#all: mkdirs ${TRAXOUTPUT}
+#default: mkdirs ${TRAXOUTPUT}
 
 COBJS := $(addprefix objs/, $(notdir $(CXXSIMFILES:.cc=.o)))
 
@@ -87,7 +90,7 @@ OBJS := $(addprefix objs/, $(notdir $(SOURCES:${CSUFFIX}=.bc))) objs/trax_trax.b
 rt.s: ${OBJS} ${INCLUDEDIR}/trax.hpp
 	@${BINDIR}/llvm-link ${OBJS} -o rt.bc
 	@${BINDIR}/opt rt.bc -O3 -inline-threshold 200000000 -o rt.bc
-	@${BINDIR}/llc rt.bc -o rt.s -march=mips -mattr=+mips32,+single-float -relocation-model=static
+	@${BINDIR}/llc rt.bc -o rt.s -march=mipsel -mattr=+mips32,+single-float -relocation-model=static
 
 
 clean:
