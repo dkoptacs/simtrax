@@ -41,7 +41,7 @@ uname | grep 'Linux' &> /dev/null
 if [ $? == 0 ]; then
     cat /proc/version | grep 'Red'
     if [ $? == 0 ]; then
-	CLANGURL="http://llvm.org/releases/3.5.0/clang+llvm-3.5.0-i686-fedora20.tar.xz"
+	CLANGURL="http://llvm.org/releases/3.5.0/clang+llvm-3.5.0-x86_64-fedora20.tar.xz"
 	CLANGDIR="clang+llvm-3.5.0-x86_64-fedora20"
     fi
     cat /proc/version | grep 'Ubuntu'
