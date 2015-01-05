@@ -23,6 +23,7 @@ bool FPCompare::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::FPGE ||
       op == Instruction::FPUN ||
       op == Instruction::FPNEG ||
+      op == Instruction::neg_s ||
       op == Instruction::EQ ||
       op == Instruction::NE ||
       op == Instruction::LT ||
@@ -46,7 +47,7 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   reg_value arg0, arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
   // Read the registers
-  if (ins.op == Instruction::FPNEG) {
+  if (ins.op == Instruction::FPNEG || ins.op == Instruction::neg_s) {
     if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
       // bad stuff happened
       printf("FPCompare unit: Error in Accepting instruction. Should have passed.\n");
@@ -76,8 +77,9 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
 
   // Compute result
   reg_value result;
-  switch (ins.op) {
-
+  switch (ins.op) 
+    {
+      
     case Instruction::c_eq_s:
       if (isnan(arg0.fdata) || isnan(arg1.fdata))
         thread->compare_register = 0;
@@ -171,6 +173,7 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       result.idata = (arg1.fdata != arg1.fdata || arg2.fdata != arg2.fdata) ? 1 : 0;
       break;
     case Instruction::FPNEG:
+    case Instruction::neg_s:
       result.fdata = -arg1.fdata;
       break;
       // These comparisons might not be used any more

@@ -323,13 +323,6 @@ int Assembler::HandleLabel(std::string line, int pass, std::vector<symbol*>& lab
   if(pass == 2) 
     return 1;
 
-  // Delete previous label if nothing underneath it
-  if(labels.size() > 0)
-    {
-      symbol* top = labels[labels.size()-1];
-      if(!top->isAscii && !top->isJumpTable && !top->isText)
-	labels.pop_back();
-    }
 
   // First get the name of the label
   std::smatch m;  
@@ -400,6 +393,14 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
 	  labels[labels.size()-1]->isJumpTable = true;
 	  labels[labels.size()-1]->address = jtable_size;
 	}
+
+      // Update previous label if nothing underneath it
+      if(labels.size() > 1 && !labels[labels.size()-1]->isJumpTable && !labels[labels.size()-1]->isAscii)
+	{
+	  labels[labels.size()-2]->isJumpTable = true;
+	  labels[labels.size()-2]->address = jtable_size;
+	}
+      
 
       symbol* ds = new symbol();
       ds->address = jtable_size;      
@@ -537,6 +538,10 @@ int Assembler::HandleInstruction(std::string line, int pass, std::vector<Instruc
       // Set it as a text label
       if(labels.size() > 0)
 	labels[labels.size()-1]->isText = true;
+      // Update previous label if nothing underneath it
+      if(labels.size() > 1 && !labels[labels.size()-2]->isJumpTable && !labels[labels.size()-2]->isAscii && !labels[labels.size()-2]->isText)
+	labels[labels.size()-2]->isText = true;
+
       num_instructions++;
       return 1;
     }

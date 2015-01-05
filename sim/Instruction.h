@@ -209,6 +209,8 @@ class Instruction {
     FPRSUB,
     FPSQRT,
     FPNEG,
+    neg_s,
+    negu,
     FPGT,
     FPGE,
     // End MBlaze additions
@@ -270,6 +272,7 @@ class Instruction {
     jr,
     nop,
     nor,
+    not_m,
     ori,
     or_m,
     sll,
@@ -288,6 +291,7 @@ class Instruction {
     swl,
     swr,
     swc1,
+    teq,
     trunc_w_s,
     xor_m,
     // End MIPS

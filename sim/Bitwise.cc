@@ -36,6 +36,7 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::andi ||
       op == Instruction::and_m ||
       op == Instruction::nor ||
+      op == Instruction::not_m ||
       op == Instruction::or_m ||
       op == Instruction::ori ||
       op == Instruction::sll ||
@@ -86,6 +87,7 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       
       // 1 register operand
     case Instruction::ori:
+    case Instruction::not_m:
     case Instruction::andi:
     case Instruction::sra_m:
     case Instruction::srl_m:
@@ -116,6 +118,10 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     {
     case Instruction::nor:
       result.udata = ~(arg1.udata | arg1.udata);
+      break;
+
+    case Instruction::not_m:
+      result.udata = ~arg1.udata;
       break;
       
     case Instruction::or_m:

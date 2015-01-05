@@ -30,7 +30,7 @@ void trax_main()
   // number of times otherwise you could put the system into deadlock.
   // Note: For this example, and any example with independent writes, the barrier is not needed
   // nor is it helpful. It is only here for an example of the usage.
-  barrier();
+  barrier(5);
 
 }
 

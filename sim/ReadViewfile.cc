@@ -5,7 +5,6 @@
 
 
 Camera* ReadViewfile::LoadFile(const char* filename, float far) {
-  printf("asf\n");
   FILE* input = fopen(filename, "r");
   if (!input) {
     perror("Failed to open camera file.");

@@ -7,6 +7,8 @@
 #include <math.h>
 #include <cassert>
 
+extern std::vector<std::string> source_names;
+
 FPDiv::FPDiv(int _latency, int _width) :
     FunctionalUnit(_latency), width(_width) {
   issued_this_cycle = 0;
@@ -66,10 +68,15 @@ bool FPDiv::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
 
     case Instruction::div:
       if (arg2.idata == 0)
-      {
-        printf("dividing by zero! (Instruction PC: %d)\n", ins.pc_address);
-	exit(1);
-      }
+	{
+	  printf("Error: dividing by zero! : PC = %d, thread = %d, core = %d, cycle = %lld\n",
+		 ins.pc_address, thread->thread_id, (int)thread->core_id, issuer->current_cycle);
+	  if(ins.srcInfo.fileNum >= 0)
+	    printf("%s: %d\n", source_names[ins.srcInfo.fileNum].c_str(), ins.srcInfo.lineNum);
+	  else
+	    printf("Compile with -g for more info\n");
+	  exit(1);
+	}
       else
       {
         resultLO.idata = arg1.idata / arg2.idata;

@@ -19,6 +19,7 @@ opnames = []
 
 mips_names = ["and",
               "or",
+              "not",
               "sra", 
               "srl", 
               "xor",

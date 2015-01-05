@@ -7,6 +7,8 @@
 #include <cassert>
 #include <stdlib.h>
 
+extern std::vector<std::string> source_names;
+
 bool OverflowOnAdd(int a, int b);
 int Extend16(int a);
 
@@ -37,7 +39,9 @@ bool IntAddSub::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::slti ||
       op == Instruction::sltu ||
       op == Instruction::sltiu ||
-      op == Instruction::subu )
+      op == Instruction::subu ||
+      op == Instruction::negu ||
+      op == Instruction::teq )
     return true;
   else
     return false;
@@ -47,7 +51,7 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   if (issued_this_cycle >= width) return false;
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
-  reg_value arg1, arg2;
+  reg_value arg0, arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
 
   // Read the registers
@@ -57,24 +61,40 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       ins.op == Instruction::addi  ||
       ins.op == Instruction::addiu ||
       ins.op == Instruction::slti ||
-      ins.op == Instruction::sltiu) {
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
-      // bad stuff happened
-      printf("IntAddSub unit: Error in Accepting instruction. Should have passed1.\n");
+      ins.op == Instruction::sltiu ||
+      ins.op == Instruction::negu) 
+    {
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) 
+	{
+	  // bad stuff happened
+	  printf("IntAddSub unit: Error in Accepting instruction. Should have passed.\n");
+	  exit(1);
+	}
     }
-  } else {
-    // Two register operands
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
-	!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
-      // bad stuff happened
-      printf("IntAddSub unit: Error in Accepting instruction. Should have passed2.\n");
+  // Two register operands (0, 1)
+  else if (ins.op == Instruction::teq)
+    {
+      if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop) ||
+	  !thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+	{
+	  printf("IntAddSub unit: Error in Accepting instruction. Should have passed.\n");
+	  exit(1);
+	}
+    }
+  else 
+    {
+      // Two register operands (1, 2)
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
+	  !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+	// bad stuff happened
+      printf("IntAddSub unit: Error in Accepting instruction. Should have passed.\n");
       printf("PC = %d, thread = %d, core = %d, cycle = %lld, reg_ready[%d] = %lld, reg_ready[%d] = %lld\n",
 	     ins.pc_address, thread->thread_id, (int)thread->core_id, issuer->current_cycle,
 	     ins.args[1], thread->register_ready[ins.args[1]],
 	     ins.args[2], thread->register_ready[ins.args[2]]);
       exit(1);
+      }
     }
-  }
 
   // now get the result value
   unsigned long long overflow;
@@ -91,13 +111,17 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       result.idata = arg1.idata - arg2.idata;
       break;
 
+    case Instruction::negu:
+      result.idata = -arg1.idata;
+      break;
+
     case Instruction::slt:
       result.idata = (arg1.idata < arg2.idata);
       break;
 
-  case Instruction::sltu:
-    result.udata = (arg1.udata < arg2.udata);
-    break;
+    case Instruction::sltu:
+      result.udata = (arg1.udata < arg2.udata);
+      break;
 
     case Instruction::slti:
       result.idata = (arg1.idata < ins.args[2]);
@@ -107,6 +131,19 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       result.idata = (arg1.udata < ins.args[2]);
       break;
 
+    case Instruction::teq:
+      if(arg0.udata == arg1.udata)
+	{
+	  printf("TRAP (teq): PC = %d, thread = %d, core = %d, cycle = %lld\n",
+		 ins.pc_address, thread->thread_id, (int)thread->core_id, issuer->current_cycle);
+	  if(ins.srcInfo.fileNum >= 0)
+	    printf("%s: %d\n", source_names[ins.srcInfo.fileNum].c_str(), ins.srcInfo.lineNum);
+	  else
+	    printf("Compile with -g for more info\n");
+	  exit(1);
+	}
+      break;
+      
     case Instruction::ADD:
       result.idata = arg1.idata + arg2.idata;
       break;
@@ -170,10 +207,14 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   };
 
   // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
-    // pipeline hazard
-    return false;
-  }
+  if(ins.op != Instruction::teq) // trap doesn't write anything
+    {
+      if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) 
+	{
+	  // pipeline hazard
+	  return false;
+	}
+    }
   issued_this_cycle++;
   return true;
 }

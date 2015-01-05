@@ -168,6 +168,8 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::INTCONV:
     case Instruction::FPSQRT:
     case Instruction::FPNEG:
+    case Instruction::neg_s:
+    case Instruction::negu:
     case Instruction::FPINVSQRT:
     case Instruction::FPINV:
     case Instruction::LOAD:
@@ -199,6 +201,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
 
     // MIPS
     case Instruction::addi:
+    case Instruction::not_m:
     case Instruction::addiu:
     case Instruction::andi:
     case Instruction::cvt_s_w:
@@ -295,6 +298,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::c_ule_s:
     case Instruction::c_ult_s:
     case Instruction::div:
+    case Instruction::teq:
       // check args[0] and args[1] for read
       if (register_ready[args[0]] <= cur_cycle)
         if (register_ready[args[1]] <= cur_cycle)
@@ -713,6 +717,8 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("FPRSUB"),
   std::string("FPSQRT"),
   std::string("FPNEG"),
+  std::string("neg_s"),
+  std::string("negu"),
   std::string("FPGT"),
   std::string("FPGE"),
 
@@ -772,6 +778,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("jr"),
   std::string("nop"),
   std::string("nor"),
+  std::string("not_m"),
   std::string("ori"),
   std::string("or_m"),
   std::string("sll"),
@@ -790,6 +797,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("swl"),
   std::string("swr"),
   std::string("swc1"),
+  std::string("teq"),
   std::string("trunc_w_s"),
   std::string("xor_m"),
   // End MIPS

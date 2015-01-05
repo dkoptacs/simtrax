@@ -7,7 +7,6 @@
 #include <stdlib.h>
 
 #define N 1000
-#define MAX_STALL_CYCLES 16
 
 
 WriteQueue::WriteQueue() {
@@ -219,8 +218,6 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
 //   printf("Queuing write to reg: %d with val: %d on cycle: %lld from op: %s\n", which_reg, val.idata, which_cycle,
 //   Instruction::Opnames[op].c_str());
   //  write_requests.print();
-
-  int stall_cycles = -1;
 
   // If there is already a write in flight to this register, either 
   // -The compiler generated a useless instruction, squash the old one
