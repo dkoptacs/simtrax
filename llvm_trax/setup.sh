@@ -13,7 +13,7 @@ PWD=`pwd`
 which wget &> /dev/null
 if [ $? == 0 ]; then
     DOWNLOADER="wget"
-    DOWNLOADEROPTS = "-O"
+    DOWNLOADEROPTS="-O"
 fi
 #echo $DOWNLOADER
 if [ ! -n "$DOWNLOADER" ]; then
@@ -41,13 +41,14 @@ uname | grep 'Linux' &> /dev/null
 if [ $? == 0 ]; then
     cat /proc/version | grep 'Red'
     if [ $? == 0 ]; then
-	CLANGURL="http://llvm.org/releases/3.5.0/clang+llvm-3.5.0-i686-fedora20.tar.xz"
-	CLANGDIR="clang+llvm-3.5.0-i686-fedora20"
+	CLANGURL="http://llvm.org/releases/3.5.0/clang+llvm-3.5.0-x86_64-fedora20.tar.xz"
+	CLANGDIR="clang+llvm-3.5.0-x86_64-fedora20"
     fi
     cat /proc/version | grep 'Ubuntu'
     if [ $? == 0 ]; then
 	CLANGURL="http://llvm.org/releases/3.5.0/clang+llvm-3.5.0-x86_64-linux-gnu-ubuntu-14.04.tar.xz"
-	CLANGDIR="clang+llvm-3.5.0-x86_64-linux-gnu-ubuntu-14.04"
+	CLANGDIR="clang+llvm-3.5.0-x86_64-linux-gnu"
+
     fi
     cat /proc/version | grep 'SUSE'
     if [ $? == 0 ]; then
@@ -62,7 +63,7 @@ echo $RUN
 $RUN
 
 echo Extracting clang...
-tar zxf clang.tar.xz
+tar xf clang.tar.xz
 RUN="mv $CLANGDIR clang-3.5.0"
 $RUN
 
@@ -72,7 +73,7 @@ echo $RUN
 $RUN
 
 echo Extracting llvm...
-tar zxf llvm-3.5.0.src.tar.xz
+tar xf llvm-3.5.0.src.tar.xz
 
 echo Copying TRaX-specific files to llvm-3.5.0.src...
 cp Trax/IntrinsicsMips.td llvm-3.5.0.src/include/llvm/IR/IntrinsicsMips.td
