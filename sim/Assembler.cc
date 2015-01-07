@@ -59,9 +59,7 @@ std::string expLo( "\%lo" );
 std::string expGpRel( "\%gp_rel" );
 std::string expMipsDirective( "((" + expHi + ")|(" + expLo + ")|(" + expGpRel + "))\\(" + expSymbol + "\\)" );
 // Any argument (label, register, integer literal, etc)
-//std::string expAssignArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")|(\\+|-)" );
 std::string expArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")|(" + expArithmetic + ")" );
-//std::string expArg( "(" + expMipsDirective + ")|(" + expIntOffset + ")|(" + expSymbol + ")|(" + expIntLiteral + ")|(\\+|-)" );
 // ---Debug info---
 // Line info
 std::string expSrcInfo( "\\.loc" );
@@ -236,6 +234,13 @@ int Assembler::HandleLine(std::string line,
       line = line.substr(0, line.find("#"));
     }
 
+  // Don't match anything inside strings at top level
+  std::string origLine = line;
+  if(std::regex_search(line, m, std::regex(expString)))
+    {
+      line = (line.substr(0, line.find("\"") - 1) + line.substr(line.rfind("\"") + 1));
+    }
+
   // Ignore blank lines
   if(!std::regex_search(line, m, std::regex("\\S")))
     return 1;
@@ -243,40 +248,40 @@ int Assembler::HandleLine(std::string line,
   // Constructors section
   if(std::regex_search(line, m, std::regex(expConstructors)))
     {
-      return HandleConstructors(line, pass, labels, regs, elf_vars);
+      return HandleConstructors(origLine, pass, labels, regs, elf_vars);
     }  
   // Register declaration
   if(std::regex_search(line, m, std::regex(expRegister)))
     {
-      return HandleRegister(line, pass, labels, regs, elf_vars);
+      return HandleRegister(origLine, pass, labels, regs, elf_vars);
     }
   // Label declaration
   if(std::regex_search(line, m, std::regex(expLabel)))
     {
-      return HandleLabel(line, pass, labels, regs, elf_vars);
+      return HandleLabel(origLine, pass, labels, regs, elf_vars);
     }
   // Data section item
   if(std::regex_search(line, m, std::regex(expData)))
     {
-      return HandleData(line, pass, labels, regs, elf_vars, data_table, jump_table);
+      return HandleData(origLine, pass, labels, regs, elf_vars, data_table, jump_table);
     }
   // Debug line info
   if(std::regex_search(line, m, std::regex(expSrcInfo)))
     {
-      return HandleSourceInfo(line, pass, labels, regs, elf_vars);
+      return HandleSourceInfo(origLine, pass, labels, regs, elf_vars);
     }
   // Debug source file declaration
   if(std::regex_search(line, m, std::regex(expFile)))
     {
-      return HandleFileName(line, pass, sourceNames);
+      return HandleFileName(origLine, pass, sourceNames);
     }
   // ELF assignment
   if(std::regex_search(line, m, std::regex(expAssign)))
     {
-      return HandleAssignment(line, pass, labels, regs, elf_vars);
+      return HandleAssignment(origLine, pass, labels, regs, elf_vars);
     }
   // Otherwise, it must be an instruction
-  return HandleInstruction(line, pass, instructions, labels, regs, elf_vars);
+  return HandleInstruction(origLine, pass, instructions, labels, regs, elf_vars);
 }
 
 
