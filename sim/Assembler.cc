@@ -3,7 +3,7 @@
 #include <boost/regex.hpp>
 #include <iostream>
 #include <fstream>
-#include <cstdint>
+#include <stdint.h>
 #include <cassert>
 int Assembler::num_instructions = 0;
 int Assembler::num_regs = 1;
@@ -689,7 +689,7 @@ int Assembler::HandleArg(std::string arg,
   // Integer literals
   if(boost::regex_search(arg, m, boost::regex(expIntLiteral)))
     {
-      retVal = stoul(m.str());
+      retVal = atoi(m.str().c_str());
       return 1;
     }
 

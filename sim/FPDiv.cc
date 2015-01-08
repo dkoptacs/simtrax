@@ -6,6 +6,7 @@
 #include <float.h>
 #include <math.h>
 #include <cassert>
+#include <stdlib.h>
 
 extern std::vector<std::string> source_names;
 
