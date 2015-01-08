@@ -92,9 +92,11 @@ cp Trax/MipsInstrInfo.td llvm-3.5.0.src/lib/Target/Mips/MipsInstrInfo.td
 
 #CLANGBIN="$PWD/clang-3.5.0/bin/clang++"
 
-cd llvm-3.5.0.src
+#cd llvm-3.5.0.src
+mkdir build
+cd build
 echo Configuring...
-./configure --enable-optimized --target=mips --with-python=/usr/local/stow/python/amd64_linux26/python-2.7.3/bin/python
+../llvm-3.5.0.src/configure --enable-optimized --with-python=/usr/local/stow/python/amd64_linux26/python-2.7.3/bin/python
 
 echo Building...
 make -j$NUM_CORES
