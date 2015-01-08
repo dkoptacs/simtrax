@@ -2,11 +2,16 @@
 # else.
 EXE=simtrax
 
-#CXX = g++-4.9
-CXX = ../llvm_trax/clang-3.5.0/bin/clang++
-CXXFLAGS = -g -Wall -O3 -pthread --std=c++11
 
-LDFLAGS ?=
+# for OSX
+CXX = clang++
+CXXFLAGS = -g -Wall -O3 -pthread -I/opt/local/include/ -L/opt/local/lib/ -lboost_regex-mt
+
+#for CADE
+#CXX = g++
+#CXXFLAGS = -g -Wall -O3 -pthread --std=c++11 -I/opt/local/include/ -L/opt/local/lib/ -lboost_regex-mt
+
+#LDFLAGS ?=
 
 mkdirs=objs
 

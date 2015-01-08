@@ -280,7 +280,7 @@ void printUsage(char* program_name) {
   printf("    --simulation-threads   <number of simulator pthreads. -- default 1>\n");
   printf("    --stop-cycle           <stop the simulation on reaching this cycle number>\n");
   printf("    --verbose              enables output verbosity\n");
-  printf("    --write-dot            <depth> generates dot files for the tree after each frame. Depth should not exceed 8\n");
+  printf("    --write-dot            <depth> generates a dot file for the BVH (bvh.dot). Depth should not exceed 8\n");
   printf("    --write-mem-file       [write memory dump to file]\n");
 
   printf("\n");
@@ -310,7 +310,7 @@ void printUsage(char* program_name) {
 
   printf("\n");
   printf("  + Scene Parameters:\n");
-  printf("    --epsilon         <small number pre-loaded to main memory, usefule for various ray tracer offsets, default 1e-4>\n");
+  printf("    --epsilon         <small number pre-loaded to main memory, useful for various ray tracer offsets, default 1e-4>\n");
   printf("    --height          <framebuffer height in pixels -- default 128>\n");
   printf("    --image-type      <type for image output -- default png>\n");
   printf("    --no-png          [disable png output]\n");

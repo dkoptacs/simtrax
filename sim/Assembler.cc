@@ -1,5 +1,6 @@
 #include "Assembler.h"
-#include <regex>
+//#include <regex>
+#include <boost/regex.hpp>
 #include <iostream>
 #include <fstream>
 #include <cstdint>
@@ -76,8 +77,8 @@ std::string expString("\".+\"");
 
 
 using namespace std;
-using std::regex;
-using std::sregex_iterator;
+using boost::regex;
+using boost::sregex_iterator;
 
 
 //------------------------------------------------------------------------------
@@ -226,57 +227,57 @@ int Assembler::HandleLine(std::string line,
 			  std::vector<std::string>& sourceNames)
 {
 
-  std::smatch m;
+  boost::smatch m;
 
   // First remove any comments 
-  if(std::regex_search(line, m, std::regex(expComment)))
+  if(boost::regex_search(line, m, boost::regex(expComment)))
     {
       line = line.substr(0, line.find("#"));
     }
 
   // Don't match anything inside strings at top level
   std::string origLine = line;
-  if(std::regex_search(line, m, std::regex(expString)))
+  if(boost::regex_search(line, m, boost::regex(expString)))
     {
       line = (line.substr(0, line.find("\"") - 1) + line.substr(line.rfind("\"") + 1));
     }
 
   // Ignore blank lines
-  if(!std::regex_search(line, m, std::regex("\\S")))
+  if(!boost::regex_search(line, m, boost::regex("\\S")))
     return 1;
   
   // Constructors section
-  if(std::regex_search(line, m, std::regex(expConstructors)))
+  if(boost::regex_search(line, m, boost::regex(expConstructors)))
     {
       return HandleConstructors(origLine, pass, labels, regs, elf_vars);
     }  
   // Register declaration
-  if(std::regex_search(line, m, std::regex(expRegister)))
+  if(boost::regex_search(line, m, boost::regex(expRegister)))
     {
       return HandleRegister(origLine, pass, labels, regs, elf_vars);
     }
   // Label declaration
-  if(std::regex_search(line, m, std::regex(expLabel)))
+  if(boost::regex_search(line, m, boost::regex(expLabel)))
     {
       return HandleLabel(origLine, pass, labels, regs, elf_vars);
     }
   // Data section item
-  if(std::regex_search(line, m, std::regex(expData)))
+  if(boost::regex_search(line, m, boost::regex(expData)))
     {
       return HandleData(origLine, pass, labels, regs, elf_vars, data_table, jump_table);
     }
   // Debug line info
-  if(std::regex_search(line, m, std::regex(expSrcInfo)))
+  if(boost::regex_search(line, m, boost::regex(expSrcInfo)))
     {
       return HandleSourceInfo(origLine, pass, labels, regs, elf_vars);
     }
   // Debug source file declaration
-  if(std::regex_search(line, m, std::regex(expFile)))
+  if(boost::regex_search(line, m, boost::regex(expFile)))
     {
       return HandleFileName(origLine, pass, sourceNames);
     }
   // ELF assignment
-  if(std::regex_search(line, m, std::regex(expAssign)))
+  if(boost::regex_search(line, m, boost::regex(expAssign)))
     {
       return HandleAssignment(origLine, pass, labels, regs, elf_vars);
     }
@@ -295,8 +296,8 @@ int Assembler::HandleRegister(std::string line, int pass, std::vector<symbol*>& 
   // Since "REG" is contained in expSymbol, must strip it out
   std::string stripped = line.substr(line.find("REG") + 3);
 
-  std::smatch m;  
-  if(!std::regex_search(stripped, m, std::regex(expSymbol)))
+  boost::smatch m;  
+  if(!boost::regex_search(stripped, m, boost::regex(expSymbol)))
     {
       printf("ERROR: invalid register declaration\n");
       return 0;
@@ -330,8 +331,8 @@ int Assembler::HandleLabel(std::string line, int pass, std::vector<symbol*>& lab
 
 
   // First get the name of the label
-  std::smatch m;  
-  if(!std::regex_search(line, m, std::regex(expSymbol)))
+  boost::smatch m;  
+  if(!boost::regex_search(line, m, boost::regex(expSymbol)))
     {
       printf("ERROR: invalid label declaration\n");
       return 0;
@@ -379,8 +380,8 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
 			  char*& jump_table)
 {
 
-  std::smatch m;
-  std::regex_search(line, m, std::regex(expData));
+  boost::smatch m;
+  boost::regex_search(line, m, boost::regex(expData));
   
   // 1st pass: update the label associated with this declaration if necessary
   if(pass == 1) 
@@ -414,7 +415,7 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
       // Strings
       if(m.str().compare(".asciz") == 0)
 	{
-	  if(!std::regex_search(line, m, std::regex(expString)))
+	  if(!boost::regex_search(line, m, boost::regex(expString)))
 	    {
 	      printf("ERROR: Found .asciz data item without a valid string\n");
 	      return 0;
@@ -429,9 +430,9 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
 	{
 	  std::string stripped = line.substr(line.find(m.str()) + m.str().length());
 	  int args[4];
-	  std::smatch exp;
+	  boost::smatch exp;
 	  // 2 pass assembler can only handle immediate integers for declaring .space
-	  if(!std::regex_search(stripped, exp, std::regex(expSeparator + "+" + expIntLiteral)))
+	  if(!boost::regex_search(stripped, exp, boost::regex(expSeparator + "+" + expIntLiteral)))
 	    {
 	      printf("ERROR: Unknown size for .space allocation\n");
 	      return 0;
@@ -467,7 +468,7 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
       std::string stripped = line.substr(line.find(m.str()) + m.str().length());
       if(m.str().compare(".asciz") == 0) // strings
 	{
-	  std::regex_search(stripped, m, std::regex(expString));
+	  boost::regex_search(stripped, m, boost::regex(expString));
 	  // Remove quotes
 	  std::string noQuotes = EscapedToAscii(m.str().substr(1, m.str().length() - 2));
 	  
@@ -478,8 +479,8 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
       else // non-string
 	{
 	  int args[4];
-	  std::smatch ign;
-	  if(std::regex_search(m.str(), ign, std::regex(expIgnored)))
+	  boost::smatch ign;
+	  if(boost::regex_search(m.str(), ign, boost::regex(expIgnored)))
 	    args[0] = 0;
 	  else
 	    {
@@ -553,8 +554,8 @@ int Assembler::HandleInstruction(std::string line, int pass, std::vector<Instruc
   
   // 2nd pass
   // Get the op code
-  std::smatch m;
-  if(!std::regex_search(line, m, std::regex(expSymbol)))
+  boost::smatch m;
+  if(!boost::regex_search(line, m, boost::regex(expSymbol)))
     {
       printf("ERROR: Malformed assembly line\n");
       return 0;
@@ -613,15 +614,15 @@ int Assembler::GetArgs(std::string line,
 
   int argNum = 0;
   int arg;
-  std::regex args_regex(argMatcher);
-  std::sregex_iterator it = std::sregex_iterator(line.begin(), line.end(), args_regex);
-  std::sregex_iterator end = std::sregex_iterator();
+  boost::regex args_regex(argMatcher);
+  boost::sregex_iterator it = boost::sregex_iterator(line.begin(), line.end(), args_regex);
+  boost::sregex_iterator end = boost::sregex_iterator();
 
   while(it != end)
     {
       // Consume operators and collapse result in to one argument
-      std::smatch m;
-      if(std::regex_search(it->str(), m, std::regex(expArithmetic)))
+      boost::smatch m;
+      if(boost::regex_search(it->str(), m, boost::regex(expArithmetic)))
 	{
 	  it++;
 	  argNum--;
@@ -656,15 +657,15 @@ int Assembler::HandleArg(std::string arg,
 			 int &retVal)
 {
   
-  std::smatch m;  
+  boost::smatch m;  
   // Mips directives
-  if(std::regex_search(arg, m, std::regex(expMipsDirective)))
+  if(boost::regex_search(arg, m, boost::regex(expMipsDirective)))
     {
       return HandleMipsDirective(arg, labels, regs, elf_vars, retVal);
     }
 
   // Symbols (must contain a non-digit)
-  if(std::regex_search(arg, m, std::regex(expSymbol)))
+  if(boost::regex_search(arg, m, boost::regex(expSymbol)))
     {
       int symbolIndex;
       symbol* symb = NULL;
@@ -686,7 +687,7 @@ int Assembler::HandleArg(std::string arg,
     }
 
   // Integer literals
-  if(std::regex_search(arg, m, std::regex(expIntLiteral)))
+  if(boost::regex_search(arg, m, boost::regex(expIntLiteral)))
     {
       retVal = stoul(m.str());
       return 1;
@@ -704,10 +705,10 @@ int Assembler::HandleMipsDirective(std::string arg,
 				   std::vector<symbol*>& elf_vars,
 				   int &retVal)
 {
-  std::smatch dirType;
-  if(!std::regex_search(arg, dirType, std::regex(expHi)))
-    if(!std::regex_search(arg, dirType, std::regex(expLo)))
-      if(!std::regex_search(arg, dirType, std::regex(expGpRel)))
+  boost::smatch dirType;
+  if(!boost::regex_search(arg, dirType, boost::regex(expHi)))
+    if(!boost::regex_search(arg, dirType, boost::regex(expLo)))
+      if(!boost::regex_search(arg, dirType, boost::regex(expGpRel)))
 	{
 	  printf("ERROR: Unknown MIPS directive\n");
 	  return 0;
@@ -717,8 +718,8 @@ int Assembler::HandleMipsDirective(std::string arg,
   std::string stripped = arg.substr(arg.find(dirType.str()) + dirType.str().length());
 
   // Get the argument name
-  std::smatch m;
-  if(!std::regex_search(stripped, m, std::regex(expArg)))
+  boost::smatch m;
+  if(!boost::regex_search(stripped, m, boost::regex(expArg)))
     {
       printf("ERROR: Invalid argument to mips directive\n");
       return 0;
@@ -777,12 +778,12 @@ int Assembler::HandleSourceInfo(std::string line, int pass,
     return 1;
   
   // Strip out ".loc"
-  std::smatch m;  
-  std::regex_search(line, m, std::regex(expSrcInfo));
+  boost::smatch m;  
+  boost::regex_search(line, m, boost::regex(expSrcInfo));
   std::string stripped = line.substr(line.find(m.str()) + m.str().length());
 
   // Strip out non-digits (such as "prologue_end")
-  if(std::regex_search(stripped, m, std::regex("[\\S\\D]")))
+  if(boost::regex_search(stripped, m, boost::regex("[\\S\\D]")))
     {
       stripped = stripped.substr(0, stripped.find(m.str()));
     }
@@ -811,16 +812,16 @@ int Assembler::HandleFileName(std::string line, int pass, std::vector<std::strin
     return 1;
 
   // Strip out the ".file"
-  std::smatch m;  
-  std::regex_search(line, m, std::regex(expFile));
+  boost::smatch m;  
+  boost::regex_search(line, m, boost::regex(expFile));
   std::string stripped = line.substr(line.find(m.str()) + m.str().length());
   
   // Strip out file number (implied by order of appearance)
-  if(std::regex_search(stripped, m, std::regex(expIntOffset)))
+  if(boost::regex_search(stripped, m, boost::regex(expIntOffset)))
     stripped = stripped.substr(stripped.find(m.str()) + m.str().length());
 
   // Get the file name
-  if(!std::regex_search(stripped, m, std::regex(expString)))
+  if(!boost::regex_search(stripped, m, boost::regex(expString)))
     {
       printf("ERROR: Invalid file name declaration (compiled with -g)\n");
       return 0;
@@ -843,8 +844,8 @@ int Assembler::HandleAssignment(std::string line, int pass,
   // 1st pass: make an entry for it
   if(pass == 1)
     {
-      std::smatch m;  
-      std::regex_search(line, m, std::regex(expSymbol));
+      boost::smatch m;  
+      boost::regex_search(line, m, boost::regex(expSymbol));
 
       // check for duplicates
       if(HasSymbol(m.str(), labels) >= 0 || 
@@ -866,8 +867,8 @@ int Assembler::HandleAssignment(std::string line, int pass,
   else
     {
       // Strip out the symbol name
-      std::smatch m;  
-      std::regex_search(line, m, std::regex(expSymbol));
+      boost::smatch m;  
+      boost::regex_search(line, m, boost::regex(expSymbol));
       std::string stripped = line.substr(line.find(m.str()) + m.str().length());
       
       int varID = HasSymbol(m.str(), elf_vars);
@@ -1117,3 +1118,5 @@ std::string Assembler::EscapedToAscii(std::string input)
   }
   return retval;
 }
+
+
