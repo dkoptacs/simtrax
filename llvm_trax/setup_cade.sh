@@ -96,7 +96,8 @@ cp Trax/MipsInstrInfo.td llvm-3.5.0.src/lib/Target/Mips/MipsInstrInfo.td
 mkdir build
 cd build
 echo Configuring...
-../llvm-3.5.0.src/configure --enable-optimized --with-python=/usr/local/stow/python/amd64_linux26/python-2.7.3/bin/python
+CXX=/usr/local/stow/gcc/amd64_linux26/gcc-4.8.1/bin/g++ ../llvm-3.5.0.src/configure --enable-optimized --with-python=/usr/local/stow/python/amd64_linux26/python-2.7.3/bin/python
+
 
 echo Building...
 make -j$NUM_CORES

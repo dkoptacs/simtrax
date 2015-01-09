@@ -9,7 +9,7 @@ CXXFLAGS = -g -Wall -O3 -pthread -I/opt/local/include/ -L/opt/local/lib/ -lboost
 
 #for CADE
 #CXX = g++
-#CXXFLAGS = -g -Wall -O3 -pthread --std=c++11 -I/opt/local/include/ -L/opt/local/lib/ -lboost_regex-mt
+#CXXFLAGS = -g -Wall -O3 -pthread -I/usr/local/stow/boost/boost_1_55_0/include/ -L/usr/local/stow/boost/boost_1_55_0/lib/ -lboost_regex
 
 #LDFLAGS ?=
 
