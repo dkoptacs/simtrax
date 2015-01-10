@@ -5,11 +5,18 @@ EXE=simtrax
 
 # for OSX
 CXX = clang++
-CXXFLAGS = -g -Wall -O3 -pthread -I/opt/local/include/ -L/opt/local/lib/ -lboost_regex-mt
+CXXFLAGS = -g -Wall -O3 -pthread -I/opt/local/include/ 
+LDFLAGS = -L/opt/local/lib/ -lboost_regex-mt
 
-#for CADE
+# for CADE
 #CXX = g++
 #CXXFLAGS = -g -Wall -O3 -pthread -I/usr/local/stow/boost/boost_1_55_0/include/ -L/usr/local/stow/boost/boost_1_55_0/lib/ -lboost_regex
+
+# for ubuntu/other linux
+# you may need to add paths to your boost include (-I) and/or library (-L) directories, as above
+#CXX = g++
+#CXXFLAGS = -g -Wall -O3 -pthread 
+#LDFLAGS = -lboost_regex
 
 #LDFLAGS ?=
 
@@ -23,7 +30,7 @@ mkdirs:
 
 objs/%.o: %.cc
 	@echo "Building $<"
-	@$(CXX) $(CXXFLAGS) -o $@ -c $< -MD
+	@$(CXX) -o $@ -c $< -MD $(CXXFLAGS)
 
 SOURCES := $(wildcard *.cc)
 OBJS := $(addprefix objs/, $(notdir $(SOURCES:.cc=.o)))
@@ -33,7 +40,7 @@ OBJS := $(addprefix objs/, $(notdir $(SOURCES:.cc=.o)))
 
 ${EXE}: $(OBJS)
 	@echo "Building ${EXE}"
-	@$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(OBJS)
+	@$(CXX) -o $@ $(OBJS) $(CXXFLAGS) $(LDFLAGS)
 
 clean:
 	rm -rf objs/ ${EXE}
