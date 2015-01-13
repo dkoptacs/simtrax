@@ -7,38 +7,46 @@
 #include <cassert>
 
 FPMul::FPMul(int _latency, int _width) :
-    FunctionalUnit(_latency), width(_width) {
+    FunctionalUnit(_latency), width(_width)
+{
   issued_this_cycle = 0;
 }
 
 // From FunctionalUnit
-bool FPMul::SupportsOp(Instruction::Opcode op) const {
+bool FPMul::SupportsOp(Instruction::Opcode op) const
+{
   if (op == Instruction::FPMUL || op == Instruction::mul_s)
-  return true;
+    return true;
   else
     return false;
 }
 
-bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread) {
+bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread)
+{
   if (issued_this_cycle >= width) return false;
+
+  reg_value arg1, arg2;
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
-  reg_value arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
+
   // Read the registers
-  if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
-      !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+  if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
+      !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
+  {
     // bad stuff happened
     printf("FPMul unit: Error in Accepting instruction. Should have passed.\n");
   }
 
   // now get the result value
   reg_value result;
-  switch (ins.op) {
+  switch (ins.op)
+  {
     case Instruction::mul_s:
     case Instruction::FPMUL:
       result.fdata = arg1.fdata * arg2.fdata;
       break;
+
     default:
       fprintf(stderr, "ERROR FPMul FOUND SOME OTHER OP\n");
       break;
@@ -54,18 +62,23 @@ bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
 }
 
 // From HardwareModule
-void FPMul::ClockRise() {
+void FPMul::ClockRise()
+{
   // We do nothing on rise (or read from register file on first cycle, but
   // we can probably claim that this was done already)
   issued_this_cycle = 0;
 }
-void FPMul::ClockFall() {
+
+void FPMul::ClockFall()
+{
 }
-void FPMul::print() {
+
+void FPMul::print()
+{
   printf("%d instructions in-flight",issued_this_cycle);
 }
 
-double FPMul::Utilization() {
-  return static_cast<double>(issued_this_cycle)/
-      static_cast<double>(width);
+double FPMul::Utilization()
+{
+  return static_cast<double>(issued_this_cycle) / static_cast<double>(width);
 }

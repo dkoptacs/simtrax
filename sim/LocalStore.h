@@ -9,9 +9,8 @@
 #define LOCALSTORE_AREA .01396329
 #define LOCALSTORE_ENERGY .00692867
 
-
 class LocalStore : public FunctionalUnit {
-public:
+ public:
   LocalStore(int latency, int width);
   ~LocalStore();
   virtual bool SupportsOp(Instruction::Opcode op) const;

@@ -7,7 +7,7 @@
 class SimpleRegisterFile;
 
 class BranchUnit : public FunctionalUnit {
-public:
+ public:
   BranchUnit(int latency, int width);
 
   // From FunctionalUnit

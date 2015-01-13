@@ -6,7 +6,7 @@
 class SimpleRegisterFile;
 
 class ConversionUnit : public FunctionalUnit {
-public:
+ public:
   ConversionUnit(int latency, int width);
 
   // From FunctionalUnit

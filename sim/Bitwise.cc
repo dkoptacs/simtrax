@@ -7,12 +7,14 @@
 #include <cassert>
 
 Bitwise::Bitwise(int _latency, int _width) :
-    FunctionalUnit(_latency), width(_width) {
+    FunctionalUnit(_latency), width(_width)
+{
   issued_this_cycle = 0;
 }
 
 // From FunctionalUnit
-bool Bitwise::SupportsOp(Instruction::Opcode op) const {
+bool Bitwise::SupportsOp(Instruction::Opcode op) const
+{
   if (op == Instruction::BITOR ||
       op == Instruction::BITXOR ||
       op == Instruction::BITAND ||
@@ -26,8 +28,8 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::ANDNI ||
       op == Instruction::BITSLEFT ||
       op == Instruction::BITSRIGHT ||
-      op == Instruction::bslli || 
-      op == Instruction::bsll || 
+      op == Instruction::bslli ||
+      op == Instruction::bsll ||
       op == Instruction::bsrli ||
       op == Instruction::bsrl ||
       op == Instruction::bsrai ||
@@ -52,16 +54,19 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const {
     return false;
 }
 
-bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread) {
+bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread)
+{
   if (issued_this_cycle >= width) return false;
+
+  reg_value arg1, arg2;
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
-  reg_value arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
+
   // Read the registers
-  switch (ins.op) 
-    {
-      // 2 register operands
+  switch (ins.op)
+  {
+    // 2 register operands
     case Instruction::and_m:
     case Instruction::nor:
     case Instruction::or_m:
@@ -78,13 +83,14 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::srav:
     case Instruction::srlv:
     case Instruction::sllv:
-      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
-          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
+          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
+      {
         // bad stuff happened
         printf("Bitwise unit: Error in Accepting instruction. Should have passed.\n");
       }
       break;
-      
+
       // 1 register operand
     case Instruction::ori:
     case Instruction::not_m:
@@ -102,11 +108,13 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::XORI:
     case Instruction::ANDI:
     case Instruction::ANDNI:
-      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+      {
         // bad stuff happened
         printf("Bitwise unit: Error in Accepting instruction. Should have passed.\n");
       }
       break;
+
     default:
       fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
       break;
@@ -114,8 +122,8 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 
   // now get the result value
   reg_value result;
-  switch (ins.op) 
-    {
+  switch (ins.op)
+  {
     case Instruction::nor:
       result.udata = ~(arg1.udata | arg1.udata);
       break;
@@ -123,12 +131,12 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::not_m:
       result.udata = ~arg1.udata;
       break;
-      
-    case Instruction::or_m:
+
     case Instruction::BITOR:
+    case Instruction::or_m:
       result.udata = arg1.udata | arg2.udata;
       break;
-      
+
     case Instruction::sra_m:
       result.udata = arg1.idata >> ins.args[2];
       break;
@@ -141,101 +149,125 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::xor_m:
       result.udata = arg1.udata ^ arg2.udata;
       break;
-      
-    case Instruction::and_m:
+
     case Instruction::BITAND:
+    case Instruction::and_m:
       result.udata = arg1.udata & arg2.udata;
       break;
+
     case Instruction::ANDN:
       result.udata = arg1.udata & ~arg2.udata;
       break;
-      
+
       // mips ori immediate is 16-bit 0-extended
     case Instruction::ori:
       result.udata = arg1.udata | (0x0000FFFF & ins.args[2]);
       break;
+
     case Instruction::ORI:
       result.udata = arg1.udata | ins.args[2];
       break;
-      
+
     case Instruction::XORI:
       result.udata = arg1.udata ^ ins.args[2];
       break;
 
-      // mips andi immediate is 16-bit 0-extended
+      // MIPS andi immediate is 16-bit 0-extended
     case Instruction::andi:
       result.udata = arg1.udata & (0x0000FFFF & ins.args[2]);
       break;
+
     case Instruction::ANDI:
       result.udata = arg1.udata & ins.args[2];
       break;
+
     case Instruction::ANDNI:
       result.udata = arg1.udata & ~ins.args[2];
       break;
+
     case Instruction::sra:
       thread->carry_register = arg1.udata & 1;
-      result.idata = arg1.idata >> 1; // signed data for arithmetic
+      result.idata = arg1.idata >> 1;  // signed data for arithmetic
       break;
-    case Instruction::srl: 
+
+    case Instruction::srl:
       thread->carry_register = arg1.udata & 1;
-      result.udata = arg1.udata >> 1; // unsigned data for logical
+      result.udata = arg1.udata >> 1;  // unsigned data for logical
       break;
+
     case Instruction::sext8:
       result.udata = ((arg1.udata << 24) >> 24);
       break;
+
     case Instruction::BITSLEFT:
       result.udata = arg1.udata << arg2.udata;
       break;
+
     case Instruction::BITSRIGHT:
       result.udata = arg1.udata >> arg2.udata;
       break;
-      
+
     case Instruction::sll:
     case Instruction::bslli:
       result.udata = arg1.udata << ins.args[2];
       break;
+
     case Instruction::bsll:
     case Instruction::sllv:
       result.udata = arg1.udata << arg2.udata;
       break;
-    case Instruction::bsrai: // arithmetic
+
+      // arithmetic
+    case Instruction::bsrai:
       result.idata = arg1.idata >> ins.args[2];
       break;
-    case Instruction::bsra: // arithmetic
+
+      // arithmetic
+    case Instruction::bsra:
     case Instruction::srav:
       result.idata = arg1.idata >> arg2.idata;
       break;
-    case Instruction::bsrli: // logical
+
+      // logical
+    case Instruction::bsrli:
       result.udata = arg1.udata >> ins.args[2];
       break;
-    case Instruction::bsrl: // logical
+
+      // logical
+    case Instruction::bsrl:
     case Instruction::srlv:
       result.udata = arg1.udata >> arg2.udata;
       break;
+
     default:
       fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
       break;
   };
 
   // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  {
     // pipeline hazzard
     return false;
   }
+
   issued_this_cycle++;
   return true;
 }
 
 // From HardwareModule
-void Bitwise::ClockRise() {
+void Bitwise::ClockRise()
+{
   // We do nothing on rise (or read from register file on first cycle, but
   // we can probably claim that this was done already)
 }
 
-void Bitwise::ClockFall() {
+void Bitwise::ClockFall()
+{
   issued_this_cycle = 0;
 }
 
-void Bitwise::print() {
+void Bitwise::print()
+{
   printf("%d instructions issued this cycle.", issued_this_cycle);
 }

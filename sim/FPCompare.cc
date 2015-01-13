@@ -14,7 +14,7 @@ FPCompare::FPCompare(int _latency, int _width) :
 
 // From FunctionalUnit
 bool FPCompare::SupportsOp(Instruction::Opcode op) const {
-  if (op == Instruction::FPCMPLT || 
+  if (op == Instruction::FPCMPLT ||
       op == Instruction::FPEQ ||
       op == Instruction::FPNE ||
       op == Instruction::FPLT ||
@@ -41,14 +41,18 @@ bool FPCompare::SupportsOp(Instruction::Opcode op) const {
 
 bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread) {
   if (issued_this_cycle >= width) return false;
-  int write_reg = ins.args[0];
-  bool mips_compare = false;
-  long long int write_cycle = issuer->current_cycle + latency;
+
   reg_value arg0, arg1, arg2;
+  int write_reg = ins.args[0];
+  long long int write_cycle = issuer->current_cycle + latency;
   Instruction::Opcode failop = Instruction::NOP;
+  bool mips_compare = false;
+
   // Read the registers
-  if (ins.op == Instruction::FPNEG || ins.op == Instruction::neg_s) {
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
+  if (ins.op == Instruction::FPNEG || ins.op == Instruction::neg_s)
+  {
+    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+    {
       // bad stuff happened
       printf("FPCompare unit: Error in Accepting instruction. Should have passed.\n");
     }
@@ -61,15 +65,18 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
            ins.op == Instruction::c_ult_s)
   {
     mips_compare = true;
-    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop) || 
-	!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
+    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop) ||
+        !thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)) {
       // bad stuff happened
       printf("FPCompare unit: Error in Accepting instruction.\n");
-    }    
-  } else {
+    }
+  }
+
+  else
+  {
     // all other instructions read 2 registers
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) || 
-	!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
+        !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
       // bad stuff happened
       printf("FPCompare unit: Error in Accepting instruction. Should have passed.\n");
     }
@@ -77,9 +84,9 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
 
   // Compute result
   reg_value result;
-  switch (ins.op) 
-    {
-      
+  switch (ins.op)
+  {
+
     case Instruction::c_eq_s:
       if (isnan(arg0.fdata) || isnan(arg1.fdata))
         thread->compare_register = 0;
@@ -89,7 +96,7 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
         thread->compare_register = 0;
       break;
 
-    case Instruction::c_olt_s:      
+    case Instruction::c_olt_s:
       if (isnan(arg0.fdata) || isnan(arg1.fdata))
       {
         // printf("\n\nWe got a Nan.\n\n");
@@ -112,7 +119,7 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       else
         thread->compare_register = 0;
       break;
-    
+
     case Instruction::c_ult_s:
       if (isnan(arg0.fdata) || isnan(arg1.fdata))
       {
@@ -137,85 +144,96 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
         thread->compare_register = 0;
       break;
 
-      /*
-        case Instruction::c_ult_s:
-        if (arg0.fdata < arg1.fdata)
-        thread->compare_register = 1;
-        else
-        thread->compare_register = 0;
-        break;
-      */
-      
     case Instruction::FPCMPLT:
       // old style compare
       result.fdata = (arg1.fdata < arg2.fdata) ? 0xffffffff : 0;
       break;
+
     case Instruction::FPEQ:
       result.idata = (arg1.fdata == arg2.fdata) ? 1 : 0;
       break;
+
     case Instruction::FPNE:
       result.idata = (arg1.fdata != arg2.fdata) ? 1 : 0;
       break;
+
     case Instruction::FPLT:
       result.idata = (arg1.fdata < arg2.fdata) ? 1 : 0;
       break;
+
     case Instruction::FPLE:
       result.idata = (arg1.fdata <= arg2.fdata) ? 1 : 0;
       break;
+
     case Instruction::FPGT:
       result.idata = (arg1.fdata > arg2.fdata) ? 1 : 0;
       break;
+
     case Instruction::FPGE:
       result.idata = (arg1.fdata >= arg2.fdata) ? 1 : 0;
       break;
-      // FPUN (FP "un"defined), checks for NaN, relies on IEEE defining NaN != NaN
+
+    // FPUN (FP "un"defined), checks for NaN, relies on IEEE defining NaN != NaN
     case Instruction::FPUN:
       result.idata = (arg1.fdata != arg1.fdata || arg2.fdata != arg2.fdata) ? 1 : 0;
       break;
+
     case Instruction::FPNEG:
     case Instruction::neg_s:
       result.fdata = -arg1.fdata;
       break;
-      // These comparisons might not be used any more
+
+    // These comparisons might not be used any more
     case Instruction::EQ:
       result.idata = (arg1.idata == arg2.idata) ? 0xffffffff : 0;
       break;
+
     case Instruction::NE:
       result.idata = (arg1.idata != arg2.idata) ? 0xffffffff : 0;
       break;
+
     case Instruction::LT:
       result.idata = (arg1.idata < arg2.idata) ? 0xffffffff : 0;
       break;
+
     case Instruction::LE:
       result.idata = (arg1.idata <= arg2.idata) ? 0xffffffff : 0;
       break;
+
     default:
       fprintf(stderr, "ERROR FPCompare OP NOT RECOGNIZED\n");
       break;
   };
 
   // Write the value
-  if (!mips_compare && !thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
+  if (!mips_compare && !thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  {
     // pipeline hazzard
     return false;
   }
+
   issued_this_cycle++;
   return true;
 }
 
 // From HardwareModule
-void FPCompare::ClockRise() {
+void FPCompare::ClockRise()
+{
   // We do nothing on rise (or read from register file on first cycle, but
   // we can probably claim that this was done already)
   issued_this_cycle = 0;
 }
-void FPCompare::ClockFall() {
+
+void FPCompare::ClockFall()
+{
 }
-void FPCompare::print() {
+
+void FPCompare::print()
+{
   printf("%d instructions issued this cycle.",issued_this_cycle);
 }
 
-double FPCompare::Utilization() {
-  return static_cast<double>(issued_this_cycle)/
-      static_cast<double>(width);
+double FPCompare::Utilization()
+{
+  return static_cast<double>(issued_this_cycle) / static_cast<double>(width);
 }

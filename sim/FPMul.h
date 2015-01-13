@@ -4,7 +4,7 @@
 #include "FunctionalUnit.h"
 
 class FPMul : public FunctionalUnit {
-public:
+ public:
   FPMul(int latency, int width);
 
   // From FunctionalUnit

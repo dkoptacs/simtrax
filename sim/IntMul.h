@@ -6,7 +6,7 @@
 class SimpleRegisterFile;
 
 class IntMul : public FunctionalUnit {
-public:
+ public:
   IntMul(int latency, int width);
 
   // From FunctionalUnit

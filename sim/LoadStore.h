@@ -4,7 +4,7 @@
 #include "FunctionalUnit.h"
 
 class LoadStore : public FunctionalUnit {
-public:
+ public:
   LoadStore();
   virtual bool SupportsOp(Instruction::Opcode op) const;
   virtual bool AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread);

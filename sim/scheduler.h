@@ -9,4 +9,3 @@ extern long long int CYCLE_VAL;
 extern long long int schedule_count;
 
 #endif //__SCHEDULER_H__
-

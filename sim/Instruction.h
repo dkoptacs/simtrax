@@ -33,8 +33,8 @@ struct SourceInfo
   int lineNum;
   int colNum;
 
-SourceInfo() : 
-  fileNum(-1), lineNum(-1), colNum(-1)
+  SourceInfo() :
+      fileNum(-1), lineNum(-1), colNum(-1)
   {}
 
 };
@@ -44,6 +44,7 @@ class Instruction {
   int pc_address;
   long long int id;
   long long int depends[2];
+  
   // When adding a new Opcode don't forget the string in Instruction.cc
   enum Opcode {
     ADD = 0,     // dst, source1, source2
@@ -73,7 +74,7 @@ class Instruction {
     FPINVSQRT,   // dst, source
     FPINV,       // dst, source
     FPCONV,      // dst, source (int->float)
-    FTOD,        // dst(hi), dst(lo), src 
+    FTOD,        // dst(hi), dst(lo), src
 
     // Stream queue ops
     STARTSW,     // source
@@ -301,12 +302,8 @@ class Instruction {
 
   static std::string Opnames[NUM_OPS];
 
-  Instruction(Opcode code,
-              int arg0, int arg1, int arg2,
-              int pc_addr = 0);
-  Instruction(Opcode code,
-              int arg0, int arg1, int arg2,
-	      SourceInfo _srcInfo,
+  Instruction(Opcode code, int arg0, int arg1, int arg2, int pc_addr = 0);
+  Instruction(Opcode code, int arg0, int arg1, int arg2, SourceInfo _srcInfo,
               int pc_addr = 0);
   Instruction(const Instruction& ins);
 
@@ -322,12 +319,10 @@ class Instruction {
   long long int executions;
   long long int data_stalls;
   SourceInfo srcInfo;
-  
 
   // Since we're assuming an in-order processor, we never have to wait
   // for the destination register (since anyone that depended on it
   // before would have blocked the processor)
-
 };
 
 // A helper class that contains an instruction and
@@ -340,11 +335,8 @@ class WriteRequest;
 class InstructionRecord {
  public:
   long long int cycle_arrived;
-  InstructionRecord(Instruction& ins,
-                    long long int cycle,
-                    IssueUnit* issue,
-                    ThreadState* thread,
-		    bool cache_hit = false);
+  InstructionRecord(Instruction& ins, long long int cycle, IssueUnit* issue,
+                    ThreadState* thread, bool cache_hit = false);
 
   InstructionRecord(const InstructionRecord& record);
 

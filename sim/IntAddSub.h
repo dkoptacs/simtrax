@@ -5,7 +5,7 @@
 #include <queue>
 
 class IntAddSub : public FunctionalUnit {
-public:
+ public:
   IntAddSub(int latency, int width);
 
   // From FunctionalUnit

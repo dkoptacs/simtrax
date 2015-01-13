@@ -1,18 +1,24 @@
 #include "LoadStore.h"
 
 LoadStore::LoadStore() :
-  FunctionalUnit(0){
+    FunctionalUnit(0)
+{
 }
 
-bool LoadStore::SupportsOp(Instruction::Opcode op) const {
+bool LoadStore::SupportsOp(Instruction::Opcode op) const
+{
   return false;
 }
 
-bool LoadStore::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread) {
+bool LoadStore::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread)
+{
   return false;
 }
 
-void LoadStore::ClockRise() {
+void LoadStore::ClockRise()
+{
 }
-void LoadStore::ClockFall() {
+
+void LoadStore::ClockFall()
+{
 }
