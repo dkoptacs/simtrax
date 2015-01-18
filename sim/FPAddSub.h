@@ -6,7 +6,7 @@
 class SimpleRegisterFile;
 
 class FPAddSub : public FunctionalUnit {
-public:
+ public:
   FPAddSub(int latency, int width);
 
   // From FunctionalUnit

@@ -6,7 +6,7 @@
 class SimpleRegisterFile;
 
 class FPCompare : public FunctionalUnit {
-public:
+ public:
   FPCompare(int latency, int width);
 
   // From FunctionalUnit

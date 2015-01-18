@@ -5,7 +5,8 @@
 
 Instruction::Instruction(Opcode code,
                          int arg0, int arg1, int arg2,
-                         int pc_addr) {
+                         int pc_addr)
+{
   op = code;
   args[0] = arg0;
   args[1] = arg1;
@@ -19,13 +20,13 @@ Instruction::Instruction(Opcode code,
   srcInfo.lineNum = -1;
   srcInfo.colNum = -1;
   srcInfo.fileNum = -1;
-  
+
 }
 
 Instruction::Instruction(Opcode code,
-			 int arg0, int arg1, int arg2,
-			 SourceInfo _srcInfo,
-			 int pc_addr)
+                         int arg0, int arg1, int arg2,
+                         SourceInfo _srcInfo,
+                         int pc_addr)
 {
   op = code;
   args[0] = arg0;
@@ -36,15 +37,17 @@ Instruction::Instruction(Opcode code,
   depends[0] = depends[1] = -1;
   executions = 0;
   data_stalls = 0;
-  
+
   srcInfo = _srcInfo;
 }
 
-Instruction::Instruction(const Instruction& ins) {
+Instruction::Instruction(const Instruction& ins)
+{
   op = ins.op;
-  for (int i = 0; i < 3; i++) {
+
+  for (int i = 0; i < 3; i++)
     args[i] = ins.args[i];
-  }
+
   id = ins.id;
   depends[0] = ins.depends[0];
   depends[1] = ins.depends[1];
@@ -55,23 +58,28 @@ Instruction::Instruction(const Instruction& ins) {
 
 }
 
-bool Instruction::RayReady(int ray_start, long long int* writes_in_flight, int kNoBlock) const {
+bool Instruction::RayReady(int ray_start, long long int* writes_in_flight, int kNoBlock) const
+{
   // check all origin and direction
   // A ray is Origin, Direction, Inverse Direction, tmin, tmax, object_id, normal, texture_uv = 14 elements
   const int num_elements = 17;
-  for (int i = 0; i < num_elements; i++) {
+
+  for (int i = 0; i < num_elements; i++)
+  {
     if (writes_in_flight[ray_start + i] != kNoBlock)
       return false;
   }
+
   return true;
 }
 
-bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, long long int cur_cycle) const {
+bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, long long int cur_cycle) const
+{
   // This function needs to check if the registers that would be read by
   // the given op would be ready by the given cycle
   const long long int kNoBlock = 0;
-  switch (op) 
-    {
+  switch (op)
+  {
     case Instruction::lb:
     case Instruction::lbu:
     case Instruction::lh:
@@ -80,15 +88,15 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::lwc1:
     case Instruction::FTOD:
       // check args[2] and choose the first fail_reg if there is a fail.
-      
+
       if ((register_ready[args[2]] <= cur_cycle))
-	return true;
+        return true;
       else
-	*fail_reg = args[2];
-      
+        *fail_reg = args[2];
+
       return false;
       break;
-      
+
     case Instruction::ADD:
     case Instruction::SUB:
     case Instruction::MUL:
@@ -131,7 +139,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::bsll:
     case Instruction::addu:
 
-    //MIPS
+    // MIPS
     case Instruction::add_s:
     case Instruction::and_m:
     case Instruction::div_s:
@@ -146,12 +154,12 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::sltu:
     case Instruction::subu:
     case Instruction::sub_s:
-    case Instruction::xor_m:      
+    case Instruction::xor_m:
     case Instruction::sllv:
     case Instruction::srav:
     case Instruction::srlv:
 
-    // check args[1] and args[2] and choose the first fail_reg if there is a fail.
+      // check args[1] and args[2] and choose the first fail_reg if there is a fail.
       if ( (register_ready[args[1]] <= cur_cycle) )
         if ((register_ready[args[2]] <= cur_cycle))
           return true;
@@ -225,7 +233,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
         return false;
       }
       break;
-      
+
     case Instruction::SW:
     case Instruction::sb:
     case Instruction::sh:
@@ -242,6 +250,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
         *fail_reg = args[0];
       return false;
       break;
+
     case Instruction::rtsd:
     case Instruction::BNZ:
     case Instruction::JMPREG:
@@ -267,15 +276,19 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::bnez:
     case Instruction::jr:
     case Instruction::mtc1:
-      
+
       // check args[0] for read
-      if ( (register_ready[args[0]] <= cur_cycle)) {
+      if ( (register_ready[args[0]] <= cur_cycle))
+      {
         return true;
-      } else {
+      }
+      else
+      {
         *fail_reg = args[0];
         return false;
       }
       break;
+
     case Instruction::BLT:
     case Instruction::BET:
     case Instruction::STORE:
@@ -310,7 +323,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
       return false;
       break;
 
-      // MIPS!
+    // MIPS!
     case Instruction::sw:
     case Instruction::swc1:
     case Instruction::lwl:
@@ -327,19 +340,23 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
         *fail_reg = args[0];
       return false;
       break;
-      
+
     case Instruction::SPHERE_TEST:
       // this one doesn't deal with registers ready or not
       if (!RayReady(args[2], register_ready, kNoBlock))
         return false;
+
       // Check sphere ready
       // Sphere is center (3), radius (1), id (1)
-      for (int i = 0; i < 5; i++) {
-        if (register_ready[args[1] + i] > cur_cycle) {
+      for (int i = 0; i < 5; i++)
+      {
+        if (register_ready[args[1] + i] > cur_cycle)
+        {
           *fail_reg = args[1]+i;
           return false;
         }
       }
+
       return true;
       break;
 
@@ -351,7 +368,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
         // Triangle is v0, v1, v2 (3 each), id (1)
         for (int i = 0; i < 10; i++) {
         if (register_ready[args[1] + i] > cur_cycle) {
-	*fail_reg = args[1]+i;
+        *fail_reg = args[1]+i;
         return false;
         }
         }
@@ -362,22 +379,28 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::BOXTEST:
       // TODO: this isn't very clean, assuming box registers are 36 - 47
       for(int i = 36; i < 48; i++)
+      {
         if (register_ready[i] > cur_cycle)
-	{
-	  *fail_reg = i;
-	  return false;
-	}
+        {
+          *fail_reg = i;
+          return false;
+        }
+      }
+
       return true;
       break;
 
     case Instruction::TRITEST:
       // TODO: this isn't very clean, assuming tri registers are 36 - 50
       for(int i = 36; i < 51; i++)
+      {
         if (register_ready[i] > cur_cycle)
-	{
-	  *fail_reg = i;
-	  return false;
-	}
+        {
+          *fail_reg = i;
+          return false;
+        }
+      }
+
       return true;
       break;
 
@@ -390,14 +413,16 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
       return false;
       break;
 
-    // Read special mips registers
+      // Read special mips registers
     case Instruction::mfhi:
       if (register_ready[HI_REG] <= cur_cycle)
         return true;
       else
         *fail_reg = HI_REG;
+
       return false;
       break;
+
     case Instruction::mflo:
       if (register_ready[LO_REG] <= cur_cycle)
         return true;
@@ -406,7 +431,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
       return false;
       break;
 
-    //TODO: these global atomic instructions are always ready to issue (this is wrong though)
+      //TODO: these global atomic instructions are always ready to issue (this is wrong though)
     case Instruction::ATOMIC_INC:
     case Instruction::ATOMIC_ADD:
     case Instruction::ATOMIC_FPADD:
@@ -416,7 +441,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
       return true;
       break;
 
-    // These instructions don't read normal registers, always ready to issue
+      // These instructions don't read normal registers, always ready to issue
     case Instruction::ENDSW:
     case Instruction::ENDSR:
     case Instruction::STARTSR:
@@ -441,6 +466,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::lui:
       return true;
       break;
+
     default:
       printf("Error: Instruction opcode %d has no ReadyToIssue definition\n", op);
       printf("%s\n", Instruction::Opnames[op].c_str());
@@ -453,9 +479,10 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
   return false;
 }
 
-void Instruction::print() {
+void Instruction::print()
+{
   printf("%d: %s %d %d %d",
-	 pc_address,
+         pc_address,
          Instruction::Opnames[op].c_str(),
          args[0], args[1], args[2]);
 }
@@ -464,93 +491,118 @@ InstructionRecord::InstructionRecord(Instruction& ins,
                                      long long int cycle,
                                      IssueUnit* issue,
                                      ThreadState* thread,
-				     bool _cache_hit) :
-    cycle_arrived(cycle), instruction(ins), issuer(issue), thread(thread),
-    cache_hit(_cache_hit) {
-    }
-
-InstructionRecord::InstructionRecord(const InstructionRecord& record) :
-    cycle_arrived(record.cycle_arrived), instruction(record.instruction),
-    issuer(record.issuer), thread(record.thread),
-    write_requests(record.write_requests)
+                                     bool _cache_hit)
+    : cycle_arrived(cycle),
+      instruction(ins),
+      issuer(issue),
+      thread(thread),
+      cache_hit(_cache_hit)
 {
-  for (int i = 0; i < 32; i++) {
+}
+
+InstructionRecord::InstructionRecord(const InstructionRecord& record)
+    : cycle_arrived(record.cycle_arrived),
+      instruction(record.instruction),
+      issuer(record.issuer),
+      thread(record.thread),
+      write_requests(record.write_requests)
+{
+  for (int i = 0; i < 32; i++)
     ivalues[i] = record.ivalues[i];
-  }
 }
 
-InstructionQueue::InstructionQueue() {
+InstructionQueue::InstructionQueue()
+{
 }
 
-void InstructionQueue::Print() const {
-  for (size_t i = 0; i < instructions.size(); i++) {
+void InstructionQueue::Print() const
+{
+  for (size_t i = 0; i < instructions.size(); i++)
+  {
     printf("Queued Instruction %d arrived in cycle %lld\n",
            int(i), instructions[i]->cycle_arrived);
   }
 }
 // Surprisingly this is identical to Ready (ready just checks that you
 // have a different cycle...)
-int InstructionQueue::TopMatches(long long int cycle, int num_check) const {
+int InstructionQueue::TopMatches(long long int cycle, int num_check) const
+{
   int num_found = 0;
   int min_check = std::min(num_check, int(instructions.size()));
-  for (int i = 0; i < min_check; i++) {
+  for (int i = 0; i < min_check; i++)
+  {
     int front_cycle = instructions[i]->cycle_arrived;
     if (front_cycle == cycle)
       num_found++;
   }
+
   return num_found;
 }
 
-int InstructionQueue::LastMatches(long long int cycle, int num_check) const {
+int InstructionQueue::LastMatches(long long int cycle, int num_check) const
+{
   int num_found = 0;
   int num_instructions = int(instructions.size());
   int start_check = std::max(0, num_instructions - num_check);
-  for (int i = start_check; i < num_instructions; i++) {
+  for (int i = start_check; i < num_instructions; i++)
+  {
     int front_cycle = instructions[i]->cycle_arrived;
     if (front_cycle == cycle)
       num_found++;
   }
+
   return num_found;
 }
 
-bool InstructionQueue::Ready(long long int required_cycle) const {
+bool InstructionQueue::Ready(long long int required_cycle) const
+{
   return TopMatches(required_cycle, 1) == 1;
 }
 
-InstructionRecord* InstructionQueue::Pop() {
+InstructionRecord* InstructionQueue::Pop()
+{
   InstructionRecord* result = NULL;
-  if (instructions.size()) {
+  if (instructions.size())
+  {
     result = instructions.front();
     instructions.pop_front();
   }
   return result;
 }
 
-void InstructionQueue::Push(InstructionRecord* record) {
+void InstructionQueue::Push(InstructionRecord* record)
+{
   instructions.push_back(record);
 }
 
-int InstructionQueue::Size() const {
+int InstructionQueue::Size() const
+{
   return static_cast<int>(instructions.size());
 }
 
-InstructionPriorityQueue::InstructionPriorityQueue() {
+InstructionPriorityQueue::InstructionPriorityQueue()
+{
 }
 
-void InstructionPriorityQueue::Push(InstructionRecord* record) {
-  if (instructions.empty()) {
+void InstructionPriorityQueue::Push(InstructionRecord* record)
+{
+  if (instructions.empty())
+  {
     instructions.push_back(record);
   }
   else {
     // find the insert position
     std::deque<InstructionRecord*>::iterator pos = instructions.end();
-    for (std::deque<InstructionRecord*>::iterator i = instructions.begin();
-	 i != instructions.end(); ++i) {
-      if (record->cycle_arrived < (*i)->cycle_arrived) {
-	pos = i;
-	break;
+    std::deque<InstructionRecord*>::iterator i;
+    for (i = instructions.begin(); i != instructions.end(); ++i)
+    {
+      if (record->cycle_arrived < (*i)->cycle_arrived)
+      {
+        pos = i;
+        break;
       }
     }
+
     instructions.insert(pos, record);
   }
 }
@@ -802,4 +854,3 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("xor_m"),
   // End MIPS
 };
-

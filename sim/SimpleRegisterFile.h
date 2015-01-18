@@ -15,11 +15,10 @@
 #define RF_AREA .0147665
 #define RF_ENERGY .0079
 
-
 struct RegisterTraceV1 {
   uint64_t cycle;
-  enum { 
-    Read=0, 
+  enum {
+    Read=0,
     Write
   } access_type;
   uint8_t register_number;
@@ -29,7 +28,7 @@ struct RegisterTraceV1 {
 typedef RegisterTraceV1 RegisterTrace;
 
 class SimpleRegisterFile : public FunctionalUnit {
-public:
+ public:
   long long int current_cycle;
   SimpleRegisterFile(int num_regs, int _thread_id);
   ~SimpleRegisterFile();

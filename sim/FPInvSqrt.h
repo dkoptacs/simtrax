@@ -4,7 +4,7 @@
 #include "FunctionalUnit.h"
 
 class FPInvSqrt : public FunctionalUnit {
-public:
+ public:
   FPInvSqrt(int latency, int width);
 
   // From FunctionalUnit

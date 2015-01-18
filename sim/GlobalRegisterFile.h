@@ -10,7 +10,7 @@
 extern pthread_mutex_t global_mutex;
 
 class GlobalRegisterFile : public FunctionalUnit {
-public:
+ public:
   GlobalRegisterFile(int num_regs, unsigned int sys_threads, unsigned int report_period);
   ~GlobalRegisterFile();
 

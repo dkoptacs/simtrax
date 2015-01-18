@@ -8,7 +8,7 @@
 class L2Cache;
 
 class MainMemory : public MemoryBase {
-public:
+ public:
   MainMemory(int _num_blocks, int _latency, int _max_bandwidth);
   FourByte* getData() {return data;}
   int getSize() {return num_blocks;}
@@ -42,21 +42,21 @@ public:
   bool incremental_output;
 
   // These are implemented in the parent class
-//   void LoadMemory( const char* file,
-// 		   int& start_wq, int& start_framebuffer, int& start_scene,
-// 		   int& start_matls,
-// 		   int& start_camera, int& start_bg_color, int& start_light,
-// 		   int& end_memory, float *&light_pos, int &start_permutation
-// 		   );
-//   void WriteMemory( const char* file,
-// 		    int start_wq, int start_framebuffer, int start_scene,
-// 		    int start_matls,
-// 		    int start_camera, int start_bg_color, int start_light,
-// 		    int end_memory, float *light_pos, int start_permutation
-// 		    );
+  //   void LoadMemory( const char* file,
+  // 		   int& start_wq, int& start_framebuffer, int& start_scene,
+  // 		   int& start_matls,
+  // 		   int& start_camera, int& start_bg_color, int& start_light,
+  // 		   int& end_memory, float *&light_pos, int &start_permutation
+  // 		   );
+  //   void WriteMemory( const char* file,
+  // 		    int start_wq, int start_framebuffer, int start_scene,
+  // 		    int start_matls,
+  // 		    int start_camera, int start_bg_color, int start_light,
+  // 		    int end_memory, float *light_pos, int start_permutation
+  // 		    );
   // These should only be used in top level memory... L2 or higher depending
-//   FourByte* data;
-//   int num_blocks;
+  //   FourByte* data;
+  //   int num_blocks;
 };
 
 #endif // _SIMHWRT_MAIN_MEMORY_H_

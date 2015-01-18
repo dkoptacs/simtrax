@@ -6,7 +6,7 @@
 class SimpleRegisterFile;
 
 class FPMinMax : public FunctionalUnit {
-public:
+ public:
   FPMinMax(int latency, int width);
 
   // From FunctionalUnit

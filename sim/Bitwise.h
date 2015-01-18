@@ -7,7 +7,7 @@
 class FunctionalUnit;
 
 class Bitwise : public FunctionalUnit {
-public:
+ public:
   Bitwise(int latency, int width);
 
   // From FunctionalUnit

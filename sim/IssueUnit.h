@@ -21,7 +21,7 @@ struct IssueStats
   double avg_data_dependence;
   double avg_halted_count;
   double avg_misc_count;
-  
+
   void AddStats(IssueStats otherStats)
   {
     avg_issue += otherStats.avg_issue;
@@ -48,25 +48,23 @@ struct IssueStats
 // will force ADD to wait until it's dependent values
 // are ready (only after both ins 0 and 1 commit)
 
-
-
 class IssueUnit : public HardwareModule {
-public:
+ public:
   bool printed_single_kernel;
   long long int kernel_instruction_count[Instruction::NUM_OPS];
   long long int kernel_stall_cycles[Instruction::NUM_OPS];
   long long int kernel_fu_dependencies[Instruction::NUM_OPS];
-/*   long long int kernel_executions[MAX_KERNEL_CYCLES]; */
+  /*   long long int kernel_executions[MAX_KERNEL_CYCLES]; */
   long long int **kernel_cycles;
   int **kernel_calls;
   int **kernel_profiling;
   long long int current_cycle;
   //long long int end_sleep_cycle;
-/*   long long int total_kernel_stalls; */
-/*   long long int total_kernel_fu_dependencies; */
-/*   long long int start_clock_counter; */
-/*   long long int profile_num_kernels; */
-/*   long long int total_kernel_cycles; */
+  /*   long long int total_kernel_stalls; */
+  /*   long long int total_kernel_fu_dependencies; */
+  /*   long long int start_clock_counter; */
+  /*   long long int profile_num_kernels; */
+  /*   long long int total_kernel_cycles; */
   long long int not_ready, not_fetched;
   long long int halted_count;
   long long int instructions_issued;
@@ -97,7 +95,6 @@ public:
   void AddStats(IssueUnit* otherIssuer);
   void CalculateIssueStats();
 
-
   bool vector_stats;
   bool enable_profiling;
   size_t num_halted;
@@ -127,7 +124,7 @@ public:
   long long int data_depend_bins[Instruction::NUM_OPS];
   long long int fu_dependence, data_dependence;
   IssueStats issue_stats;
-  
+
   // The current read queue for this TM
   int read_queue;
 
@@ -157,9 +154,9 @@ public:
   Instruction* fetched_instruction;
   Instruction* issued_this_cycle;
   // if writes_register[i] == -1, register[i] is current else it depends on writes_register[i]
-    int instructions_in_flight;
+  int instructions_in_flight;
 
-  
+
 #endif
 };
 

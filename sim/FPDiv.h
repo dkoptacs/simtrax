@@ -4,7 +4,7 @@
 #include "FunctionalUnit.h"
 
 class FPDiv : public FunctionalUnit {
-public:
+ public:
   FPDiv(int latency, int width);
 
   // From FunctionalUnit

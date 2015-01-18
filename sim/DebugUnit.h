@@ -6,7 +6,7 @@
 #include "LocalStore.h"
 
 class DebugUnit : public FunctionalUnit {
-public:
+ public:
   DebugUnit(int latency);
 
   // From FunctionalUnit
@@ -28,7 +28,7 @@ public:
   }
 
   const std::vector<symbol*> *registers;
-  
+
   //TODO: This won't work with hyperthreading.
   //      Will need a separate ls_unit pointer for each thread.
   const LocalStore* ls_unit;
