@@ -79,7 +79,7 @@ void MemoryBase::WriteMemory(const char* file,
     }
 
   printf("Writing %d blocks to memory dump (mem size = %d)\n", end_memory, num_blocks);
-  if(fwrite(data, sizeof(FourByte), end_memory, output) != end_memory)
+  if((int)fwrite(data, sizeof(FourByte), end_memory, output) != end_memory)
     {
       printf("error: could not write memory file %s\n", file);
       exit(1);

@@ -135,7 +135,7 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       break;
 
     case Instruction::sltiu:
-      result.idata = (arg1.udata < ins.args[2]);
+      result.idata = (arg1.udata < (unsigned)ins.args[2]);
       break;
 
     case Instruction::teq:

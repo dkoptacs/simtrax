@@ -446,7 +446,7 @@ int usimm_setup(char* config_filename)
 
 
 
-  assert((log_base2(NUM_CHANNELS) + log_base2(NUM_RANKS) + log_base2(NUM_BANKS) + log_base2(NUM_ROWS) + log_base2(NUM_COLUMNS) + log_base2(CACHE_LINE_SIZE)) == ADDRESS_BITS );
+  assert((log_base2(NUM_CHANNELS) + log_base2(NUM_RANKS) + log_base2(NUM_BANKS) + log_base2(NUM_ROWS) + log_base2(NUM_COLUMNS) + log_base2(CACHE_LINE_SIZE)) == (unsigned)ADDRESS_BITS );
   /* Increase the address space and rows per bank depending on the number of input traces. */
   ADDRESS_BITS = ADDRESS_BITS + log_base2(NUMCORES);
   if (NUMCORES == 1) {

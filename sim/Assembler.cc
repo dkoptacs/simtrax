@@ -350,14 +350,14 @@ int Assembler::HandleLabel(std::string line, int pass, std::vector<symbol*>& lab
   // Check for start of debug section
   // Must have end of text and data segments
   if(m.str().compare("$text_end") == 0)
-    for(int i=0; i < labels.size(); i++)
+    for(size_t i=0; i < labels.size(); i++)
       if(strcmp(labels[i]->names[0], "$data_end"))
 	{
 	  debug_start = jtable_size;
 	  break;
 	}
   if(m.str().compare("$data_end") == 0)
-    for(int i=0; i < labels.size(); i++)
+    for(size_t i=0; i < labels.size(); i++)
       if(strcmp(labels[i]->names[0], "$text_end"))
 	{
 	  debug_start = jtable_size;
@@ -919,7 +919,7 @@ int Assembler::HandleConstructors(std::string line, int pass, std::vector<symbol
 // For debug purposes
 void Assembler::PrintSymbols(std::vector<symbol*>& regs, std::vector<symbol*>& labels, std::vector<symbol*>& data_table, char* jump_table, int end_data)
 {
-  int i;
+  size_t i;
   printf("Registers:\nName\tNumber\n");
   for(i=0; i<regs.size(); i++)
     printf("%s:\t%d\n", regs.at(i)->names.at(0), regs.at(i)->address);
@@ -938,7 +938,7 @@ void Assembler::PrintSymbols(std::vector<symbol*>& regs, std::vector<symbol*>& l
       if(current_address >= end_data)
 	break;
       // Find corresponding symbol (if any)
-      for(int j = 0; j < labels.size(); j++)
+      for(size_t j = 0; j < labels.size(); j++)
 	if((!labels[j]->isText) && (labels[j]->address == current_address))
 	  {
 	      printf("%s", labels[j]->names[0]);
@@ -1000,7 +1000,7 @@ void Assembler::AddTRaXInitialize(std::vector<Instruction*>& instructions,
     {
       int startCtors = labels[ctorsLabelID]->address;
       int endCtors = end_data;
-      for(int i = ctorsLabelID + 1; i < labels.size(); i++)
+      for(size_t i = ctorsLabelID + 1; i < labels.size(); i++)
 	if(labels[i]->isJumpTable)
 	  {
 	    endCtors = labels[i]->address;

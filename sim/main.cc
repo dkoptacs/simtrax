@@ -1193,7 +1193,7 @@ int main(int argc, char* argv[]) {
       unsigned char *imgRGBA = new unsigned char[4*image_width*image_height];
       unsigned char *curImgPixel = imgRGBA;
       for(int j = (int)(image_height - 1); j >= 0; j--) {
-	for(unsigned int i = 0; i < image_width; i++, curImgPixel+=4) {
+	for(int i = 0; i < image_width; i++, curImgPixel+=4) {
 	  const int index = start_framebuffer + 3 * (j * image_width + i);
 	  
 	  float rgb[3];
@@ -1395,7 +1395,7 @@ void PrintProfile(const char* assem_file, std::vector<Instruction*>& instruction
 	    }
 	  
 	  //printf("instruction_num = %d, size = %d\n", instruction_num, instructions.size());
-	  if(instruction_num < instructions.size() && token != NULL && strcmp(token, Instruction::Opnames[instructions[instruction_num]->op].c_str()) == 0)
+	  if(instruction_num < (int)instructions.size() && token != NULL && strcmp(token, Instruction::Opnames[instructions[instruction_num]->op].c_str()) == 0)
 	    {
 	      isInstruction = true;
 	    }
