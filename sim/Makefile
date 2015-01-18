@@ -4,9 +4,9 @@ EXE=simtrax
 
 
 # for OSX
-#CXX = clang++
-#CXXFLAGS = -g -Wall -Wno-format-security -O3 -pthread -I/opt/local/include/ 
-#LDFLAGS = -L/opt/local/lib/ -lboost_regex-mt
+CXX = clang++
+CXXFLAGS = -g -Wall -Wno-format-security -O3 -pthread -I/opt/local/include/ 
+LDFLAGS = -L/opt/local/lib/ -lboost_regex-mt
 
 # for CADE
 #CXX = g++
@@ -14,9 +14,9 @@ EXE=simtrax
 
 # for ubuntu/other linux
 # you may need to add paths to your boost include (-I) and/or library (-L) directories, as above
-CXX = g++
-CXXFLAGS = -g -Wall -Wno-unused-result -Wno-unused-but-set-variable -Wno-maybe-uninitialized -Wno-format-security -O3 -pthread 
-LDFLAGS = -lboost_regex
+#CXX = g++
+#CXXFLAGS = -g -Wall -Wno-unused-result -Wno-unused-but-set-variable -Wno-maybe-uninitialized -Wno-format-security -O3 -pthread 
+#LDFLAGS = -lboost_regex
 
 #LDFLAGS ?=
 
