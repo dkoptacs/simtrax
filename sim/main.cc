@@ -346,7 +346,6 @@ int main(int argc, char* argv[]) {
   int num_frames                        = 1;
   int rebuild_frequency                 = 0;
   bool duplicate_bvh                    = false;
-  int frames_since_rebuild              = 0;
   unsigned int num_cores                = 1;
   num_L2s                               = 1;
   bool l1_off                           = false;
@@ -696,6 +695,7 @@ int main(int argc, char* argv[]) {
 
     if(custom_mem_loader) {
       // run custom loader
+      end_memory = 0;
       CustomLoadMemory(memory->getData(), memory->getSize(), image_width, image_height,
                epsilon, custom_mem_loader);
     } else {
@@ -1177,7 +1177,7 @@ int main(int argc, char* argv[]) {
     const bool outputPrefixHasPNG = (imgNameLen > 3 && output_prefix[imgNameLen-3]=='p' && 
 				     output_prefix[imgNameLen-2]=='n' && output_prefix[imgNameLen-1]=='g');
     
-    if((strcasecmp(image_type, "png") == 0 & !outputPrefixHasExtension) || outputPrefixHasPNG) {
+    if(((strcasecmp(image_type, "png") == 0) && !outputPrefixHasExtension) || outputPrefixHasPNG) {
       // figure out actual name to use for saving
       char outputName[512];
       

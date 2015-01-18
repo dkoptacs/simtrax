@@ -244,7 +244,6 @@ void LoadMemory(FourByte* mem, BVH* &bvh, int size, int image_width, int image_h
 
   //printf("\nMemory used: %d (0x%08x)\n", end_memory, end_memory);
 
-  int image_size = image_height * image_width * 3;
 
   //printf("Image size: %d\n", image_size);
   //  printf("Tile memory size: %d\n", num_tiles * 4);

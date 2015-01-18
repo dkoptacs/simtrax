@@ -5,7 +5,7 @@ EXE=simtrax
 
 # for OSX
 CXX = clang++
-CXXFLAGS = -g -Wall -O3 -pthread -I/opt/local/include/ 
+CXXFLAGS = -g -Wall -Wno-format-security -O3 -pthread -I/opt/local/include/ 
 LDFLAGS = -L/opt/local/lib/ -lboost_regex-mt
 
 # for CADE
