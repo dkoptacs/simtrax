@@ -7,20 +7,19 @@ cmake_minimum_required(VERSION 2.8)
 string(COMPARE EQUAL ${CMAKE_SYSTEM_NAME} "Windows" SYS_IS_WIN)
 set(ADD_TO_EXE_NAME "")
 set(TRAX_DIR "${CMAKE_SOURCE_DIR}/../llvm_trax/" CACHE PATH "Location of TRAX Directory")
-set(LLVM_BINS "${TRAX_DIR}/bin/")
+set(LLVM_BINS "${TRAX_DIR}/clang-3.5.0/bin/")
 if(${SYS_IS_WIN})
 	set(ADD_TO_EXE_NAME ".exe")
 	set(LLVM_BINS "${LLVM_BINS}/bin/")
 endif(${SYS_IS_WIN})
 
-set(LLVM_CLANG_LOC "clang${ADD_TO_EXE_NAME}" CACHE FILEPATH "path to clang${ADD_TO_EXE_NAME} used for compilation")
+set(LLVM_CLANG_LOC "clang++${ADD_TO_EXE_NAME}" CACHE FILEPATH "path to clang++${ADD_TO_EXE_NAME} used for compilation")
 set(LLVM_BIN_DIR "${LLVM_BINS}/" CACHE PATH "LLVM binaries location")
 set(LLVM_LINK_LOC "llvm-link${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of llvm-link${ADD_TO_EXE_NAME}")
 set(LLVM_OPT_LOC "opt${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of opt${ADD_TO_EXE_NAME}")
 set(LLVM_LLC_LOC "llc${ADD_TO_EXE_NAME}" CACHE STRING "LLVM name of llc${ADD_TO_EXE_NAME}")
 set(TRAX_LN_PY_LOC "${TRAX_DIR}/linker/ln.py" CACHE FILEPATH "Trax linker python script 'ln.py'")
 set(TRAX_INCLUDE_DIR "${TRAX_DIR}/include" CACHE PATH "Trax include directory that holds trax.hpp")
-
 
 if(CMAKE_COMPILER_IS_GNUCC)
 	set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fmessage-length=0")
@@ -111,21 +110,44 @@ endif(WIN32 AND PTHREADS_FOUND)
 
 
 #################################################################
-set(TRAX_HEADERS ${SIMDIR}/LoadMemory.h 		${SIMDIR}/OBJLoader.h	${SIMDIR}/OBJListLoader.h
-				 ${SIMDIR}/IWLoader.h			${SIMDIR}/lodepng.h
-				 ${SIMDIR}/BVH.h 				${SIMDIR}/Grid.h		${SIMDIR}/Camera.h
-				 ${SIMDIR}/ReadViewfile.h		${SIMDIR}/Material.h	${SIMDIR}/Triangle.h 
-				 ${SIMDIR}/MTLLoader.h 	   		${SIMDIR}/PPM.h			${TRAX_INCLUDE_DIR}/trax.hpp
-				 ${SIMDIR}/WinCommonNixFcns.h 	${SIMDIR}/TGALoader.h	${SIMDIR}/ReadLightfile.h
-				 ${SIMDIR}/CustomLoadMemory.h
+set(TRAX_HEADERS
+	${SIMDIR}/LoadMemory.h
+	${SIMDIR}/OBJLoader.h
+	${SIMDIR}/OBJListLoader.h
+	${SIMDIR}/IWLoader.h
+	${SIMDIR}/lodepng.h
+	${SIMDIR}/BVH.h
+	${SIMDIR}/Grid.h
+	${SIMDIR}/Camera.h
+	${SIMDIR}/ReadViewfile.h
+	${SIMDIR}/Material.h
+	${SIMDIR}/Triangle.h
+	${SIMDIR}/MTLLoader.h
+	${SIMDIR}/PPM.h
+	${TRAX_INCLUDE_DIR}/trax.hpp
+	${SIMDIR}/WinCommonNixFcns.h
+	${SIMDIR}/TGALoader.h
+	${SIMDIR}/ReadLightfile.h
+	${SIMDIR}/CustomLoadMemory.h
 )
-set(TRAX_SOURCES ${LIBDIR}/trax_cpp.cpp 	${SIMDIR}/lodepng.cc
-				 ${SIMDIR}/LoadMemory.cc 	${SIMDIR}/OBJLoader.cc 		${SIMDIR}/OBJListLoader.cc
-				 ${SIMDIR}/IWLoader.cc 
-				 ${SIMDIR}/BVH.cc			${SIMDIR}/Grid.cc	   		${SIMDIR}/Camera.cc
-				 ${SIMDIR}/ReadViewfile.cc	${SIMDIR}/Material.cc  		${SIMDIR}/Triangle.cc 
-				 ${SIMDIR}/MTLLoader.cc		${SIMDIR}/PPM.cc	   		${SIMDIR}/TGALoader.cc
-				 ${SIMDIR}/ReadLightfile.cc ${SIMDIR}/CustomLoadMemory.cc
+set(TRAX_SOURCES
+	${LIBDIR}/trax_cpp.cpp
+	${SIMDIR}/lodepng.cc
+	${SIMDIR}/LoadMemory.cc
+	${SIMDIR}/OBJLoader.cc
+	${SIMDIR}/OBJListLoader.cc
+	${SIMDIR}/IWLoader.cc
+	${SIMDIR}/BVH.cc
+	${SIMDIR}/Grid.cc
+	${SIMDIR}/Camera.cc
+	${SIMDIR}/ReadViewfile.cc
+	${SIMDIR}/Material.cc
+	${SIMDIR}/Triangle.cc 
+	${SIMDIR}/MTLLoader.cc
+	${SIMDIR}/PPM.cc
+	${SIMDIR}/TGALoader.cc
+	${SIMDIR}/ReadLightfile.cc
+	${SIMDIR}/CustomLoadMemory.cc
 )
 
 set(TRAX_TRAX_SOURCES ${LIBDIR}/trax_trax.cpp)
@@ -191,7 +213,7 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend a
 		get_filename_component(file_cc ${_file_cc} NAME_WE)
 		set(file_bc "${CMAKE_CURRENT_BINARY_DIR}/BC/${file_cc}.bc")
 		add_custom_command( OUTPUT ${file_bc}
-							COMMAND ${directoryPrePend}${LLVM_CLANG_LOC} -emit-llvm -DTRAX=1 -target mblaze -S -O3 ${addnlDef} -DWIDTH=${SCENE_TRXWIDTH} -DHEIGHT=${SCENE_TRXHEIGHT} -I${directoryPrePend}${TRAX_INCLUDE_DIR} -o ${file_bc} -c ${_file_cc}
+							COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_CLANG_LOC} -emit-llvm -DTRAX=1 -target mipsel -S -O3 ${addnlDef} -DWIDTH=${SCENE_TRXWIDTH} -DHEIGHT=${SCENE_TRXHEIGHT} -I${directoryPrePend}${TRAX_INCLUDE_DIR} -o ${file_bc} -c ${_file_cc}
 							DEPENDS ${_file_cc})
 		list(APPEND TARGET_BC_FILES ${file_bc})
 	endforeach()
@@ -219,7 +241,7 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend a
 					   COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_OPT_LOC} ${targetPREll_file}.ll -O3 -inline-threshold 200000000 -o ${targetRTOPTbc_file}.bc
 					   DEPENDS "${targetPREll_file}.ll")
 	add_custom_command(OUTPUT "${targetRTs_file}.s"
-						COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_LLC_LOC} ${targetRTOPTbc_file}.bc -o ${targetRTs_file}.s -march=trax -mattr=fpu,mul,div,barrel
+						COMMAND ${directoryPrePend}${LLVM_BIN_DIR}/${LLVM_LLC_LOC} ${targetRTOPTbc_file}.bc -o ${targetRTs_file}.s -march=mipsel -mattr=+mips32,+single-float -relocation-model=static
 						DEPENDS "${targetRTOPTbc_file}.bc")
 	list(APPEND TARGET_BC_FILES "${targetPREll_file}.ll" "${targetRTOPTbc_file}.bc" "${targetRTs_file}.s")
 

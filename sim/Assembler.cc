@@ -73,14 +73,6 @@ std::string expString("\".+\"");
 
 
 
-//-------------------------------------------------------------------------
-
-
-using namespace std;
-using boost::regex;
-using boost::sregex_iterator;
-
-
 //------------------------------------------------------------------------------
 
 SourceInfo currentSourceInfo;
@@ -91,12 +83,12 @@ int Assembler::LoadAssem(char *filename,
                          int num_system_regs,
                          char*& jump_table,
                          std::vector<std::string>& ascii_literals,
-			 std::vector<std::string>& sourceNames,
+                         std::vector<std::string>& sourceNames,
                          bool print_symbols)
 {
   printf("Loading assembly file %s\n", filename);
 
-  ifstream input(filename);
+  std::ifstream input(filename);
   if(!input.is_open())
   {
     printf("ERROR: cannot open assembly file %s\n", filename);
@@ -181,7 +173,7 @@ int Assembler::LoadAssem(char *filename,
   jtable_ptr += 4;
   
   input.clear();
-  input.seekg(0, ios::beg) ;
+  input.seekg(0, std::ios::beg) ;
 
   // 2nd pass
   
@@ -221,10 +213,10 @@ int Assembler::HandleLine(std::string line,
                           std::vector<symbol*>& labels,
                           std::vector<symbol*>& regs,
                           std::vector<symbol*>& elf_vars,
-			  std::vector<symbol*>& data_table,
+                          std::vector<symbol*>& data_table,
                           char*& jump_table,
                           std::vector<std::string>& ascii_literals,
-			  std::vector<std::string>& sourceNames)
+                          std::vector<std::string>& sourceNames)
 {
 
   boost::smatch m;

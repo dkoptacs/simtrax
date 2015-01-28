@@ -17,6 +17,10 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	endif(UNIX OR APPLE)
 endif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 
+# enable C11
+list(APPEND CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+
+
 # Update install location if it's the default
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR} CACHE PATH "simtrax install location prefix" FORCE)
@@ -53,13 +57,29 @@ if(WIN32 AND PTHREADS_FOUND)
 	ENDIF(EXISTS ${libFile2})
 endif(WIN32 AND PTHREADS_FOUND)
 
+# find Boost
+# this is a bit whacky, on Linux we'll dynamically link
+# but for Windows - statically
+if(CMAKE_HOST_WIN32)
+	set(Boost_USE_STATIC_LIBS ON)
+	set(Boost_USE_MULTITHREADED ON)
+	set(Boost_USE_STATIC_RUNTIME OFF)
+else()
+	set(Boost_USE_STATIC_LIBS OFF)
+	set(Boost_USE_MULTITHREADED ON)
+	set(Boost_USE_STATIC_RUNTIME OFF)
+endif()
+#set(Boost_ADDITIONAL_VERSIONS "1.49" "1.49.0" "1.55" "1.55.0")
+#set(Boost_DEBUG TRUE)
+find_package(Boost COMPONENTS regex REQUIRED)
+
 # Figure out the relative path between bin directory and samples directory
 file(RELATIVE_PATH REL_PATH_BIN_TO_SAMPLES "${CMAKE_INSTALL_PREFIX}" "${CMAKE_SOURCE_DIR}/../")
 add_definitions(-DREL_PATH_BIN_TO_SAMPLES="${REL_PATH_BIN_TO_SAMPLES}/")
 
 
 set(simHdr
-	Animation.h
+#	Animation.h
 	Assembler.h
 	Bitwise.h
 	BranchUnit.h
@@ -123,7 +143,7 @@ set(simHdr
 )
 
 set(simSrc
-	Animation.cc
+#	Animation.cc
 	Assembler.cc
 	Bitwise.cc
 	BranchUnit.cc
@@ -175,8 +195,9 @@ set(simSrc
 	main.cc
 )
 
+include_directories(${Boost_INCLUDE_DIRS})
 add_executable(simtrax ${simSrc} ${simHdr})
-target_link_libraries(simtrax ${PTHREADS_LIBRARIES})
+target_link_libraries(simtrax ${PTHREADS_LIBRARIES} ${Boost_LIBRARIES})
 
 install(TARGETS simtrax DESTINATION ${CMAKE_INSTALL_PREFIX})
 if(PTHREADS_LIBRARY_DLL)
