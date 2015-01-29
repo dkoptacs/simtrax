@@ -7,11 +7,10 @@
 #include "ThreadState.h"
 #include "WriteRequest.h"
 #include <cassert>
-#include <pthread.h>
 #include <cstdlib>
+#include <boost/thread.hpp>
 
-extern pthread_mutex_t atominc_mutex;
-
+extern boost::mutex atominc_mutex;
 
 L1Cache::L1Cache(L2Cache* _L2, int _hit_latency,
 		 int _cache_size, float _area, float _energy, int _num_banks = 4, int _line_size = 2,
@@ -252,69 +251,65 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
 	  issued_this_cycle[bank_id]++;
 	  return true;
 	}
-      
-      else if (L2->IssueInstruction(&ins, this, thread, temp_latency, issuer->current_cycle, address, unroll_type)) 
-	{
-	  
-	  reg_value result;
-	  result.udata = data[address].uvalue;
-	  
-	  // If we know the latency, we can queue up the write
-	  if(temp_latency != UNKNOWN_LATENCY)
-	    {
-	      // queue write to register
-	      long long int write_cycle = hit_latency + temp_latency + issuer->current_cycle;
-	      
-	      if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op, &ins)) {	      
-		// pipeline hazzard
-		pthread_mutex_lock(&(L2->cache_mutex));
-		L2->accesses--;
-		if(unroll_type == UNROLL_MISS)
-		  L2->misses--;
-		else
-		  L2->hits--;
-		pthread_mutex_unlock(&(L2->cache_mutex));
-		return false;
-	      }
-	      AddBusTraffic(address, write_cycle, thread, ins.args[0]);
-	      UpdateCache(address, write_cycle);
-	    }
-	  else
-	    {
-	      // Otherwise, enqueue it with unknown latency, usimm will update it's return cycle later
-	      
-	      if (!thread->QueueWrite(ins.args[0], result, UNKNOWN_LATENCY, ins.op, &ins)) 
-		{
-		  // pipeline hazzard
-		  pthread_mutex_lock(&(L2->cache_mutex));
-		  L2->accesses--;
-		  if(unroll_type == UNROLL_MISS)
-		    L2->misses--;
-		  else
-		    L2->hits--;
-		  pthread_mutex_unlock(&(L2->cache_mutex));
-		  return false;
-		}
-	      
-	      AddBusTraffic(address, UNKNOWN_LATENCY, thread, ins.args[0]);
-	    }
 
-	  misses++;
-	  accesses++;	  
-	  read_address[bank_id] = address;
-	  issued_this_cycle[bank_id]++;
+      else if (L2->IssueInstruction(&ins, this, thread, temp_latency, issuer->current_cycle, address, unroll_type)) 
+      {
+          reg_value result;
+          result.udata = data[address].uvalue;
+
+          // If we know the latency, we can queue up the write
+          if(temp_latency != UNKNOWN_LATENCY)
+          {
+              // queue write to register
+              long long int write_cycle = hit_latency + temp_latency + issuer->current_cycle;
+
+              if (!thread->QueueWrite(ins.args[0], result, write_cycle, ins.op, &ins))
+              {
+                  boost::lock_guard<boost::mutex> lock(L2->cache_mutex);
+                  // pipeline hazzard
+                  L2->accesses--;
+                  if(unroll_type == UNROLL_MISS)
+                      L2->misses--;
+                  else
+                      L2->hits--;
+                  return false;
+              }
+              AddBusTraffic(address, write_cycle, thread, ins.args[0]);
+              UpdateCache(address, write_cycle);
+          }
+          else
+          {
+              // Otherwise, enqueue it with unknown latency, usimm will update it's return cycle later
+              if (!thread->QueueWrite(ins.args[0], result, UNKNOWN_LATENCY, ins.op, &ins))
+              {
+                  // pipeline hazzard
+                  boost::lock_guard<boost::mutex> lock(L2->cache_mutex);
+                  L2->accesses--;
+                  if(unroll_type == UNROLL_MISS)
+                      L2->misses--;
+                  else
+                      L2->hits--;
+                  return false;
+              }
+              AddBusTraffic(address, UNKNOWN_LATENCY, thread, ins.args[0]);
+          }
+
+          misses++;
+          accesses++;
+          read_address[bank_id] = address;
+          issued_this_cycle[bank_id]++;
 
 #if TRACK_LINE_STATS
-	  line_accesses[index]++;
+          line_accesses[index]++;
 #endif
 
-	  return true;
-	} 
-      else 
-	{
-	  // L2 stalled
-	  return false;
-	}
+          return true;
+      }
+      else
+      {
+          // L2 stalled
+          return false;
+      }
     }
     else 
       { // cache hit
@@ -435,10 +430,11 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       // complete in temp_latency cycles
       //      misses++;
       //      outstanding_requests++;
-      pthread_mutex_lock(&atominc_mutex);
-      //execute atomic add here
-      data[address].fvalue += arg1.fdata;
-      pthread_mutex_unlock(&atominc_mutex);
+      {
+        boost::lock_guard<boost::mutex> locl(atominc_mutex);
+        //execute atomic add here
+        data[address].fvalue += arg1.fdata;
+      }
       UpdateCache(address, temp_latency + issuer->current_cycle);
       //read_address[bank_id] = address; // can't be replicated
       issued_this_cycle[bank_id]++;

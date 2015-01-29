@@ -4,8 +4,9 @@
 #include <string.h>
 
 #include <assert.h>
-#include <pthread.h>
+#include <vector>
 #include <fstream>
+#include <boost/thread.hpp>
 
 #include "WinCommonNixFcns.h"
 #include "trax_cpp.hpp"
@@ -39,11 +40,11 @@
 
 /// Pthreads stuff
 const unsigned int numAtomicInc = 8;
-pthread_t *threads = 0;
-pthread_mutex_t mainMutex[ numAtomicInc ];
-pthread_cond_t mainCond;
-unsigned int numThreads = 0;
-bool mainCondInit       = false;
+std::vector<boost::thread*> threads;
+boost::mutex                mainMutex[ numAtomicInc ];
+boost::condition_variable   mainCond;
+unsigned int                numThreads = 0;
+
 
 
 // C versions of everything
@@ -82,43 +83,40 @@ void storef( float value, int base, int offset ) {
 
 
 int trax_getid( int value ) {
+  // thread id
   if (value == 1) {
 #ifndef MULTIPLE_THREADS_ONE_CORE
-  pthread_t thisID = pthread_self();
-  for( unsigned int tid = 0; tid<numThreads; ++tid )
-#ifdef WIN32
-    if( thisID.p==threads[tid].p )
-#else
-    if( thisID==threads[tid] )
+    const boost::thread::id myId = boost::this_thread::get_id();
+    for (unsigned int tid = 0; tid < numThreads; ++tid)
+      if(myId == threads[tid]->get_id())
+        return tid;
 #endif
+  }
+
+  // core id
+  else if (value == 2) {
+#ifdef MULTIPLE_THREADS_ONE_CORE
+  const boost::thread::id myId = boost::this_thread::get_id();
+  for (unsigned int tid = 0; tid < numThreads; ++tid)
+    if(myId == threads[tid]->get_id())
       return tid;
 #endif
-    return 0; // threadID, if not found
-  } else if (value == 2) {
-#ifdef MULTIPLE_THREADS_ONE_CORE
-    pthread_t thisID = pthread_self();
-    for( unsigned int tid = 0; tid<numThreads; ++tid )
-  #ifdef WIN32
-      if( thisID.p==threads[tid].p )
-  #else
-      if( thisID==threads[tid] )
-        return tid;
-  #endif
-#endif
-    return 0; // coreID
-  } else if (value == 3) {
-    return 0; // L2 ID
   }
-  // for anything else
+
+  // L2 id
+  else if (value == 3) {
+    return 0;
+  }
+
+  // oops / default
   return 0;
 }
 
 // Arithmetic
 int atomicinc( int location) {
-  if( threads ) {
-    pthread_mutex_lock( &mainMutex[location] );
+  if( threads.size() > 0 ) {
+    boost::lock_guard<boost::mutex> lock(mainMutex[location]);
     unsigned int tmp = trax_global_registers[location].uvalue++;
-    pthread_mutex_unlock( &mainMutex[location] );
     return tmp;
   }
   return trax_global_registers[location].uvalue++;
@@ -147,31 +145,30 @@ float trax_rand() {
 
 
 void barrier( int reg_num ) {
-  if ( threads && mainCondInit ) {
+  if ( threads.size() > 0 ) {
     // Be counted
-    pthread_mutex_lock( &mainMutex[reg_num] );
+    boost::unique_lock<boost::mutex> lock(mainMutex[reg_num]);
     trax_global_registers[reg_num].uvalue++;
     if ( trax_global_registers[reg_num].uvalue == numThreads ) {
       // if every thread finished, let them know and reset
       trax_global_registers[reg_num].uvalue = 0;
-      pthread_cond_broadcast( &mainCond );
+      mainCond.notify_all();
     } else {
       // wait
-      pthread_cond_wait( &mainCond, &mainMutex[reg_num] );
+      mainCond.wait(lock);
     }
-    pthread_mutex_unlock( &mainMutex[reg_num] );
   }
   return;
 }
 
 void trax_semacq(int reg_num)
 {
-  pthread_mutex_lock( &mainMutex[reg_num] );
+  mainMutex[reg_num].lock();
 }
 
 void trax_semrel(int reg_num)
 {
-  pthread_mutex_unlock( &mainMutex[reg_num] );
+  mainMutex[reg_num].unlock();
 }
 
 float trax_noise( float x, float y, float z ) {
@@ -207,11 +204,11 @@ void trax_setup( runrtParams_t &opts ) {
   // memory image has the right frame buffer size or you will get weird results
   if ( opts.read_from_mem_file ) {
     // load memory from dump
-	  printf( "Attempting to load memory file '%s'.\n", opts.mem_file_name.c_str() );
+    printf( "Attempting to load memory file '%s'.\n", opts.mem_file_name.c_str() );
     float *light_pos = new float[3];
     int num_blocks;
-	  std::ifstream filein( opts.mem_file_name.c_str() );
-    // check for errors                                                                                                                                                                                                                                                                                                      
+    std::ifstream filein( opts.mem_file_name.c_str() );
+    // check for errors
     if (filein.fail()) { 
       printf( "Error opening memory file '%s' for reading.\n",  opts.mem_file_name.c_str() );
       exit(-1);
@@ -232,8 +229,7 @@ void trax_setup( runrtParams_t &opts ) {
     float epsilon         = 1e-4f;
     if (opts.custom_mem_loader) {
       // Custom memory loader
-      CustomLoadMemory(trax_memory_pointer, MEMORY_SIZE, opts.img_width, opts.img_height, 
-		       epsilon, opts.custom_mem_loader);
+      CustomLoadMemory(trax_memory_pointer, MEMORY_SIZE, opts.img_width, opts.img_height, epsilon, opts.custom_mem_loader);
     } else {
 
       BVH* bvh;
@@ -243,7 +239,7 @@ void trax_setup( runrtParams_t &opts ) {
       int start_matls, start_permutation;
       float *light_pos      = new float[3];
       if(!opts.no_scene)
-	ReadLightfile::LoadFile( opts.light_file_name.c_str(), light_pos );
+        ReadLightfile::LoadFile( opts.light_file_name.c_str(), light_pos );
       int tile_width        = 16;
       int tile_height       = 16;
       int ray_depth         = opts.ray_depth;
@@ -252,7 +248,7 @@ void trax_setup( runrtParams_t &opts ) {
       int num_cores         = 1; // this either
       bool duplicate_bvh    = false;
       bool tris_store_edges = opts.triangles_store_edges;
-      const char* model = opts.no_scene ? NULL : opts.model_file_name.c_str();
+      const char* model     = (opts.no_scene ? NULL : opts.model_file_name.c_str());
 
       LoadMemory(trax_memory_pointer, bvh, MEMORY_SIZE, opts.img_width, opts.img_height, 
                  grid_dimensions,
@@ -275,22 +271,19 @@ void trax_setup( runrtParams_t &opts ) {
 
 void trax_cleanup(runrtParams_t &opts){
 
-  unsigned found = opts.output_prefix_name.find_last_of("/\\");
-  std::string path = opts.output_prefix_name.substr(0, found + 1);
+  unsigned found       = opts.output_prefix_name.find_last_of("/\\");
+  std::string path     = opts.output_prefix_name.substr(0, found + 1);
   std::string baseName = opts.output_prefix_name.substr(found + 1);
+  const std::string extToCheck = (opts.use_png_ext ? ".png" : ".ppm");
 
-  bool usePNGLibrary = true;
-  size_t foundPeriod = baseName.rfind(".");
+  size_t foundPeriod = baseName.rfind(extToCheck);
   if(foundPeriod == std::string::npos) {
-    baseName += ".png";
-  }
-  else if(strcasecmp(baseName.substr(foundPeriod).c_str(), ".png") != 0) {
-    usePNGLibrary = false;
+    baseName += extToCheck;
   }
   baseName = path + baseName;
 
   // save using lodePNG
-  if(usePNGLibrary) {
+  if(opts.use_png_ext) {
     unsigned char *imgRGBA = new unsigned char[4*opts.img_width*opts.img_height];
     unsigned char *curImgPixel = imgRGBA;
     for(int j = (int)(opts.img_height - 1); j >= 0; j--) {
@@ -316,101 +309,65 @@ void trax_cleanup(runrtParams_t &opts){
     if(!error)
       lodepng_save_file(png, pngsize, baseName.c_str());
     else
-      printf("error %u: %s\n", error, lodepng_error_text(error));
+      printf("Error %u: %s\n", error, lodepng_error_text(error));
 
     free(png);
     delete[] imgRGBA;
   }
 
-  // otherwise, save with calling convert
+  // Write out using PPM extension
   else {
-    // output the image
-    char command_buf[512];
-	sprintf(command_buf, "convert PPM:- %s", baseName.c_str());
-#ifndef WIN32
-    FILE* output = popen(command_buf, "w");
-#else
-    FILE* output = popen(command_buf, "wb");
-#endif
-    if (!output) {
-	  char errorMsg[512];
-      sprintf(errorMsg, "Failes to open %s", baseName.c_str());
-      perror(errorMsg);
-	}
+    FILE* output = fopen(baseName.c_str(), "wb");
+    if(!output)
+      printf("Error: Failed to open image output file: %s\n", baseName.c_str());
 
     fprintf(output, "P6\n%d %d\n%d\n", opts.img_width, opts.img_height, 255);
     for (int j = static_cast<int>(opts.img_height - 1); j >= 0; j--) {
       for (unsigned int i = 0; i < opts.img_width; i++) {
         int index = start_framebuffer + 3 * (j * opts.img_width + i);
-	    
+
         float rgb[3];
         // for gradient/colors we have the result
         rgb[0] = trax_memory_pointer[index + 0].fvalue;
         rgb[1] = trax_memory_pointer[index + 1].fvalue;
         rgb[2] = trax_memory_pointer[index + 2].fvalue;
         fprintf(output, "%c%c%c",
-	        (char)(int)(rgb[0] * 255),
-	        (char)(int)(rgb[1] * 255),
-	        (char)(int)(rgb[2] * 255));
+                (char)(int)(rgb[0] * 255),
+                (char)(int)(rgb[1] * 255),
+                (char)(int)(rgb[2] * 255));
       }
     }
-    pclose(output);
+    fclose(output);
   }
 }
 
 
 
 /// creates a bunch of threads to run rendering function
-bool trax_start_render_threads( void* (*renderFunc)(void*), const int &_numThreads ) {
+bool trax_start_render_threads( void (*renderFunc)(void), const int _numThreads ) {
 
   // just in case
-  if( threads )
+  if( threads.size() > 0 )
     return false;
 
   numThreads  = (_numThreads>0) ? _numThreads : 1;
-  threads	  = new pthread_t[numThreads];
-
-
-  // init mutexes
-  for( unsigned int m=0; m<numAtomicInc; ++m ) {
-    if( pthread_mutex_init( &mainMutex[m], NULL ) ) {
-      printf( "Unable to initialize mutex %d\n", m );
-      return false;
-    }
-  }
-
-  // init cond
-  if( pthread_cond_init( &mainCond, NULL ) != 0 ) {
-    printf( "Could not create conditional for barrier\n" );
-    return false;
-  }
-  mainCondInit = true;
-
+  threads.reserve(numThreads);
 
   // start up the rendering...
   for( unsigned int i=0; i<numThreads; ++i ) {
-    if( pthread_create( &threads[i], NULL, renderFunc, 0 ) ) {
-      printf( "Could not create thread %d\n", i );
-      return false;
-    }
+    boost::thread *toAdd = new boost::thread(renderFunc);
+    threads.push_back(toAdd);
   }
 
 
   // make sure all the threads exit upon completion
   for( unsigned int i=0; i<numThreads; ++i ) {
-    if( pthread_join( threads[i], NULL ) ) {
-      printf( "Could not join thread %d\n", i );
-      return false;
-    }
+    threads[i]->join();
+    delete threads[i];
   }
 
   // clear out the memory
-  delete[] threads;
-  threads = 0;
-  for( unsigned int m=0; m<numAtomicInc; ++m )
-    pthread_mutex_destroy( &mainMutex[m] );
-  pthread_cond_destroy( &mainCond );
-  mainCondInit = false;
+  threads.clear();
   return true;
 }
 
@@ -424,16 +381,17 @@ int main( int argc, char* argv[] ) {
 
   trax_setup( opts );
 
-  if( trax_start_render_threads( &trax_mainPThreads, opts.num_render_threads ) == false ) {
+  if( trax_start_render_threads( &trax_mainThreads, opts.num_render_threads ) == false ) {
     std::cout << "No threads available for rendering -> Ray Queues won't work!\n";
 
     // time to perform one centralized cleanup :D
-    delete[] threads;
-    threads = 0;
-    for( unsigned int m=0; m<numAtomicInc; ++m )
-      pthread_mutex_destroy( &mainMutex[m] );
-    pthread_cond_destroy( &mainCond );
-    mainCondInit = false;
+    for( unsigned int i=0; i<numThreads; ++i ) {
+      threads[i]->join();
+      delete threads[i];
+    }
+
+    // clear out the memory
+    threads.clear();
 
     // do single threaded execution
     std::cout << "Executing single threaded!\n";
@@ -461,6 +419,7 @@ void printHelp( char* progName ) {
   printf( "\t--light-file        <light file name -- default: %s>\n", def.light_file_name.c_str() );
   printf( "\t--mem-file          <memory file to load -- default: %s>\n", def.mem_file_name.c_str() );
   printf( "\t--model             <model file name (.obj) -- default: %s>\n", def.model_file_name.c_str() );
+  printf( "\t--no-scene          <specify there is no model, camera, or light. use for non-ray tracing programs>\n");
   printf( "\t--num-cores         <number of render threads -- default: %d>\n", def.num_render_threads );
   printf( "\t--num-globals       <number of global registers -- default %d>\n", def.num_global_registers );
   printf( "\t--num-samples       <number of samples per pixel -- default: %d>\n", def.num_samples_per_pixel );
@@ -468,6 +427,7 @@ void printHelp( char* progName ) {
   printf( "\t--ray-depth         <depth of rays -- default: %d>\n", def.ray_depth );
   printf( "\t--subtree-size      <minimum size in words of BVH subtrees -- default: %d (won't build subtrees)>\n", def.subtree_size );
   printf( "\t--triangles-store-edges [set flag to store 2 edge vecs in a tri instead of 2 verts -- default: off]\n" );
+  printf( "\t--use-png-ext       [use png for file output -- default no (ppm instead)]\n");
   printf( "\t--view-file         <view file name -- default: %s>\n", def.view_file_name.c_str() );
   printf( "\t--width             <width in pixels -- default: %d>\n", def.img_width );
   printf( "\t--write-dot         <depth>  generates dot files for the tree after each frame. Depth should not exceed 8\n");
@@ -548,6 +508,11 @@ void programOptParser( runrtParams_t &params, int argc, char* argv[] ) {
       params.view_file_name        = argv[ ++i ];
     }
 
+    // flag to save output as PNG
+    else if( strcmp(argv[i], "--use-png-ext")==0 ) {
+      params.use_png_ext           = true;
+    }
+
     // image width
     else if( strcmp(argv[i], "--width")==0 ) {
       params.img_width             = atoi( argv[++i] );
@@ -578,7 +543,6 @@ void programOptParser( runrtParams_t &params, int argc, char* argv[] ) {
 
 
 // pthreads render-horsie
-void * trax_mainPThreads( void * dummyPtr ) {
+void trax_mainThreads( void ) {
   trax_main();
-  return 0;
 }

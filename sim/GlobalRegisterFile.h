@@ -1,13 +1,13 @@
 #ifndef _SIMHWRT_GLOBAL_REGISTER_FILE_H_
 #define _SIMHWRT_GLOBAL_REGISTER_FILE_H_
 
-#include <pthread.h>
+#include <boost/thread.hpp>
 
 // Global int registers with adders and counters built in
 // services ATOMIC_INC and ATOMIC_ADD instructions
 #include "FunctionalUnit.h"
 
-extern pthread_mutex_t global_mutex;
+extern boost::mutex global_mutex;
 
 class GlobalRegisterFile : public FunctionalUnit {
  public:

@@ -10,7 +10,7 @@
 // A simple memory that implements one level of direct-mapped cache
 // with parameterized memory size and cache size
 #include "MemoryBase.h"
-#include <pthread.h>
+#include <boost/thread.hpp>
 
 
 class MainMemory;
@@ -52,7 +52,7 @@ public:
   int max_outstanding_data;
   int max_data_per_cycle;
   int line_fill_size;
-  pthread_mutex_t cache_mutex;
+  boost::mutex cache_mutex;
 
   bool unit_off;
   bool disable_usimm;

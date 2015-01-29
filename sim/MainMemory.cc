@@ -5,10 +5,10 @@
 #include "ThreadState.h"
 #include "SimpleRegisterFile.h"
 
-#include <pthread.h>
+#include <boost/thread.hpp>
 
 // use this if writes need to be atomic
-extern pthread_mutex_t memory_mutex;
+extern boost::mutex memory_mutex;
 
 // Windows pipe stuff (needs stdio.h)
 #ifdef WIN32
@@ -41,14 +41,14 @@ bool MainMemory::IssueInstruction(Instruction* ins, L2Cache* L2, ThreadState* th
   {
     // maybe should have some limit for number of ops here.
     ret_latency = latency;
-    
+
     // this is okay because the read was registered in the L1Cache
     reg_value arg0;    
     Instruction::Opcode failop = Instruction::NOP;
-    
+
     if (!thread->ReadRegister(ins->args[0], current_cycle, arg0, failop))
       printf("%s unable to read\n", Instruction::Opnames[failop].c_str());
-    
+
     int address = arg0.idata + ins->args[2];
     //    printf(" Store: %x: %d\n", address, ins->args[1]);
     if (address < 0 || address > num_blocks)
@@ -56,18 +56,19 @@ bool MainMemory::IssueInstruction(Instruction* ins, L2Cache* L2, ThreadState* th
       printf("Memory address out of bounds for write!\n");
       return true;
     }
-    
+
     reg_value arg1;
     if (!thread->ReadRegister(ins->args[1], current_cycle, arg1, failop))
     {
       // bad stuff happened
       printf("Error in Main Memory. Should have passed.\n");
     }
-    
-    pthread_mutex_lock(&memory_mutex);
-    data[address].uvalue = arg1.udata;
-    store_count++;
-    pthread_mutex_unlock(&memory_mutex);
+
+    {
+      boost::lock_guard<boost::mutex> lock(memory_mutex);
+      data[address].uvalue = arg1.udata;
+      store_count++;
+    }
     return true;
   }
 

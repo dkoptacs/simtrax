@@ -86,8 +86,8 @@ void trax_main();
 
 // playing with threads
 // returns success of the operation ( if false, call render function directly )
-bool trax_start_render_threads( void* (*renderFunc)(void*), const int &numThreads=1 );
-void * trax_mainPThreads( void * dummyPtr = 0 );
+bool trax_start_render_threads( void (*renderFunc)(void), const int numThreads=1 );
+void trax_mainThreads( void );
 
 
 // parameters worth parsing
@@ -95,6 +95,7 @@ typedef struct runrtParams_tt{
   bool read_from_mem_file;
   bool triangles_store_edges;
   bool no_scene;
+  bool use_png_ext;
   unsigned int num_render_threads;
   unsigned int num_samples_per_pixel;
   unsigned int ray_depth;
@@ -109,13 +110,27 @@ typedef struct runrtParams_tt{
   std::string model_file_name;
   std::string light_file_name;
   std::string output_prefix_name;
-  
+
   // defaults
-  runrtParams_tt() : read_from_mem_file( false ), triangles_store_edges( false ), no_scene(false),
-		     num_render_threads( 4 ), num_samples_per_pixel( NUMSAMPLES ), ray_depth( RAYDEPTH ),
-		     img_height( HEIGHT ), img_width( WIDTH ), bvh_dot_depth( 0 ), num_global_registers( 8 ),
-		     subtree_size( 0 ), custom_mem_loader( 0 ), mem_file_name( MEMORYFILE ), view_file_name( VIEWFILE ), 
-		     model_file_name( MODELFILE ), light_file_name( LIGHTFILE ), output_prefix_name( "out.png" )
+  runrtParams_tt() :
+      read_from_mem_file( false ),
+      triangles_store_edges( false ),
+      no_scene( false ),
+      use_png_ext( false ),
+      num_render_threads( 4 ),
+      num_samples_per_pixel( NUMSAMPLES ),
+      ray_depth( RAYDEPTH ),
+      img_height( HEIGHT ),
+      img_width( WIDTH ),
+      bvh_dot_depth( 0 ),
+      num_global_registers( 8 ),
+      subtree_size( 0 ),
+      custom_mem_loader( 0 ),
+      mem_file_name( MEMORYFILE ),
+      view_file_name( VIEWFILE ),
+      model_file_name( MODELFILE ),
+      light_file_name( LIGHTFILE ),
+      output_prefix_name( "out" )
   {}
 } runrtParams_t;
 
