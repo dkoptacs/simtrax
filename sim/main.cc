@@ -306,6 +306,7 @@ void printUsage(char* program_name) {
 
   printf("\n");
   printf("  + Scene Parameters:\n");
+  printf("    --background      <r g b, background color -- default 0.561 0.729 0.988>\n");
   printf("    --epsilon         <small number pre-loaded to main memory, useful for various ray tracer offsets, default 1e-4>\n");
   printf("    --height          <framebuffer height in pixels -- default 128>\n");
   printf("    --no-png          [disable png output]\n");
@@ -357,12 +358,13 @@ int main(int argc, char* argv[]) {
   bool use_png_ext_for_output           = false;
   float far                             = 1000;
   int dot_depth                         = 0;
-  Camera* camera                        = NULL;
+  simtrax::Camera* camera               = NULL;
   float *light_pos                      = NULL;
   int tile_width                        = 16;
   int tile_height                       = 16;
   int ray_depth                         = 1;
   int num_samples                       = 1;
+  float background_color[3];
   float epsilon                         = 1e-4f;
   bool print_instructions               = false;
   bool no_scene                         = false;
@@ -395,6 +397,10 @@ int main(int argc, char* argv[]) {
   char *usimm_config_file               = NULL;
   char *dcache_params_file              = NULL;
   char *icache_params_file              = NULL;
+
+  background_color[0] = 0.561f;
+  background_color[1] = 0.729f;
+  background_color[2] = 0.988f;
 
   // Verify Instruction.h matches Instruction.cc in size.
   if (strncmp(Instruction::Opnames[Instruction::PROF].c_str(), "PROF", 4) != 0) 
@@ -480,6 +486,10 @@ int main(int argc, char* argv[]) {
       tile_height = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--ray-depth") == 0) {
       ray_depth = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "--background") == 0) {
+      background_color[0] = atof(argv[++i]);
+      background_color[1] = atof(argv[++i]);
+      background_color[2] = atof(argv[++i]);
     } else if (strcmp(argv[i], "--epsilon") == 0) {
       epsilon = static_cast<float>( atof(argv[++i]) );
     } else if (strcmp(argv[i], "--num-samples") == 0) {
@@ -727,15 +737,46 @@ int main(int argc, char* argv[]) {
         light_pos[2] = -1.74f;
       }
 
-      LoadMemory(memory->getData(), bvh, memory->getSize(), image_width, image_height,
-         grid_dimensions,
-         camera, model_file,
-         start_wq, start_framebuffer, start_scene,
-         start_matls,
-         start_camera, start_bg_color, start_light, end_memory,
-         light_pos, start_permutation, tile_width, tile_height,
-         ray_depth, num_samples, num_thread_procs * num_cores, num_cores, subtree_size, 
-         epsilon, duplicate_bvh, triangles_store_edges, pack_split_axis, pack_stream_boundaries);
+      LoadMemoryParams paramsForLoadMemory;
+      paramsForLoadMemory.mem                       = memory->getData();
+      paramsForLoadMemory.mem_size                  = memory->getSize();
+      paramsForLoadMemory.image_width               = image_width;
+      paramsForLoadMemory.image_height              = image_height;
+      paramsForLoadMemory.grid_dimensions           = grid_dimensions;
+      paramsForLoadMemory.camera                    = camera;
+      paramsForLoadMemory.model_file                = model_file;
+      paramsForLoadMemory.background_color[0]       = background_color[0];
+      paramsForLoadMemory.background_color[1]       = background_color[1];
+      paramsForLoadMemory.background_color[2]       = background_color[2];
+      paramsForLoadMemory.light_pos[0]              = light_pos[0];
+      paramsForLoadMemory.light_pos[1]              = light_pos[1];
+      paramsForLoadMemory.light_pos[2]              = light_pos[2];
+      paramsForLoadMemory.tile_width                = tile_width;
+      paramsForLoadMemory.tile_height               = tile_height;
+      paramsForLoadMemory.ray_depth                 = ray_depth;
+      paramsForLoadMemory.num_samples               = num_samples;
+      paramsForLoadMemory.num_rotation_threads      = num_thread_procs * num_cores;
+      paramsForLoadMemory.num_TMs                   = num_cores;
+      paramsForLoadMemory.subtree_size              = subtree_size;
+      paramsForLoadMemory.epsilon                   = epsilon;
+      paramsForLoadMemory.duplicate_bvh             = duplicate_bvh;
+      paramsForLoadMemory.triangles_store_edges     = triangles_store_edges;
+      paramsForLoadMemory.pack_split_axis           = pack_split_axis;
+      paramsForLoadMemory.pack_stream_boundaries    = pack_stream_boundaries;
+
+      LoadMemory(paramsForLoadMemory);
+
+      // returned values
+      bvh               = paramsForLoadMemory.bvh;
+      start_wq          = paramsForLoadMemory.start_wq;
+      start_framebuffer = paramsForLoadMemory.start_framebuffer;
+      start_scene       = paramsForLoadMemory.start_scene;
+      start_matls       = paramsForLoadMemory.start_matls;
+      start_camera      = paramsForLoadMemory.start_camera;
+      start_bg_color    = paramsForLoadMemory.start_bg_color;
+      start_light       = paramsForLoadMemory.start_light;
+      start_permutation = paramsForLoadMemory.start_permutation;
+      end_memory        = paramsForLoadMemory.end_memory;
     }
   } // end else for memory dump file
 

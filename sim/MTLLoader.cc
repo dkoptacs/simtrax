@@ -9,6 +9,8 @@
 #include <string>
 #include "TGALoader.h"
 
+using namespace simtrax;
+
 void MTLLoader::LoadMTL(const char* filename, std::vector<Material*>* matls,
 			std::vector<std::string>& matl_ids, FourByte* mem, int max_mem,
 			int& mem_loc) {

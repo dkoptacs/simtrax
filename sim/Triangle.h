@@ -4,6 +4,8 @@
 #include "Primitive.h"
 #include "Vector3.h"
 
+namespace simtrax {
+
 class Triangle : public Primitive {
 public:
   Triangle();
@@ -43,5 +45,7 @@ public:
 
   static bool tri_stores_edges;	/// flag whether we're storing edge vectors instead of points: p1-center, p0=p0-p1, p2=p2-p1
 };
+
+} // simtrax
 
 #endif // _SIMHWRT_TRIANGLE_H_

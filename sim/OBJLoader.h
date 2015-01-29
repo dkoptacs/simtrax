@@ -2,15 +2,17 @@
 #define __SIMHWRT_OBJLOADER_H_
 
 #include <vector>
-class Triangle;
-class Material;
+namespace simtrax {
+  class Triangle;
+  class Material;
+}
 class PPM;
 struct FourByte;
 
 class OBJLoader {
 public:
-  static void LoadModel(const char* filename, std::vector<Triangle*>* tris,
-			std::vector<Material*>* matls, FourByte* mem, int max_mem,
+  static void LoadModel(const char* filename, std::vector<simtrax::Triangle*>* tris,
+            std::vector<simtrax::Material*>* matls, FourByte* mem, int max_mem,
 			int& mem_loc, int matl_offset = 0);
 };
 

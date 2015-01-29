@@ -3,6 +3,8 @@
 
 #include "FourByte.h"
 
+namespace simtrax {
+
 class Primitive {
 public:
   virtual ~Primitive() {}
@@ -15,5 +17,7 @@ public:
     LAST_TYPE
   };
 };
+
+} // simrtax
 
 #endif // __SIMHWRT_PRIMITIVE_H__

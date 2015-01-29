@@ -7,8 +7,10 @@
 #include <iostream>
 #include <string.h>
 
+using namespace simtrax;
+
 void IWLoader::LoadModel(const char* filename, std::vector<Triangle*>* tris,
-			 std::vector<Material*>* matls) {
+             std::vector<Material*>* matls) {
   FILE* input = fopen(filename, "r");
   if (!input) {
     perror("Failed to open obj file for reading.\n");

@@ -8,12 +8,15 @@
 #include <queue>
 
 class BVHNode;
-class Triangle;
+namespace simtrax {
+  class Triangle;
+}
 
-class BVH : public Primitive {
+
+class BVH : public simtrax::Primitive {
 public:
   ~BVH();
-  BVH(std::vector<Triangle*>* triangles, int _subtree_size, bool duplicate, bool tris_store_edges, bool pack_split_axis, bool _pack_stream_boundaries);
+  BVH(std::vector<simtrax::Triangle*>* triangles, int _subtree_size, bool duplicate, bool tris_store_edges, bool pack_split_axis, bool _pack_stream_boundaries);
 
   void LoadIntoMemory(int &memory_position,
                       int max_memory,
@@ -33,7 +36,7 @@ public:
   
   float oldComputeNodeCost(int nodeID);
   BVHNode loadNode(int nodeID, int start_scene, FourByte *memory);
-  Triangle loadTriangle(int tri_addr, FourByte *memory);
+  simtrax::Triangle loadTriangle(int tri_addr, FourByte *memory);
   float computeNodeCost(BVHNode node, int start_scene, FourByte *memory);
   float computeSAHCost(int start_scene, FourByte *memory);
 
@@ -83,8 +86,8 @@ public:
   float initial_cost;
   bool duplicate_BVH;
   BVHNode* nodes;
-  std::vector<Triangle*>* triangles;
-  std::vector<Triangle*> inorder_tris;
+  std::vector<simtrax::Triangle*>* triangles;
+  std::vector<simtrax::Triangle*> inorder_tris;
   bool triangles_store_points;
   bool store_axis;
   bool pack_stream_boundaries;
@@ -138,7 +141,7 @@ public:
 // tri_store_pts = true  -> triangles are normal (3 points for vertices)
 // tri_store_pts = false -> triangles storing edge vectors (center pt + vectors to other 2)
 void ExtendBoundByTriangle(float cur_min[3], float cur_max[3],
-                           const Triangle& tri, const bool &tri_store_pts=true );
+                           const simtrax::Triangle& tri, const bool &tri_store_pts=true );
 
 void ExtendBoundByBox(float cur_min[3], float cur_max[3],
                       float box_min[3], float box_max[3]);

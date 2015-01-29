@@ -1,6 +1,8 @@
 #include "Camera.h"
 #include <iostream>
 
+using namespace simtrax;
+
 Camera::Camera(const Vector3& c,
                const Vector3& gaze,
                const Vector3& vup,

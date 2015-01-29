@@ -1,5 +1,7 @@
 #include "Material.h"
 
+using namespace simtrax;
+
 Material::Material(const Vector3& c0, const Vector3& c1, const Vector3& c2, const int& mtl_type) :
   c0(c0), c1(c1), c2(c2)
 {

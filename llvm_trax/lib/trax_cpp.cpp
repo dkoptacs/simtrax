@@ -232,38 +232,44 @@ void trax_setup( runrtParams_t &opts ) {
       CustomLoadMemory(trax_memory_pointer, MEMORY_SIZE, opts.img_width, opts.img_height, epsilon, opts.custom_mem_loader);
     } else {
 
-      BVH* bvh;
-      int grid_dimensions   = -1;
-      Camera* camera = opts.no_scene ? NULL : ReadViewfile::LoadFile( opts.view_file_name.c_str(), FAR );
-      int start_wq, start_scene, start_camera, start_bg_color, start_light, end_memory;
-      int start_matls, start_permutation;
-      float *light_pos      = new float[3];
-      if(!opts.no_scene)
-        ReadLightfile::LoadFile( opts.light_file_name.c_str(), light_pos );
-      int tile_width        = 16;
-      int tile_height       = 16;
-      int ray_depth         = opts.ray_depth;
-      int num_samples       = opts.num_samples_per_pixel;
-      int num_thread_procs  = opts.num_render_threads; // not sure why this is needed
-      int num_cores         = 1; // this either
-      bool duplicate_bvh    = false;
-      bool tris_store_edges = opts.triangles_store_edges;
-      const char* model     = (opts.no_scene ? NULL : opts.model_file_name.c_str());
+      simtrax::Camera* camera   = ReadViewfile::LoadFile( opts.view_file_name.c_str(), FAR );
+      float *light_pos = new float[3];
+      ReadLightfile::LoadFile(opts.light_file_name.c_str(), light_pos);
 
-      LoadMemory(trax_memory_pointer, bvh, MEMORY_SIZE, opts.img_width, opts.img_height, 
-                 grid_dimensions,
-                 camera, model,
-                 start_wq, start_framebuffer, start_scene,
-                 start_matls,
-                 start_camera, start_bg_color, start_light, end_memory,
-                 light_pos, start_permutation, tile_width, tile_height,
-                 ray_depth, num_samples, num_thread_procs * num_cores, num_cores,
-                 opts.subtree_size, epsilon, duplicate_bvh, tris_store_edges);
-      
-      
+      LoadMemoryParams paramsForLoadMemory;
+      paramsForLoadMemory.mem                       = trax_memory_pointer;
+      paramsForLoadMemory.mem_size                  = MEMORY_SIZE;
+      paramsForLoadMemory.image_width               = opts.img_width;
+      paramsForLoadMemory.image_height              = opts.img_height;
+      paramsForLoadMemory.grid_dimensions           = -1;
+      paramsForLoadMemory.camera                    = camera;
+      paramsForLoadMemory.model_file                = opts.model_file_name.c_str();
+      paramsForLoadMemory.background_color[0]       = opts.background_color[0];
+      paramsForLoadMemory.background_color[1]       = opts.background_color[1];
+      paramsForLoadMemory.background_color[2]       = opts.background_color[2];
+      paramsForLoadMemory.light_pos[0]              = light_pos[0];
+      paramsForLoadMemory.light_pos[1]              = light_pos[1];
+      paramsForLoadMemory.light_pos[2]              = light_pos[2];
+      paramsForLoadMemory.tile_width                = 16;
+      paramsForLoadMemory.tile_height               = 16;
+      paramsForLoadMemory.ray_depth                 = opts.ray_depth;
+      paramsForLoadMemory.num_samples               = opts.num_samples_per_pixel;
+      paramsForLoadMemory.num_rotation_threads      = opts.num_render_threads * 1;
+      paramsForLoadMemory.num_TMs                   = 1;
+      paramsForLoadMemory.subtree_size              = opts.subtree_size;
+      paramsForLoadMemory.epsilon                   = epsilon;
+      paramsForLoadMemory.duplicate_bvh             = false;
+      paramsForLoadMemory.triangles_store_edges     = opts.triangles_store_edges;
+      paramsForLoadMemory.pack_split_axis           = opts.pack_split_axis;
+      paramsForLoadMemory.pack_stream_boundaries    = false;// pack_stream_boundaries;      // TODO:!
+
+      LoadMemory(paramsForLoadMemory);
+
+      start_framebuffer = paramsForLoadMemory.start_framebuffer;
+
       // print out the DOT file?
       if( opts.bvh_dot_depth > 0 ) {
-        bvh->writeDOT( "bvh.dot", start_scene, trax_memory_pointer, 1, opts.bvh_dot_depth );
+        paramsForLoadMemory.bvh->writeDOT( "bvh.dot", paramsForLoadMemory.start_scene, trax_memory_pointer, 1, opts.bvh_dot_depth );
       }
     }
   }
@@ -414,6 +420,7 @@ void printHelp( char* progName ) {
 
   printf( "Usage for: %s\n", progName );
   printf( "\t--help              [prints help menu]\n" );
+  printf( "\t--background        <r g b, background color -- default %f %f %f>\n", def.background_color[0], def.background_color[1], def.background_color[2] );
   printf( "\t--custom-mem-loader <custom loader to use -- default: %d (off)\n", def.custom_mem_loader );
   printf( "\t--height            <height in pixels -- default: %d>\n", def.img_height );
   printf( "\t--light-file        <light file name -- default: %s>\n", def.light_file_name.c_str() );
@@ -424,6 +431,7 @@ void printHelp( char* progName ) {
   printf( "\t--num-globals       <number of global registers -- default %d>\n", def.num_global_registers );
   printf( "\t--num-samples       <number of samples per pixel -- default: %d>\n", def.num_samples_per_pixel );
   printf( "\t--output-prefix     <prefix for image output. Be sure any directories exist> -- default: %s\n", def.output_prefix_name.c_str() );
+  printf( "\t--pack-split-axis   [BVH nodes pack split axis in 2nd B, num children in 1st B (lsb) of 6th word -- default: %s]\n", (def.pack_split_axis ? "on" : "off") );
   printf( "\t--ray-depth         <depth of rays -- default: %d>\n", def.ray_depth );
   printf( "\t--subtree-size      <minimum size in words of BVH subtrees -- default: %d (won't build subtrees)>\n", def.subtree_size );
   printf( "\t--triangles-store-edges [set flag to store 2 edge vecs in a tri instead of 2 verts -- default: off]\n" );
@@ -445,6 +453,13 @@ void programOptParser( runrtParams_t &params, int argc, char* argv[] ) {
     if( strcmp(argv[i], "--help")==0 ) {
       printHelp( argv[0] );
       exit( 0 );
+    }
+
+    // background color?
+    else if( strcmp(argv[i], "--background")==0 ) {
+      params.background_color[0]   = static_cast<float>(atof(argv[++i]));
+      params.background_color[1]   = static_cast<float>(atof(argv[++i]));
+      params.background_color[2]   = static_cast<float>(atof(argv[++i]));
     }
 
     // custom memory loader?
@@ -488,10 +503,15 @@ void programOptParser( runrtParams_t &params, int argc, char* argv[] ) {
       params.num_samples_per_pixel = atoi( argv[++i] );
     }
 
-	// output file prefix
-	else if( strcmp(argv[i], "--output-prefix")==0 ) {
-		params.output_prefix_name  = argv[++i];
-	}
+    // packing of split axis into num_children
+    else if( strcmp(argv[i], "--pack-split-axis")==0 ) {
+      params.pack_split_axis       = true;
+    }
+
+    // output file prefix
+    else if( strcmp(argv[i], "--output-prefix")==0 ) {
+        params.output_prefix_name  = argv[++i];
+    }
 
     // ray depth for traversal
     else if( strcmp(argv[i], "--ray-depth")==0 ) {

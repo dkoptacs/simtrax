@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 
-Camera* ReadViewfile::LoadFile(const char* filename, float far) {
+simtrax::Camera* ReadViewfile::LoadFile(const char* filename, float far) {
   FILE* input = fopen(filename, "r");
   if (!input) {
     perror("Failed to open camera file.");
@@ -27,8 +27,8 @@ Camera* ReadViewfile::LoadFile(const char* filename, float far) {
     perror("Error reading view file.\n");
 
   fclose(input);
-  return new Camera(eye, view, up, aperture,
-                    left, right, bottom, top,
-                    distance, far);
+  return new simtrax::Camera(eye, view, up, aperture,
+                             left, right, bottom, top,
+                             distance, far);
 }
 

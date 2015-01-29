@@ -1,5 +1,6 @@
 #include "OBJListLoader.h"
 
+using namespace simtrax;
 
 void OBJListLoader::LoadModel(const char* filename, std::vector<Triangle*>* tris,
 			  std::vector<Material*>* matls, FourByte* mem, int max_mem,

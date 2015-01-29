@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 
+using namespace simtrax;
 double epsilon = 0.0001;
 
 Grid::Grid(std::vector<Triangle*>* _triangles,  bool tris_store_edges, int dim)

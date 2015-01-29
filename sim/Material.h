@@ -8,15 +8,15 @@
 #include "Vector3.h"
 #include "TGALoader.h"
 
+namespace simtrax {
+
 class Material : public Primitive {
 public:
   Material(const Vector3& c0, const Vector3& c1, const Vector3& c2, const int& mtl_type = 0);
 
-  virtual void LoadIntoMemory(int& memory_position, int max_memory,
-                              FourByte* memory);
-  void LoadTextureIntoMemory(int& memory_position, int max_memory,
-			     FourByte* memory);
-  
+  virtual void LoadIntoMemory(int& memory_position, int max_memory, FourByte* memory);
+  void LoadTextureIntoMemory(int& memory_position, int max_memory, FourByte* memory);
+
   int mat_type;
   Vector3 c0;
   Vector3 c1;
@@ -31,5 +31,7 @@ public:
   STGA* Kd_tex;
   STGA* Ks_tex;
 };
+
+} // simtrax
 
 #endif // _SIMHWRT_MATERIAL_H_

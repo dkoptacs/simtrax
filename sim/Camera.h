@@ -4,6 +4,8 @@
 #include "Vector3.h"
 #include "FourByte.h"
 
+namespace simtrax {
+
 class Camera {
 public:
   Camera(const Vector3& c,
@@ -30,5 +32,7 @@ public:
   float left, right, bottom, top, near, far;
 
 };
+
+} // simtrax
 
 #endif // _SIMHWRT_CAMERA_H_

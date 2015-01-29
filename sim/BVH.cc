@@ -6,6 +6,8 @@
 
 #include <algorithm>
 
+using namespace simtrax;
+
 //#define TREE_ROTATIONS
 
 const float BVH_C_isec = 1.f;

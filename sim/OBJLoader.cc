@@ -8,6 +8,8 @@
 #include <string.h>
 #include <limits.h>
 
+using namespace simtrax;
+
 Vector3 GetPosition(int obj_pos_reference, std::vector<Vector3>& positions) {
   if (obj_pos_reference < 0) {
     return positions.at(positions.size() + obj_pos_reference);

@@ -6,7 +6,9 @@
 #include "Triangle.h"
 #include <vector>
 
-class Triangle;
+namespace simtrax {
+  class Triangle;
+}
 
 struct Box
 {
@@ -14,10 +16,10 @@ struct Box
   Vector3 box_max;
 };
 
-class Grid : public Primitive {
+class Grid : public simtrax::Primitive {
   int dimensions;
   std::vector<int> *cells;
-  std::vector<Triangle*>* triangles;
+  std::vector<simtrax::Triangle*>* triangles;
   Box bounds;
   Vector3 diagonal;
   Vector3 cellSize;
@@ -25,8 +27,8 @@ class Grid : public Primitive {
 
   // tri_store_pts = true  -> triangles are normal (3 points for vertices)
   // tri_store_pts = false -> triangles storing edge vectors (center pt + vectors to other 2)
-  void ExtendBoundsByTriangle(const Triangle& tri, const bool &tri_store_pts=true);
-  Box GetTriangleBoundingBox(const Triangle& tri, const bool &tri_store_pts=true);
+  void ExtendBoundsByTriangle(const simtrax::Triangle& tri, const bool &tri_store_pts=true);
+  Box GetTriangleBoundingBox(const simtrax::Triangle& tri, const bool &tri_store_pts=true);
   void AddTriangleToCell(int addr, int x, int y, int z);
 
   int cellindex(int x, int y, int z)
@@ -37,10 +39,8 @@ class Grid : public Primitive {
 
 
  public:
-  Grid(std::vector<Triangle*>* _triangles, bool tris_store_edges=false, int dim=0); // if no dim passed, auto calculate
-  void LoadIntoMemory(int &memory_position,
-		      int max_memory,
-		      FourByte* memory);
+  Grid(std::vector<simtrax::Triangle*>* _triangles, bool tris_store_edges=false, int dim=0); // if no dim passed, auto calculate
+  void LoadIntoMemory(int &memory_position, int max_memory, FourByte* memory);
 
   
 };

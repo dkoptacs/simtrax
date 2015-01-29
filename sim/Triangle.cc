@@ -1,5 +1,7 @@
 #include "Triangle.h"
 
+using namespace simtrax;
+
 // by default we're storing points
 // if flag enabled, p1 is point, but p0 = p0-p1, p2 = p2-p1 are edge vectors
 bool Triangle::tri_stores_edges = false;

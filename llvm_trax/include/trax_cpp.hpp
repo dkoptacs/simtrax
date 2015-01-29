@@ -94,6 +94,7 @@ void trax_mainThreads( void );
 typedef struct runrtParams_tt{
   bool read_from_mem_file;
   bool triangles_store_edges;
+  bool pack_split_axis;
   bool no_scene;
   bool use_png_ext;
   unsigned int num_render_threads;
@@ -105,6 +106,7 @@ typedef struct runrtParams_tt{
   unsigned int num_global_registers;
   unsigned int subtree_size;
   int custom_mem_loader;
+  float background_color[3];
   std::string mem_file_name;
   std::string view_file_name;
   std::string model_file_name;
@@ -115,6 +117,7 @@ typedef struct runrtParams_tt{
   runrtParams_tt() :
       read_from_mem_file( false ),
       triangles_store_edges( false ),
+      pack_split_axis( false ),
       no_scene( false ),
       use_png_ext( false ),
       num_render_threads( 4 ),
@@ -131,7 +134,11 @@ typedef struct runrtParams_tt{
       model_file_name( MODELFILE ),
       light_file_name( LIGHTFILE ),
       output_prefix_name( "out" )
-  {}
+  {
+      background_color[0] = 0.561f;
+      background_color[1] = 0.729f;
+      background_color[2] = 0.988f;
+  }
 } runrtParams_t;
 
 
