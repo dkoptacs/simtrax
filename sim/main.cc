@@ -312,11 +312,11 @@ void printUsage(char* program_name) {
   printf("  + Scene Parameters:\n");
   printf("    --epsilon         <small number pre-loaded to main memory, useful for various ray tracer offsets, default 1e-4>\n");
   printf("    --height          <framebuffer height in pixels -- default 128>\n");
-  printf("    --image-type      <type for image output -- default png>\n");
   printf("    --no-png          [disable png output]\n");
   printf("    --no-scene        <specify there is no model, camera, or light. use for non-ray tracing programs>\n");
   printf("    --num-samples     <number of samples per pixel, pre-loaded to main memory -- default 1>\n");
   printf("    --ray-depth       <depth of rays, pre-loaded to main memory -- default 1>\n");
+  printf("    --use-png-ext     [use png for file output -- default no (ppm instead)\\n");
   printf("    --width           <framebuffer width in pixels -- default 128>\n");
 
 
@@ -358,7 +358,7 @@ int main(int argc, char* argv[]) {
   char* keyframe_file                   = NULL;
   char* light_file                      = NULL;
   char* output_prefix                   = (char*)"out";
-  char* image_type                      = (char*)"png";
+  bool use_png_ext_for_output           = false;
   float far                             = 1000;
   int dot_depth                         = 0;
   Camera* camera                        = NULL;
@@ -476,8 +476,8 @@ int main(int argc, char* argv[]) {
       light_file = argv[++i];
     } else if (strcmp(argv[i], "--output-prefix") == 0) {
       output_prefix = argv[++i];
-    } else if (strcmp(argv[i], "--image-type") == 0) {
-      image_type = argv[++i];
+    } else if (strcmp(argv[i], "--use-png-ext") == 0) {
+      use_png_ext_for_output = true;
     } else if (strcmp(argv[i], "--tile-width") == 0) {
       tile_width = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--tile-height") == 0) {
@@ -1162,142 +1162,140 @@ int main(int argc, char* argv[]) {
   fflush(stdout);
   
   if(print_png) {
-    
-    // Write out PNG using lodepng
+
     const int imgNameLen = strlen(output_prefix);
     bool outputPrefixHasExtension = false;
     for(int i=imgNameLen-1; i>=0; --i) {
       if(output_prefix[i]=='\\' || output_prefix[i]=='/')
-	break;
+        break;
       if(output_prefix[i]=='.') {
-	outputPrefixHasExtension = true;
-	break;
+        outputPrefixHasExtension = true;
+        break;
       }
     }
-    const bool outputPrefixHasPNG = (imgNameLen > 3 && output_prefix[imgNameLen-3]=='p' && 
-				     output_prefix[imgNameLen-2]=='n' && output_prefix[imgNameLen-1]=='g');
-    
-    if(((strcasecmp(image_type, "png") == 0) && !outputPrefixHasExtension) || outputPrefixHasPNG) {
-      // figure out actual name to use for saving
-      char outputName[512];
-      
-      if(outputPrefixHasPNG) {
-	sprintf(outputName, "%s", output_prefix);
-      }
-      else {
-	sprintf(outputName, "%s.png", output_prefix);
-      }
-      
-      
+
+    // Get output filename with appropriate extension
+    char outputName[512];
+    const char *outputExt = (use_png_ext_for_output ? "png" : "ppm");
+    const bool outputPrefixHasExt = (imgNameLen > 3 &&
+                                     output_prefix[imgNameLen-3] == outputExt[0] &&
+                                     output_prefix[imgNameLen-2] == outputExt[1] &&
+                                     output_prefix[imgNameLen-1] == outputExt[2]);
+
+    // if not extension - just add it at the end
+    if(outputPrefixHasExt) {
+      sprintf(outputName, "%s", output_prefix);
+    }
+    else {
+      sprintf(outputName, "%s.%s", output_prefix, outputExt);
+    }
+
+    // Write out using PNG extension?
+    if(use_png_ext_for_output) {
+
       // save using lodePNG
       unsigned char *imgRGBA = new unsigned char[4*image_width*image_height];
       unsigned char *curImgPixel = imgRGBA;
       for(int j = (int)(image_height - 1); j >= 0; j--) {
-	for(int i = 0; i < image_width; i++, curImgPixel+=4) {
-	  const int index = start_framebuffer + 3 * (j * image_width + i);
-	  
-	  float rgb[3];
-	  rgb[0] = memory->getData()[index + 0].fvalue;
-	  rgb[1] = memory->getData()[index + 1].fvalue;
-	  rgb[2] = memory->getData()[index + 2].fvalue;
-	  
-	  curImgPixel[0] = (char)(int)(rgb[0] * 255);
-	  curImgPixel[1] = (char)(int)(rgb[1] * 255);
-	  curImgPixel[2] = (char)(int)(rgb[2] * 255);
-	  curImgPixel[3] = 255;
-	}
+        for(int i = 0; i < image_width; i++, curImgPixel+=4) {
+          const int index = start_framebuffer + 3 * (j * image_width + i);
+
+          float rgb[3];
+          rgb[0] = memory->getData()[index + 0].fvalue;
+          rgb[1] = memory->getData()[index + 1].fvalue;
+          rgb[2] = memory->getData()[index + 2].fvalue;
+
+          curImgPixel[0] = (char)(int)(rgb[0] * 255);
+          curImgPixel[1] = (char)(int)(rgb[1] * 255);
+          curImgPixel[2] = (char)(int)(rgb[2] * 255);
+          curImgPixel[3] = 255;
+        }
       }
-      
+
       unsigned char* png;
       size_t pngsize;
-      
+
       unsigned error = lodepng_encode32(&png, &pngsize, imgRGBA, image_width, image_height);
       if(!error)
-	lodepng_save_file(png, pngsize, outputName);
+        lodepng_save_file(png, pngsize, outputName);
       else
-	printf("error %u: %s\n", error, lodepng_error_text(error));
-      
+        printf("Error %u: %s\n", error, lodepng_error_text(error));
+
       free(png);
       delete[] imgRGBA;
     }
-    
-    // Other formats, use convert
+
+    // Write out using PPM extension
     else {
-      char command_buf[512];
-      sprintf(command_buf, "convert PPM:- %s.%s", output_prefix, image_type);
-#ifndef WIN32
-      FILE* output = popen(command_buf, "w");
-#else
-      FILE* output = popen(command_buf, "wb");
-#endif
+
+      FILE* output = fopen(outputName, "wb");
       if(!output)
-	perror("Failed to open out.png");
-      
+        printf("Error: Failed to open image output file: %s\n", outputName);
+
 #if OBJECTID_MAP
-      srand( (unsigned)time( NULL ) );
-      const int num_ids = 100000;
-      float id_colors[num_ids][3];
-      for (int i = 0; i < num_ids; i++) {
-	id_colors[i][0] = drand48();
-	id_colors[i][1] = drand48();
-	id_colors[i][2] = drand48();
+        srand( (unsigned)time( NULL ) );
+        const int num_ids = 100000;
+        float id_colors[num_ids][3];
+        for (int i = 0; i < num_ids; i++) {
+          id_colors[i][0] = drand48();
+          id_colors[i][1] = drand48();
+          id_colors[i][2] = drand48();
       }
 #endif
-      
-      fprintf(output, "P6\n%d %d\n%d\n", image_width, image_height, 255);
-      for(int j = image_height - 1; j >= 0; j--) {
-	for(int i = 0; i < image_width; i++) {
-	  const int index = start_framebuffer + 3 * (j * image_width + i);
-	  
-	  float rgb[3];
+
+        fprintf(output, "P6\n%d %d\n%d\n", image_width, image_height, 255);
+        for(int j = image_height - 1; j >= 0; j--) {
+          for(int i = 0; i < image_width; i++) {
+            const int index = start_framebuffer + 3 * (j * image_width + i);
+
+            float rgb[3];
 #if OBJECTID_MAP
-	  int object_id = memory->getData()[index].ivalue;
-	  
-	  switch (object_id) {
-	  case -1:
-	    rgb[0] = .2;
-	    rgb[1] = .1;
-	    rgb[2] = .5;
-	    break;
-	  case 0:
-	    rgb[0] = 1.;
-	    rgb[1] = .4;
-	    rgb[2] = 1.;
-	    break;
-	  case 1:
-	    rgb[0] = .2;
-	    rgb[1] = .3;
-	    rgb[2] = 1.;
-	    break;
-	  case 2:
-	    rgb[0] = 1.;
-	    rgb[1] = .3;
-	    rgb[2] = .2;
-	    break;
-	  default:
-	    rgb[0] = id_colors[object_id % num_ids][0];
-	    rgb[1] = id_colors[object_id % num_ids][1];
-	    rgb[2] = id_colors[object_id % num_ids][2];
-	    break;
-	  };
+            int object_id = memory->getData()[index].ivalue;
+
+            switch (object_id) {
+              case -1:
+                rgb[0] = .2;
+                rgb[1] = .1;
+                rgb[2] = .5;
+                break;
+              case 0:
+                rgb[0] = 1.;
+                rgb[1] = .4;
+                rgb[2] = 1.;
+                break;
+              case 1:
+                rgb[0] = .2;
+                rgb[1] = .3;
+                rgb[2] = 1.;
+                break;
+              case 2:
+                rgb[0] = 1.;
+                rgb[1] = .3;
+                rgb[2] = .2;
+                break;
+              default:
+                rgb[0] = id_colors[object_id % num_ids][0];
+                rgb[1] = id_colors[object_id % num_ids][1];
+                rgb[2] = id_colors[object_id % num_ids][2];
+                break;
+            };
 #else
-	  // for gradient/colors we have the result
-	  rgb[0] = memory->getData()[index + 0].fvalue;
-	  rgb[1] = memory->getData()[index + 1].fvalue;
-	  rgb[2] = memory->getData()[index + 2].fvalue;
+            // for gradient/colors we have the result
+            rgb[0] = memory->getData()[index + 0].fvalue;
+            rgb[1] = memory->getData()[index + 1].fvalue;
+            rgb[2] = memory->getData()[index + 2].fvalue;
 #endif
-	  fprintf(output, "%c%c%c",
-		  (char)(int)(rgb[0] * 255),
-		  (char)(int)(rgb[1] * 255),
-		  (char)(int)(rgb[2] * 255));
-	}
+            fprintf(output, "%c%c%c",
+                    (char)(int)(rgb[0] * 255),
+                    (char)(int)(rgb[1] * 255),
+                    (char)(int)(rgb[2] * 255));
+          }
+        } // end for j
+        fclose(output);
       }
-      pclose(output);
-    }
-  }
-  else
-    exit(0);
-  
+    } // end if print_png
+
+
   // reset the cores for a fresh frame
   globals.Reset();
   for(size_t i = 0; i < num_cores * num_L2s; ++i) {
