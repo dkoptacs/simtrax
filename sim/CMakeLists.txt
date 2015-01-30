@@ -56,6 +56,7 @@ set(simHdr
 	BVH.h
 	Camera.h
 	ConversionUnit.h
+	configfile.h
 	CustomLoadMemory.h
 	DebugUnit.h
 	DiskBuffer.h

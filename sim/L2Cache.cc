@@ -11,7 +11,6 @@
 #include <cassert>
 #include <boost/thread.hpp>
 
-//extern pthread_mutex_t usimm_mutex[MAX_NUM_CHANNELS];
 extern boost::mutex usimm_mutex[MAX_NUM_CHANNELS];
 
 L2Cache::L2Cache(MainMemory* _mem, int _cache_size, int _hit_latency,
@@ -58,9 +57,6 @@ L2Cache::L2Cache(MainMemory* _mem, int _cache_size, int _hit_latency,
   // get num_blocks from MainMemory
   num_blocks = mem->num_blocks;
   data = mem->data;
-
-  // create pthread mutex for this L2
-//  pthread_mutex_init(&cache_mutex, NULL);
 
   // compute address masks
   offset_mask = (1 << line_size) - 1;
@@ -116,7 +112,6 @@ void L2Cache::Reset()
 }
 
 L2Cache::~L2Cache() {
-//  pthread_mutex_destroy(&cache_mutex);
   delete [] last_issued;
   delete [] tags;
   delete [] valid;
@@ -147,7 +142,6 @@ void L2Cache::ClockFall() {
 
   // Commit all updates that should be completed by now
   boost::lock_guard<boost::mutex> lock(cache_mutex);
-//  pthread_mutex_lock(&cache_mutex);
   for (std::vector<CacheUpdate>::iterator i = update_list.begin(); i != update_list.end();) {
     if (i->update_cycle <= current_cycle) {
       //917504, 6751
@@ -162,7 +156,6 @@ void L2Cache::ClockFall() {
     else ++i; // normal increment
   }
   current_cycle++;
-//  pthread_mutex_unlock(&cache_mutex);
 }
 
 bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thread, long long int& ret_latency, long long int issuer_current_cycle, int address, int& unroll_type) {
@@ -174,18 +167,14 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
     if (address < 0 || address >= num_blocks) {
       //printf("ERROR: MEMORY FAULT.  REQUEST FOR LOAD OF ADDRESS %d (not in [0, %d])\n",
       //  address, num_blocks);
-//      pthread_mutex_lock(&cache_mutex);
       boost::lock_guard<boost::mutex> lock(cache_mutex);
       memory_faults++;
-//      pthread_mutex_unlock(&cache_mutex);
       return true; // just so we complete... incorrect execution
     }
     // check for bank conflicts
     if (last_issued[bank_id] == issuer_current_cycle && !unit_off) {
-//      pthread_mutex_lock(&cache_mutex);
       boost::lock_guard<boost::mutex> lock(cache_mutex);
       bank_conflicts++;
-//      pthread_mutex_unlock(&cache_mutex);
       return false;
     }
     // check for a hit
@@ -205,19 +194,15 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
           if(queued_latency > 0)
           {
               boost::lock_guard<boost::mutex> lock(cache_mutex);
-//              pthread_mutex_lock(&cache_mutex);
               unroll_type = UNROLL_MISS;
               misses++;
-//              pthread_mutex_unlock(&cache_mutex);
           }
           else // count it as a hit if the line came in on this cycle
           {
               boost::lock_guard<boost::mutex> lock(cache_mutex);
-//              pthread_mutex_lock(&cache_mutex);
               unroll_type = UNROLL_HIT;
               if(!unit_off)
                   hits++;
-//              pthread_mutex_unlock(&cache_mutex);
           }
       }
       else // need to go to DRAM
@@ -225,15 +210,12 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
         if(disable_usimm)
         {
             boost::lock_guard<boost::mutex> lock(cache_mutex);
-//            pthread_mutex_lock(&cache_mutex);
             if(outstanding_data >= max_outstanding_data)
             {
                 bandwidth_stalls++;
-//                pthread_mutex_unlock(&cache_mutex);
                 return false;
             }
             outstanding_data += line_fill_size;
-//            pthread_mutex_unlock(&cache_mutex);
         }
 
 
@@ -248,13 +230,10 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
             long long int  usimmAddr = traxAddrToUsimm(address);
             dram_address_t dram_addr = calcDramAddr(usimmAddr);
 
-//            boost::lock_guard<boost::mutex> lock(usimm_mutex[dram_addr.channel]);
             usimm_mutex[dram_addr.channel].lock();
-//                pthread_mutex_lock(&(usimm_mutex[dram_addr.channel]));
             // give usimm current_cycle * N since it is operating at Nx frequency
             request_t *req = insert_read(dram_addr, address, issuer_current_cycle * DRAM_CLOCK_MULTIPLIER, thread->thread_id, 0, ins->pc_address, ins->args[0], result, ins->op, thread, L1, this);
             usimm_mutex[dram_addr.channel].unlock();
-//                pthread_mutex_unlock(&(usimm_mutex[dram_addr.channel]));
             if(req == NULL) // read queue was full
             {
                 //TODO: Need to track these read queue stalls
@@ -283,10 +262,8 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
 
         {
             boost::lock_guard<boost::mutex> lock(cache_mutex);
-//            pthread_mutex_lock(&cache_mutex);
             unroll_type = UNROLL_MISS;
             misses++;
-//            pthread_mutex_unlock(&cache_mutex);
         }
       }
     }
@@ -296,19 +273,15 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
         //printf("cycle %lld, L2 HIT\n", current_cycle);
         // hit (queue load)
         ret_latency = hit_latency;
-//        pthread_mutex_lock(&cache_mutex);
         boost::lock_guard<boost::mutex> lock(cache_mutex);
         hits++;
         unroll_type = UNROLL_HIT;
     }
-//        pthread_mutex_unlock(&cache_mutex);
-//    pthread_mutex_lock(&cache_mutex);
     {
         boost::lock_guard<boost::mutex> lock(cache_mutex);
         last_issued[bank_id] = issuer_current_cycle;
         accesses++;
     }
-//        pthread_mutex_unlock(&cache_mutex);
     return true;
   }
 
@@ -347,24 +320,19 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
     // check for bank conflicts
     if (last_issued[bank_id] == issuer_current_cycle && !unit_off) {
         boost::lock_guard<boost::mutex> lock(cache_mutex);
-//        pthread_mutex_lock(&cache_mutex);
         bank_conflicts++;
-//        pthread_mutex_unlock(&cache_mutex);
         return false;
     }
 
     if(disable_usimm)
     {
         boost::lock_guard<boost::mutex> lock(cache_mutex);
-//        pthread_mutex_lock(&cache_mutex);
         if(outstanding_data >= max_outstanding_data)
         {
             bandwidth_stalls++;
-//            pthread_mutex_unlock(&cache_mutex);
             return false;
         }
         outstanding_data += line_fill_size;
-//        pthread_mutex_unlock(&cache_mutex);
     }
 
 // if caches are write-around, disable this
@@ -389,24 +357,18 @@ bool L2Cache::IssueInstruction(Instruction* ins, L1Cache * L1, ThreadState* thre
         long long int usimmAddr = traxAddrToUsimm(address);
         dram_address_t dram_addr = calcDramAddr(usimmAddr);
         boost::lock_guard<boost::mutex> lock(usimm_mutex[dram_addr.channel]);
-//            pthread_mutex_lock(&(usimm_mutex[dram_addr.channel]));
-            //pthread_mutex_lock(&(usimm_mutex[0]));
         request_t *req = insert_write(dram_addr, address, issuer_current_cycle * DRAM_CLOCK_MULTIPLIER, thread->thread_id, 0, 0, ins->args[0], result, ins->op, thread, L1, this);
-//            pthread_mutex_unlock(&(usimm_mutex[dram_addr.channel]));
-        //pthread_mutex_unlock(&(usimm_mutex[0]));
         if(req == NULL) // write queue was full
             return false;
     }
 
     {
         boost::lock_guard<boost::mutex> lock(cache_mutex);
-//        pthread_mutex_lock(&cache_mutex);
         last_issued[bank_id] = issuer_current_cycle;
         stores++;
         misses++;
         accesses++;
     }
-//  pthread_mutex_unlock(&cache_mutex);
     int temp_latency = 0;
     mem->IssueInstruction(ins, this, thread, temp_latency, issuer_current_cycle);
     ret_latency = hit_latency + temp_latency;
@@ -450,11 +412,9 @@ bool L2Cache::UpdateCache(int address, long long int update_cycle) {
   //printf("adding address %d on cycle %lld to l2 queue\n", address, update_cycle);
   {
     boost::lock_guard<boost::mutex> lock(cache_mutex);
-//  pthread_mutex_lock(&cache_mutex);
     update_list.push_back(CacheUpdate(index, tag, update_cycle));
   // tags[index] = tag;
   // valid[index] = true;
-//  pthread_mutex_unlock(&cache_mutex);
   }
   return true;
 }
@@ -465,9 +425,7 @@ bool L2Cache::BankConflict(int address, long long int cycle)
   // check for bank conflicts
   if (last_issued[bank_id] == cycle && !unit_off) {
     boost::lock_guard<boost::mutex> lock(cache_mutex);
-//    pthread_mutex_lock(&cache_mutex);
     bank_conflicts++;
-//    pthread_mutex_unlock(&cache_mutex);
     return true;
   }
   return false;

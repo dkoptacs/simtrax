@@ -4,10 +4,18 @@
 
 #include "params.h"
 
-#define 	EOL 	10
-#define 	CR 	13
-#define 	SPACE	32
-#define		TAB	9
+// We must use ENUM over #define otherwise we run into error with clang++ and boost: redefining CR
+enum {
+  EOL   = 10,
+  CR    = 13,
+  SPACE = 32,
+  TAB   = 9
+};
+
+//#define 	EOL 	10
+//#define 	CR 	13
+//#define 	SPACE	32
+//#define		TAB	9
 
 typedef enum {
 	processor_clk_multiplier_token,
