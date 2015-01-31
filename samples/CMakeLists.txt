@@ -108,6 +108,23 @@ if(WIN32 AND PTHREADS_FOUND)
 	ENDIF(EXISTS ${libFile2})
 endif(WIN32 AND PTHREADS_FOUND)
 
+# find Boost
+# this is a bit whacky, on Linux we'll dynamically link
+# but for Windows - statically
+if(CMAKE_HOST_WIN32)
+	set(Boost_USE_STATIC_LIBS ON)
+	set(Boost_USE_MULTITHREADED ON)
+	set(Boost_USE_STATIC_RUNTIME OFF)
+else()
+	set(Boost_USE_STATIC_LIBS OFF)
+	set(Boost_USE_MULTITHREADED ON)
+	set(Boost_USE_STATIC_RUNTIME OFF)
+endif()
+#set(Boost_ADDITIONAL_VERSIONS "1.49" "1.49.0" "1.55" "1.55.0")
+#set(Boost_DEBUG TRUE)
+find_package(Boost COMPONENTS regex thread system REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+
 
 #################################################################
 set(TRAX_HEADERS
@@ -183,7 +200,7 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend a
 	############
 	# generate main executable
 	add_executable(${targetName} ${${targetSources}} ${${targetHeaders}} ${PRE_TRAX_SRC} ${PRE_TRAX_HDR})
-	target_link_libraries(${targetName} ${PTHREADS_LIBRARIES})
+	target_link_libraries(${targetName} ${PTHREADS_LIBRARIES} ${Boost_LIBRARIES})
 	set_target_properties(${targetName} PROPERTIES COMPILE_FLAGS "-DTRAX=0 -DWIDTH=${SCENE_CPPWIDTH} -DHEIGHT=${SCENE_CPPHEIGHT} ${PTHREADS_DEFINITIONS}")
 	source_group(TRAX_Sources FILES ${PRE_TRAX_SRC})
 	source_group(TRAX_Headers FILES ${PRE_TRAX_HDR})

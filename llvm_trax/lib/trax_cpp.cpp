@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <fstream>
+#include <boost/thread.hpp>
 
 #include "WinCommonNixFcns.h"
 #include "trax_cpp.hpp"
@@ -48,7 +49,7 @@ bool mainCondInit       = false;
 
 // C versions of everything
 FourByte * trax_memory_pointer;
-FourByte * trax_global_registers;
+boost::atomic<unsigned int> *trax_global_registers;
 //define MEMORY_SIZE 33554432			// 2^25
 //define MEMORY_SIZE 67108864
 #define MEMORY_SIZE 134217728
@@ -115,17 +116,11 @@ int trax_getid( int value ) {
 
 // Arithmetic
 int atomicinc( int location) {
-  if( threads ) {
-    pthread_mutex_lock( &mainMutex[location] );
-    unsigned int tmp = trax_global_registers[location].uvalue++;
-    pthread_mutex_unlock( &mainMutex[location] );
-    return tmp;
-  }
-  return trax_global_registers[location].uvalue++;
+  return trax_global_registers[location].fetch_add(1);
 }
 
 int global_reg_read( int location ) {
-  return trax_global_registers[location].uvalue;
+  return trax_global_registers[location].load();
 }
 float min( float left, float right ) {
   return left < right ? left : right;
@@ -150,10 +145,9 @@ void barrier( int reg_num ) {
   if ( threads && mainCondInit ) {
     // Be counted
     pthread_mutex_lock( &mainMutex[reg_num] );
-    trax_global_registers[reg_num].uvalue++;
-    if ( trax_global_registers[reg_num].uvalue == numThreads ) {
-      // if every thread finished, let them know and reset
-      trax_global_registers[reg_num].uvalue = 0;
+    const unsigned int numThreadsHere = trax_global_registers[reg_num].fetch_add(1) + 1;
+    if(numThreadsHere >= numThreads) {
+      trax_global_registers[reg_num].store(0);
       pthread_cond_broadcast( &mainCond );
     } else {
       // wait
@@ -198,9 +192,9 @@ void trax_setup( runrtParams_t &opts ) {
   // parameters struct opts
 
   // setup global registers
-  trax_global_registers = new FourByte[opts.num_global_registers];
+  trax_global_registers = new boost::atomic<unsigned int>[opts.num_global_registers];
   for( unsigned int i = 0; i < opts.num_global_registers; ++i ) {
-    trax_global_registers[i].ivalue = 0;
+      trax_global_registers[i].store(0);
   }
 
   // ***IMPORTANT: If you set load_mem_from_file to true, be sure that the 
