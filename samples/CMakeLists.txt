@@ -122,7 +122,7 @@ else()
 endif()
 #set(Boost_ADDITIONAL_VERSIONS "1.49" "1.49.0" "1.55" "1.55.0")
 #set(Boost_DEBUG TRUE)
-find_package(Boost COMPONENTS regex thread system REQUIRED)
+find_package(Boost COMPONENTS regex chrono thread system REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
 

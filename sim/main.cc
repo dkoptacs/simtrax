@@ -58,6 +58,7 @@
 #include <vector>
 #include <string>
 #include <math.h>
+#include <boost/chrono.hpp>
 
 // relative paths between install (bin) folder for simtrax and scene folder
 // CMAKE will define this parameter during generation, but if we use Makefiles,
@@ -94,10 +95,19 @@ std::vector<std::string> source_names;
 
 void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, std::vector<std::string> srcNames, FILE* profile_output);
 
-// Utility for tracking simulation time
-double clockdiff(clock_t clock1, clock_t clock2) {
-  double clockticks = clock2-clock1;
-  return (clockticks * 1) / CLOCKS_PER_SEC; // time in seconds
+void PrintElapsedTime(const char *heading, const boost::chrono::system_clock::time_point time_start) {
+  boost::chrono::system_clock::time_point time_end = boost::chrono::system_clock::now();
+  boost::chrono::system_clock::duration timeElapsed  = time_end - time_start;
+  boost::chrono::system_clock::duration timeElapsed2 = timeElapsed;
+
+  const boost::chrono::hours        hours        = boost::chrono::duration_cast<boost::chrono::hours>(timeElapsed);       timeElapsed -= hours;
+  const boost::chrono::minutes      minutes      = boost::chrono::duration_cast<boost::chrono::minutes>(timeElapsed);     timeElapsed -= minutes;
+  const boost::chrono::seconds      seconds      = boost::chrono::duration_cast<boost::chrono::seconds>(timeElapsed);     timeElapsed -= seconds;
+  const boost::chrono::milliseconds milliSeconds = boost::chrono::duration_cast<boost::chrono::milliseconds>(timeElapsed);
+
+  printf("\t <== %s: %lu.%03lu seconds (%d:%d:%lu.%03lu) ==>\n", heading,
+         boost::chrono::duration_cast<boost::chrono::seconds>(timeElapsed2).count(), milliSeconds.count(),
+         hours.count(), minutes.count(), seconds.count(), milliSeconds.count());
 }
 
 void SystemClockRise(std::vector<HardwareModule*>& modules) {
@@ -359,7 +369,7 @@ void printUsage(char* program_name) {
 
 int main(int argc, char* argv[]) {
 
-  clock_t start_time                    = clock();
+  boost::chrono::system_clock::time_point time_start = boost::chrono::system_clock::now();
   bool print_system_info                = false;
   bool run_profile                      = false;
   bool print_cpi                        = true;
@@ -980,17 +990,12 @@ int main(int argc, char* argv[]) {
   // Have the last thread do the remainder
   args[total_simulation_threads - 1].end_core = num_cores * num_L2s;
 
-  clock_t setup_time = clock();
-  printf("\t <== Setup time: %12.1f s ==>\n", clockdiff(start_time, setup_time));
-  clock_t prev_frame_time;
-  clock_t curr_frame_time;
-
+  PrintElapsedTime("Setup time", time_start);
 
   // Now run the simulation
 
   //while(true) { // put a loop here for multiple frames
-  
-  prev_frame_time = clock();
+  boost::chrono::system_clock::time_point prev_frame_time = boost::chrono::system_clock::now();
   if(serial_execution)
     SerialExecution(args, num_cores * num_L2s);
   
@@ -1005,8 +1010,7 @@ int main(int argc, char* argv[]) {
       pthread_join( threadids[i], NULL );
     }
   }
-  curr_frame_time = clock();
-  printf("\t <== Frame time: %12.1f s ==>\n", clockdiff(prev_frame_time, curr_frame_time));
+  PrintElapsedTime("Frame time", prev_frame_time);
 
   delete[] args;
 
@@ -1395,7 +1399,7 @@ int main(int argc, char* argv[]) {
     delete cores[i];
   }
   delete[] L2s;
-  printf("\t <== Total time: %12.1f s ==>\n", clockdiff(start_time, clock()));
+  PrintElapsedTime("Total time", time_start);
 
 #if TRACK_LINE_STATS
   L1Cache* L10 = cores[0]->L1;
