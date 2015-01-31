@@ -18,7 +18,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 
 # enable C11
-#list(APPEND CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+list(APPEND CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 
 
 # Update install location if it's the default
@@ -26,6 +26,36 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR} CACHE PATH "simtrax install location prefix" FORCE)
 endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
+# Find pthreads
+include(FindPthreads.cmake)
+if(NOT PTHREADS_FOUND)
+	message( "- Build Error: pthread libraries not found!")
+endif(NOT PTHREADS_FOUND)
+include_directories(${PTHREADS_INCLUDE_DIR})
+
+# Find the .dll we need to copy in case of windows
+set(PTHREADS_LIBRARY_DLL "")
+if(WIN32 AND PTHREADS_FOUND)
+	# check 2 spots: same folder, with same name but with dll, rather than lib
+	# or replacing the last 2 lib with dll
+	file(RELATIVE_PATH IncludeToLibPath ${PTHREADS_INCLUDE_DIR} ${PTHREADS_LIBRARY})
+	string(REPLACE "lib" "dll" libFile ${IncludeToLibPath})
+	file(TO_CMAKE_PATH  "${PTHREADS_INCLUDE_DIR}/${libFile}" libFile2)
+	if(EXISTS ${libFile2})
+		set(PTHREADS_LIBRARY_DLL ${libFile2})
+		message(STATUS "Found pthreads dll: ${PTHREADS_LIBRARY_DLL}")
+	ELSE(EXISTS ${libFile2})
+		# try to find the file in the same folder...
+		string(REPLACE ".lib" ".dll" libFile ${PTHREADS_LIBRARY})
+		if(EXISTS ${libFile})
+			set(PTHREADS_LIBRARY_DLL ${libFile})
+			message(STATUS "Found pthreads dll: ${PTHREADS_LIBRARY_DLL}")
+		else()
+			message("Can't seem to find pthreads DLL, so it won't be copied into binary folders automatically on INSTALL")
+			set(PTHREADS_LIBRARY_DLL PTHREADS_LIBRARY_DLL_NOT_FOUND)
+		endif()
+	ENDIF(EXISTS ${libFile2})
+endif(WIN32 AND PTHREADS_FOUND)
 
 # find Boost
 # this is a bit whacky, on Linux we'll dynamically link
@@ -41,7 +71,7 @@ else()
 endif()
 #set(Boost_ADDITIONAL_VERSIONS "1.49" "1.49.0" "1.55" "1.55.0")
 #set(Boost_DEBUG TRUE)
-find_package(Boost COMPONENTS regex thread system REQUIRED)
+find_package(Boost COMPONENTS regex REQUIRED)
 
 # Figure out the relative path between bin directory and samples directory
 file(RELATIVE_PATH REL_PATH_BIN_TO_SAMPLES "${CMAKE_INSTALL_PREFIX}" "${CMAKE_SOURCE_DIR}/../")
@@ -168,10 +198,9 @@ set(simSrc
 
 include_directories(${Boost_INCLUDE_DIRS})
 add_executable(simtrax ${simSrc} ${simHdr})
-target_link_libraries(simtrax ${Boost_LIBRARIES})
+target_link_libraries(simtrax ${PTHREADS_LIBRARIES} ${Boost_LIBRARIES})
 
 install(TARGETS simtrax DESTINATION ${CMAKE_INSTALL_PREFIX})
-#if(PTHREADS_LIBRARY_DLL)
-#	install(FILES ${PTHREADS_LIBRARY_DLL} DESTINATION ${CMAKE_INSTALL_PREFIX})
-#endif(PTHREADS_LIBRARY_DLL)
-
+if(PTHREADS_LIBRARY_DLL)
+	install(FILES ${PTHREADS_LIBRARY_DLL} DESTINATION ${CMAKE_INSTALL_PREFIX})
+endif(PTHREADS_LIBRARY_DLL)

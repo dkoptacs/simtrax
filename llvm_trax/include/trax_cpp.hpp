@@ -86,8 +86,8 @@ void trax_main();
 
 // playing with threads
 // returns success of the operation ( if false, call render function directly )
-bool trax_start_render_threads( void (*renderFunc)(void), const int numThreads=1 );
-void trax_mainThreads( void );
+bool trax_start_render_threads( void* (*renderFunc)(void*), const int &numThreads=1 );
+void * trax_mainPThreads( void * dummyPtr = 0 );
 
 
 // parameters worth parsing

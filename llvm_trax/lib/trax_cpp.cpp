@@ -4,9 +4,8 @@
 #include <string.h>
 
 #include <assert.h>
-#include <vector>
+#include <pthread.h>
 #include <fstream>
-#include <boost/thread.hpp>
 
 #include "WinCommonNixFcns.h"
 #include "trax_cpp.hpp"
@@ -40,11 +39,11 @@
 
 /// Pthreads stuff
 const unsigned int numAtomicInc = 8;
-std::vector<boost::thread*> threads;
-boost::mutex                mainMutex[ numAtomicInc ];
-boost::condition_variable   mainCond;
-unsigned int                numThreads = 0;
-
+pthread_t *threads = 0;
+pthread_mutex_t mainMutex[ numAtomicInc ];
+pthread_cond_t mainCond;
+unsigned int numThreads = 0;
+bool mainCondInit       = false;
 
 
 // C versions of everything
@@ -83,40 +82,43 @@ void storef( float value, int base, int offset ) {
 
 
 int trax_getid( int value ) {
-  // thread id
   if (value == 1) {
 #ifndef MULTIPLE_THREADS_ONE_CORE
-    const boost::thread::id myId = boost::this_thread::get_id();
-    for (unsigned int tid = 0; tid < numThreads; ++tid)
-      if(myId == threads[tid]->get_id())
-        return tid;
+  pthread_t thisID = pthread_self();
+  for( unsigned int tid = 0; tid<numThreads; ++tid )
+#ifdef WIN32
+    if( thisID.p==threads[tid].p )
+#else
+    if( thisID==threads[tid] )
 #endif
-  }
-
-  // core id
-  else if (value == 2) {
-#ifdef MULTIPLE_THREADS_ONE_CORE
-  const boost::thread::id myId = boost::this_thread::get_id();
-  for (unsigned int tid = 0; tid < numThreads; ++tid)
-    if(myId == threads[tid]->get_id())
       return tid;
 #endif
+    return 0; // threadID, if not found
+  } else if (value == 2) {
+#ifdef MULTIPLE_THREADS_ONE_CORE
+    pthread_t thisID = pthread_self();
+    for( unsigned int tid = 0; tid<numThreads; ++tid )
+  #ifdef WIN32
+      if( thisID.p==threads[tid].p )
+  #else
+      if( thisID==threads[tid] )
+        return tid;
+  #endif
+#endif
+    return 0; // coreID
+  } else if (value == 3) {
+    return 0; // L2 ID
   }
-
-  // L2 id
-  else if (value == 3) {
-    return 0;
-  }
-
-  // oops / default
+  // for anything else
   return 0;
 }
 
 // Arithmetic
 int atomicinc( int location) {
-  if( threads.size() > 0 ) {
-    boost::lock_guard<boost::mutex> lock(mainMutex[location]);
+  if( threads ) {
+    pthread_mutex_lock( &mainMutex[location] );
     unsigned int tmp = trax_global_registers[location].uvalue++;
+    pthread_mutex_unlock( &mainMutex[location] );
     return tmp;
   }
   return trax_global_registers[location].uvalue++;
@@ -145,30 +147,31 @@ float trax_rand() {
 
 
 void barrier( int reg_num ) {
-  if ( threads.size() > 0 ) {
+  if ( threads && mainCondInit ) {
     // Be counted
-    boost::unique_lock<boost::mutex> lock(mainMutex[reg_num]);
+    pthread_mutex_lock( &mainMutex[reg_num] );
     trax_global_registers[reg_num].uvalue++;
     if ( trax_global_registers[reg_num].uvalue == numThreads ) {
       // if every thread finished, let them know and reset
       trax_global_registers[reg_num].uvalue = 0;
-      mainCond.notify_all();
+      pthread_cond_broadcast( &mainCond );
     } else {
       // wait
-      mainCond.wait(lock);
+      pthread_cond_wait( &mainCond, &mainMutex[reg_num] );
     }
+    pthread_mutex_unlock( &mainMutex[reg_num] );
   }
   return;
 }
 
 void trax_semacq(int reg_num)
 {
-  mainMutex[reg_num].lock();
+  pthread_mutex_lock( &mainMutex[reg_num] );
 }
 
 void trax_semrel(int reg_num)
 {
-  mainMutex[reg_num].unlock();
+  pthread_mutex_unlock( &mainMutex[reg_num] );
 }
 
 float trax_noise( float x, float y, float z ) {
@@ -350,30 +353,56 @@ void trax_cleanup(runrtParams_t &opts){
 
 
 /// creates a bunch of threads to run rendering function
-bool trax_start_render_threads( void (*renderFunc)(void), const int _numThreads ) {
+bool trax_start_render_threads( void* (*renderFunc)(void*), const int &_numThreads ) {
 
   // just in case
-  if( threads.size() > 0 )
+  if( threads )
     return false;
 
   numThreads  = (_numThreads>0) ? _numThreads : 1;
-  threads.reserve(numThreads);
+  threads	  = new pthread_t[numThreads];
+
+
+  // init mutexes
+  for( unsigned int m=0; m<numAtomicInc; ++m ) {
+    if( pthread_mutex_init( &mainMutex[m], NULL ) ) {
+      printf( "Unable to initialize mutex %d\n", m );
+      return false;
+    }
+  }
+
+  // init cond
+  if( pthread_cond_init( &mainCond, NULL ) != 0 ) {
+    printf( "Could not create conditional for barrier\n" );
+    return false;
+  }
+  mainCondInit = true;
+
 
   // start up the rendering...
   for( unsigned int i=0; i<numThreads; ++i ) {
-    boost::thread *toAdd = new boost::thread(renderFunc);
-    threads.push_back(toAdd);
+    if( pthread_create( &threads[i], NULL, renderFunc, 0 ) ) {
+      printf( "Could not create thread %d\n", i );
+      return false;
+    }
   }
 
 
   // make sure all the threads exit upon completion
   for( unsigned int i=0; i<numThreads; ++i ) {
-    threads[i]->join();
-    delete threads[i];
+    if( pthread_join( threads[i], NULL ) ) {
+      printf( "Could not join thread %d\n", i );
+      return false;
+    }
   }
 
   // clear out the memory
-  threads.clear();
+  delete[] threads;
+  threads = 0;
+  for( unsigned int m=0; m<numAtomicInc; ++m )
+    pthread_mutex_destroy( &mainMutex[m] );
+  pthread_cond_destroy( &mainCond );
+  mainCondInit = false;
   return true;
 }
 
@@ -387,17 +416,16 @@ int main( int argc, char* argv[] ) {
 
   trax_setup( opts );
 
-  if( trax_start_render_threads( &trax_mainThreads, opts.num_render_threads ) == false ) {
+  if( trax_start_render_threads( &trax_mainPThreads, opts.num_render_threads ) == false ) {
     std::cout << "No threads available for rendering -> Ray Queues won't work!\n";
 
     // time to perform one centralized cleanup :D
-    for( unsigned int i=0; i<numThreads; ++i ) {
-      threads[i]->join();
-      delete threads[i];
-    }
-
-    // clear out the memory
-    threads.clear();
+    delete[] threads;
+    threads = 0;
+    for( unsigned int m=0; m<numAtomicInc; ++m )
+      pthread_mutex_destroy( &mainMutex[m] );
+    pthread_cond_destroy( &mainCond );
+    mainCondInit = false;
 
     // do single threaded execution
     std::cout << "Executing single threaded!\n";
@@ -563,6 +591,7 @@ void programOptParser( runrtParams_t &params, int argc, char* argv[] ) {
 
 
 // pthreads render-horsie
-void trax_mainThreads( void ) {
+void * trax_mainPThreads( void * dummyPtr ) {
   trax_main();
+  return 0;
 }

@@ -8,9 +8,8 @@
 #include "memory_controller.h"
 #include <stdlib.h>
 #include <fstream>
-#include <boost/thread.hpp>
 
-extern boost::mutex profile_mutex;
+extern pthread_mutex_t profile_mutex;
 
 IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor*>& _thread_procs,
                      std::vector<FunctionalUnit*>& functional_units,
@@ -623,8 +622,9 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
     if(enable_profiling)
     {
       // All threads point to the same list of Instructions, must protect modifications to it
-      boost::lock_guard<boost::mutex> lock(profile_mutex);
+      pthread_mutex_lock(&profile_mutex);
       thread->GetFailInstruction(fail_reg)->data_stalls++;
+      pthread_mutex_unlock(&profile_mutex);
     }
     data_dependence++;
     // find which instruction caused the stall (from old IssueUnit.cc)
@@ -639,8 +639,9 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
     if(enable_profiling)
     {
       // All threads point to the same list of Instructions, must protect modifications to it
-      boost::lock_guard<boost::mutex> lock(profile_mutex);
+      pthread_mutex_lock(&profile_mutex);
       fetched_instruction->executions++;
+      pthread_mutex_unlock(&profile_mutex);
     }
 
     // stats and info

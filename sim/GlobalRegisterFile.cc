@@ -136,7 +136,7 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
   // now get the result value
   reg_value result;
   result.udata = 0;
-  boost::lock_guard<boost::mutex> lock(global_mutex);
+  pthread_mutex_lock(&global_mutex);
   switch (ins.op)
   {
     case Instruction::ATOMIC_INC:
@@ -199,6 +199,7 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       result.udata = ReadUint(arg0.udata);
       if(result.udata != 0)
       {
+        pthread_mutex_unlock(&global_mutex);
         return false;
       }
       break;
@@ -211,6 +212,7 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       // Check if the semaphore is already locked
       if(result.udata != 0)
       {
+        pthread_mutex_unlock(&global_mutex);
         return false; // instruction fails to issue, will automatically retry
       }
       else // Otherwise, lock it (set it to 1)
@@ -255,10 +257,12 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
           break;
       };
 
+      pthread_mutex_unlock(&global_mutex);
       return false;
     }
   }
 
+  pthread_mutex_unlock(&global_mutex);
   issued_this_cycle++;
   return true;
 }

@@ -8,6 +8,7 @@
 #include "Assembler.h"
 #include "DebugUnit.h"
 #include "LocalStore.h"
+#include <pthread.h>
 
 class Instruction;
 class SimpleRegisterFile;
@@ -47,8 +48,10 @@ public:
   size_t core_id;
   size_t l2_id;
   // for pthread synchronization ---
-//  int *num_cores_left;
-//  int *current_num_cores;
+  int *num_cores_left;
+  int *current_num_cores;
+  pthread_mutex_t* sync_mutex;
+  pthread_cond_t* sync_cond;
   //--------------------------------
   ThreadProcessor::SchedulingScheme schedule;
   // some memory pointers to chipwide memory and data member for local memory
