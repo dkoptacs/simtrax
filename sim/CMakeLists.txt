@@ -41,7 +41,7 @@ else()
 endif()
 #set(Boost_ADDITIONAL_VERSIONS "1.49" "1.49.0" "1.55" "1.55.0")
 #set(Boost_DEBUG TRUE)
-find_package(Boost COMPONENTS regex thread system REQUIRED)
+find_package(Boost COMPONENTS regex chrono thread system REQUIRED)
 
 # Figure out the relative path between bin directory and samples directory
 file(RELATIVE_PATH REL_PATH_BIN_TO_SAMPLES "${CMAKE_INSTALL_PREFIX}" "${CMAKE_SOURCE_DIR}/../")

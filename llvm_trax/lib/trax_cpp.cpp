@@ -7,6 +7,7 @@
 #include <vector>
 #include <fstream>
 #include <boost/thread.hpp>
+#include <boost/chrono.hpp>
 
 #include "WinCommonNixFcns.h"
 #include "trax_cpp.hpp"
@@ -380,6 +381,8 @@ int main( int argc, char* argv[] ) {
   runrtParams_t opts;
   programOptParser( opts, argc, argv );
 
+  boost::chrono::system_clock::time_point time_start = boost::chrono::system_clock::now();
+
   trax_setup( opts );
 
   if( trax_start_render_threads( &trax_mainThreads, opts.num_render_threads ) == false ) {
@@ -400,6 +403,18 @@ int main( int argc, char* argv[] ) {
   }
 
   trax_cleanup( opts );
+  boost::chrono::system_clock::time_point time_end   = boost::chrono::system_clock::now();
+  boost::chrono::system_clock::duration timeElapsed  = time_end - time_start;
+  boost::chrono::system_clock::duration timeElapsed2 = timeElapsed;
+
+  const boost::chrono::hours        hours        = boost::chrono::duration_cast<boost::chrono::hours>(timeElapsed);       timeElapsed -= hours;
+  const boost::chrono::minutes      minutes      = boost::chrono::duration_cast<boost::chrono::minutes>(timeElapsed);     timeElapsed -= minutes;
+  const boost::chrono::seconds      seconds      = boost::chrono::duration_cast<boost::chrono::seconds>(timeElapsed);     timeElapsed -= seconds;
+  const boost::chrono::milliseconds milliSeconds = boost::chrono::duration_cast<boost::chrono::milliseconds>(timeElapsed);
+
+  printf("\n----\nTotal runtime: %lu.%03lu seconds (%d:%d:%lu.%03lu)\n",
+         boost::chrono::duration_cast<boost::chrono::seconds>(timeElapsed2).count(), milliSeconds.count(),
+         hours.count(), minutes.count(), seconds.count(), milliSeconds.count());
   return 0;
 }
 

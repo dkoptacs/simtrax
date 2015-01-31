@@ -41,9 +41,19 @@ MEMORYFILE=\"memory.mem\"
 # The compiler to use for the executable
 CXX=g++
 CXXFILENAMES=-DVIEWFILE=${VIEWFILE} -DMODELFILE=${MODELFILE} -DLIGHTFILE=${LIGHTFILE} -DMEMORYFILE=${MEMORYFILE}
-CXXFLAGS=-DTRAX=0 -DWIDTH=${WIDTH} -DHEIGHT=${HEIGHT} ${CXXFILENAMES} -I${SIMDIR} -I${INCLUDEDIR} -pthread -O3 -g
+CXXFLAGS=-DTRAX=0 -DWIDTH=${WIDTH} -DHEIGHT=${HEIGHT} ${CXXFILENAMES} -I${SIMDIR} -I${INCLUDEDIR} -O3 -g
 CXXSIMFILES=${SIMDIR}/LoadMemory.cc ${SIMDIR}/OBJLoader.cc ${SIMDIR}/OBJListLoader.cc ${SIMDIR}/IWLoader.cc ${SIMDIR}/BVH.cc ${SIMDIR}/Grid.cc ${SIMDIR}/Camera.cc ${SIMDIR}/ReadLightfile.cc ${SIMDIR}/ReadViewfile.cc ${SIMDIR}/Material.cc ${SIMDIR}/Triangle.cc ${SIMDIR}/MTLLoader.cc ${SIMDIR}/PPM.cc ${SIMDIR}/TGALoader.cc ${SIMDIR}/CustomLoadMemory.cc ${SIMDIR}/lodepng.cc
 CXXLIBS=${LIBDIR}/trax_cpp.cpp
+
+# for OSX
+#LDFLAGS = -L/opt/local/lib/ -lboost_regex-mt -lboost_system-mt -lboost_thread-mt -boost_chrono-mt
+
+# for CADE
+#CXXFLAGS = ${CXXFLAGS} -I/usr/local/stow/boost/boost_1_55_0/include/ -L/usr/local/stow/boost/boost_1_55_0/lib/ -lboost_regex -lboost_system -lboost_thread -lboost_chrono
+
+# for ubuntu/other linux
+LDFLAGS = -lboost_regex -lboost_system -lboost_thread -lboost_chrono
+
 
 # Front end compiler to use for trax target
 # For old systems
@@ -63,7 +73,7 @@ COBJS := $(addprefix objs/, $(notdir $(CXXSIMFILES:.cc=.o)))
 
 ${BINARYOUTPUT}: ${SOURCES} ${COBJS}
 	@echo "Building ${BINARYOUTPUT}"
-	@${CXX} ${SOURCES} ${COBJS} ${CXXLIBS} ${CXXFLAGS} -o ${BINARYOUTPUT}
+	@${CXX} ${SOURCES} ${COBJS} ${CXXLIBS} ${CXXFLAGS} $(LDFLAGS) -o ${BINARYOUTPUT}
 
 ${TRAXOUTPUT}: rt.s
 	@echo "Writing ${TRAXOUTPUT}"
