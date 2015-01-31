@@ -155,7 +155,6 @@ struct CoreThreadArgs {
   std::vector<TraxCore*>* cores;
 };
 
-
 void SyncThread( CoreThreadArgs* core_args ) {
   // synchronizes a thread
   boost::unique_lock<boost::mutex> lock(sync_mutex);
@@ -184,40 +183,70 @@ void SyncThread( CoreThreadArgs* core_args ) {
 }
 
 void *CoreThread( CoreThreadArgs* core_args ) {
-  long long int stop_cycle = core_args->stop_cycle;
+  const long long int stop_cycle = core_args->stop_cycle;
   printf("Thread %d running cores\t%d to\t%d ...\n", (int) core_args->thread_num, (int) core_args->start_core, (int) core_args->end_core-1);
   // main loop for this core
   while (true) {
     // Choose the first core to issue from
     int start_core = 0;
     long long int max_stall_cycles = -1;
-    for(int i = core_args->start_core; i < core_args->end_core; ++i) {
-      long long int stall_cycles = (*core_args->cores)[i]->CountStalls();
+    std::vector<TraxCore*>::iterator tpIter = core_args->cores->begin() + core_args->start_core;
+    for(int i = core_args->start_core; i < core_args->end_core; ++i, ++tpIter) {
+//      long long int stall_cycles = (*core_args->cores)[i]->CountStalls();
+      long long int stall_cycles = (*tpIter)->CountStalls();
       if(stall_cycles > max_stall_cycles) {
         start_core = i - core_args->start_core;
         max_stall_cycles = stall_cycles;
       }
     }
 
-    int num_cores = core_args->end_core - core_args->start_core;
-    for(int i = 0; i < num_cores; ++i) {
-      int core_id = ((i + start_core) % num_cores) + core_args->start_core;
-      SystemClockRise((*core_args->cores)[core_id]->modules);
-      SystemClockFall((*core_args->cores)[core_id]->modules);
+    const int num_cores = core_args->end_core - core_args->start_core;
+    // start_core to num_cores
+    tpIter = core_args->cores->begin() + (core_args->start_core + start_core);
+    for(int i = 0; i < (num_cores - start_core); ++i, ++tpIter)
+    {
+      SystemClockRise((*tpIter)->modules);
+      SystemClockFall((*tpIter)->modules);
     }
+    // 0 to start_core
+    tpIter = core_args->cores->begin() + core_args->start_core;
+    for(int i = 0; i < start_core; ++i, ++tpIter)
+    {
+      SystemClockRise((*tpIter)->modules);
+      SystemClockFall((*tpIter)->modules);
+    }
+//    for(int i = 0; i < num_cores; ++i, ++tpIter) {
+//      int core_id = ((i + start_core) % num_cores) + core_args->start_core;
+//      SystemClockRise((*core_args->cores)[core_id]->modules);
+//      SystemClockFall((*core_args->cores)[core_id]->modules);
+//    }
+
     SyncThread(core_args);
 
     bool all_done = true;
-    for(int i = core_args->start_core; i < core_args->end_core; ++i) {
-      TrackUtilization((*core_args->cores)[i]->modules, (*core_args->cores)[i]->utilizations);
-      (*core_args->cores)[i]->cycle_num++;
-      if(!(*core_args->cores)[i]->issuer->halted) {
+    tpIter = core_args->cores->begin() + core_args->start_core;
+    for(int i = core_args->start_core; i < core_args->end_core; ++i, ++tpIter) {
+      TraxCore *coreRef = *tpIter;
+      TrackUtilization(coreRef->modules, coreRef->utilizations);
+      coreRef->cycle_num++;
+      if(!coreRef->issuer->halted) {
         all_done = false;
       }
     }
-    if((*core_args->cores)[0]->cycle_num == stop_cycle || all_done) {
+    if(core_args->cores->front()->cycle_num == stop_cycle || all_done) {
       break;
     }
+//    bool all_done = true;
+//    for(int i = core_args->start_core; i < core_args->end_core; ++i) {
+//      TrackUtilization((*core_args->cores)[i]->modules, (*core_args->cores)[i]->utilizations);
+//      (*core_args->cores)[i]->cycle_num++;
+//      if(!(*core_args->cores)[i]->issuer->halted) {
+//        all_done = false;
+//      }
+//    }
+//    if((*core_args->cores)[0]->cycle_num == stop_cycle || all_done) {
+//      break;
+//    }
   }
 
   boost::unique_lock<boost::mutex> lock(sync_mutex);
@@ -228,6 +257,7 @@ void *CoreThread( CoreThreadArgs* core_args ) {
     current_simulation_threads = global_total_simulation_threads;
     sync_cond.notify_all();
   }
+
   return 0;
 }
 
@@ -913,7 +943,7 @@ int main(int argc, char* argv[]) {
 
   global_total_simulation_threads = total_simulation_threads;
 
-  // set up simulator thread arguments 
+  // set up simulator thread arguments
   CoreThreadArgs *args = new CoreThreadArgs[total_simulation_threads];
 
   // initialize variables for synchronization
@@ -927,11 +957,11 @@ int main(int argc, char* argv[]) {
       cores_per_thread--;
     }
     args[i].start_core = start_core;
-    args[i].end_core = start_core + cores_per_thread;
-    start_core += cores_per_thread;
+    args[i].end_core   = start_core + cores_per_thread;
+    start_core        += cores_per_thread;
     args[i].thread_num = i;
     args[i].stop_cycle = stop_cycle;
-    args[i].cores = &cores;
+    args[i].cores      = &cores;
   }
   // Have the last thread do the remainder
   args[total_simulation_threads - 1].end_core = num_cores * num_L2s;
@@ -969,6 +999,7 @@ int main(int argc, char* argv[]) {
   curr_frame_time = clock();
   printf("\t <== Frame time: %12.1f s ==>\n", clockdiff(prev_frame_time, curr_frame_time));
 
+  delete[] args;
 
   // After reaching this point, the machine has halted.
   // Take a look and print relevant stats

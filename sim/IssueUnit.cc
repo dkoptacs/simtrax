@@ -936,6 +936,32 @@ void IssueUnit::SIMDClockFall()
 
 void IssueUnit::ClockFall()
 {
+  // kernel profiling
+  long long int** kernel_cycles_ptr = kernel_cycles;
+  int**           kernel_prof_ptr   = kernel_profiling;
+  const unsigned int numTPs = static_cast<unsigned int>(thread_procs.size());
+  for(int k = 0; k < MAX_NUM_KERNELS; ++k)
+  {
+    for(unsigned int tp = 0; tp < numTPs; ++tp, ++kernel_cycles_ptr, ++kernel_prof_ptr)
+    {
+      // original ordering is:
+      //if(kernel_profiling[k][tp])
+      //  kernel_cycles[k][tp]++;
+      if(*kernel_prof_ptr)
+          *kernel_cycles_ptr++;
+    }
+  }
+
+  std::vector<ThreadProcessor*>::iterator tpIter;
+  for (tpIter = thread_procs.begin() ; tpIter != thread_procs.end(); ++tpIter)
+  {
+    ThreadProcessor* tpRef = *tpIter;
+    for(int j = 0; j < tpRef->num_threads; ++j)
+    {
+      tpRef->thread_states[j]->ApplyWrites(current_cycle);
+    }
+  }
+/*
   // first allow threads to write to their registers
   for (size_t i = 0; i < thread_procs.size(); i++)
   {
@@ -951,7 +977,7 @@ void IssueUnit::ClockFall()
         thread_procs[i]->thread_states[j]->ApplyWrites(current_cycle);
     }
   }
-
+*/
   if (simd_width < 2)
     MultipleIssueClockFall();
   else
