@@ -241,16 +241,14 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
 
     case Instruction::movt_s:
       // Read the registers
-      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)
-          ||
-          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
       {
         // bad stuff happened
         printf("SimpleRegisterFile unit: Error with MIPS movt_s.\n");
       }
 
-      // Only move if rt is equal to 1.
-      if (arg2.idata != 1)
+      // Only move if cc is equal to 1.
+      if (thread->compare_register != 1)
       {
         issued_this_cycle++;
         return true;

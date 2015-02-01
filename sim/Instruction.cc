@@ -146,7 +146,6 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::movn:
     case Instruction::movn_s:
     case Instruction::movz_s:
-    case Instruction::movt_s:
     case Instruction::mul:
     case Instruction::mul_s:
     case Instruction::nor:
@@ -217,6 +216,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::mfc1:
     case Instruction::movf:
     case Instruction::movt:
+    case Instruction::movt_s:
     case Instruction::mov_s:
     case Instruction::ori:
     case Instruction::sll:
