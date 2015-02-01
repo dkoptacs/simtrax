@@ -912,6 +912,7 @@ int main(int argc, char* argv[]) {
        instructions[i]->op == Instruction::move ||
        instructions[i]->op == Instruction::movn ||
        instructions[i]->op == Instruction::movt ||
+       instructions[i]->op == Instruction::movt_s ||
        instructions[i]->op == Instruction::mov_s ||
        instructions[i]->op == Instruction::movn_s ||
        instructions[i]->op == Instruction::movz_s ||
