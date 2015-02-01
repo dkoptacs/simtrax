@@ -440,8 +440,8 @@ int main( int argc, char* argv[] ) {
   const boost::chrono::milliseconds milliSeconds = boost::chrono::duration_cast<boost::chrono::milliseconds>(timeElapsed);
 
   printf("\n----\nTotal runtime: %lu.%03lu seconds (%d:%d:%lu.%03lu)\n",
-         boost::chrono::duration_cast<boost::chrono::seconds>(timeElapsed2).count(), milliSeconds.count(),
-         hours.count(), minutes.count(), seconds.count(), milliSeconds.count());
+         (unsigned long)(boost::chrono::duration_cast<boost::chrono::seconds>(timeElapsed2).count()), (unsigned long)milliSeconds.count(),
+         hours.count(), minutes.count(), (unsigned long)seconds.count(), (unsigned long)milliSeconds.count());
   return 0;
 }
 

@@ -82,7 +82,7 @@ bool FPDiv::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
         if(ins.srcInfo.fileNum >= 0)
           printf("%s: %d\n", source_names[ins.srcInfo.fileNum].c_str(), ins.srcInfo.lineNum);
         else
-          printf("Compile with -g for more info\n");
+          printf("Compile your TRaX program with -g for more info\n");
         
         exit(1);
       }

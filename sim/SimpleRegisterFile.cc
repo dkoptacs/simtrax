@@ -135,6 +135,7 @@ bool SimpleRegisterFile::SupportsOp(Instruction::Opcode op) const
       op == Instruction::mov_s ||
       op == Instruction::movn_s ||
       op == Instruction::movz_s ||
+      op == Instruction::movt_s ||
       op == Instruction::move ||
       op == Instruction::mtc1)
     return true;
@@ -166,7 +167,7 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
       {
         // bad stuff happened
-        printf("SimpleRegisterFile unit: Error with MIPS movz_s.\n");
+        printf("SimpleRegisterFile unit: Error with MIPS movf.\n");
       }
 
       // Only move if CC is equal to 0.
@@ -237,6 +238,27 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
 
       result.fdata = arg1.fdata;
       break;
+
+    case Instruction::movt_s:
+      // Read the registers
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)
+          ||
+          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
+      {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error with MIPS movt_s.\n");
+      }
+
+      // Only move if rt is equal to 1.
+      if (arg2.idata != 1)
+      {
+        issued_this_cycle++;
+        return true;
+      }
+
+      result.fdata = arg1.fdata;
+      break;
+
 
       // MFHI and MFLO don't read normal registers
     case Instruction::mfhi:

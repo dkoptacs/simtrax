@@ -394,9 +394,9 @@ void IssueUnit::DataDependVerbosity(ThreadState* thread, Instruction* fetched_in
 {
   if (verbosity == 1)
   {
-    printf("Cycle %lld: Thread %d: Instruction %llu: NR: DATA DEPENDENCY (%s)\n", current_cycle,
+    printf("Cycle %lld: Thread %d: Instruction PC %d: NR: DATA DEPENDENCY (%s)\n", current_cycle,
            static_cast<int>(proc_id),
-           fetched_instruction->id,
+           fetched_instruction->pc_address,
            Instruction::Opnames[fetched_instruction->op].c_str() );
   }
   else if (verbosity > 1)

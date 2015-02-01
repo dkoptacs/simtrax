@@ -48,6 +48,7 @@
 #define TRAX_START_SUBTREE_IDS     33
 #define TRAX_NUM_SUBTREES          34
 #define TRAX_NUM_TMS               35
+#define TRAX_PACK_SPLIT_AXIS       38
 
 
 // Some useful functions
@@ -93,6 +94,7 @@ inline int GetLight() {
 inline int GetStartTriangles() {
   return loadi( 0, TRAX_START_TRIANGLES );
 }
+
 inline int GetNumTriangles() {
   return loadi( 0, TRAX_NUM_TRIANGLES );
 }

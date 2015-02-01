@@ -146,6 +146,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::movn:
     case Instruction::movn_s:
     case Instruction::movz_s:
+    case Instruction::movt_s:
     case Instruction::mul:
     case Instruction::mul_s:
     case Instruction::nor:
@@ -822,6 +823,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("mov_s"),
   std::string("movn_s"),
   std::string("movz_s"),
+  std::string("movt_s"),
   std::string("mtc1"),
   std::string("mul"),
   std::string("mul_s"),

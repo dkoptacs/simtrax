@@ -446,7 +446,7 @@ int main(int argc, char* argv[]) {
   background_color[2] = 0.988f;
 
   // Verify Instruction.h matches Instruction.cc in size.
-  if (strncmp(Instruction::Opnames[Instruction::PROF].c_str(), "PROF", 4) != 0) 
+  if (strncmp(Instruction::Opnames[Instruction::xor_m].c_str(), "xor_m", 5) != 0) 
     {
       printf("Instruction.h does not match Instruction.cc. Please fix them.\n");
       exit(-1);

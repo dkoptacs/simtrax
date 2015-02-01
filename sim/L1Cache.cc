@@ -12,6 +12,7 @@
 
 extern pthread_mutex_t atominc_mutex;
 
+extern std::vector<std::string> source_names;
 
 L1Cache::L1Cache(L2Cache* _L2, int _hit_latency,
 		 int _cache_size, float _area, float _energy, int _num_banks = 4, int _line_size = 2,
@@ -187,6 +188,10 @@ bool L1Cache::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
              address, num_blocks);
       ins.print();
       printf("\n");
+      if(ins.srcInfo.fileNum >= 0)
+	printf("%s: %d\n", source_names[ins.srcInfo.fileNum].c_str(), ins.srcInfo.lineNum);
+      else
+	printf("Compile your TRaX program with -g for more info\n");
       exit(1);
       return true; // incorrect execution, but continues
     }

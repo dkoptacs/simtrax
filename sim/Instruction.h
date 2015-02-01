@@ -265,6 +265,7 @@ class Instruction {
     mov_s,
     movn_s,
     movz_s,
+    movt_s,
     mtc1,
     mul,
     mul_s,

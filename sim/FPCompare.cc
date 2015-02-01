@@ -99,7 +99,6 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
     case Instruction::c_olt_s:
       if (isnan(arg0.fdata) || isnan(arg1.fdata))
       {
-        // printf("\n\nWe got a Nan.\n\n");
         thread->compare_register = 0;
       }
       else if (arg0.fdata < arg1.fdata)
@@ -111,7 +110,6 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
     case Instruction::c_ole_s:
       if (isnan(arg0.fdata) || isnan(arg1.fdata))
       {
-        // printf("\n\nWe got a Nan.\n\n");
         thread->compare_register = 0;
       }
       else if (arg0.fdata <= arg1.fdata)
@@ -123,7 +121,6 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
     case Instruction::c_ult_s:
       if (isnan(arg0.fdata) || isnan(arg1.fdata))
       {
-        // printf("\n\nWe got a NaN.\n\n");
         thread->compare_register = 1;
       }
       else if (arg0.fdata < arg1.fdata)
@@ -135,7 +132,6 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
     case Instruction::c_ule_s:
       if (isnan(arg0.fdata) || isnan(arg1.fdata))
       {
-        // printf("\n\nWe got a Nan.\n\n");
         thread->compare_register = 1;
       }
       else if (arg0.fdata <= arg1.fdata)
