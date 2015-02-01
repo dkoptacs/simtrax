@@ -48,7 +48,7 @@ CXXLIBS=${LIBDIR}/trax_cpp.cpp
 LDFLAGS = -I/opt/local/include/ -L/opt/local/lib/ -lboost_regex-mt -lboost_system-mt -lboost_chrono-mt
 
 # for CADE
-#CXXFLAGS = ${CXXFLAGS} -I/usr/local/stow/boost/boost_1_55_0/include/ -L/usr/local/stow/boost/boost_1_55_0/lib/ -lboost_regex -lboost_system -lboost_chrono
+#LDFLAGS = -I/usr/local/stow/boost/boost_1_55_0/include/ -L/usr/local/stow/boost/boost_1_55_0/lib/ -lboost_regex -lboost_system -lboost_chrono
 
 # for ubuntu/other linux
 #LDFLAGS = -lboost_regex -lboost_system -lboost_chrono
