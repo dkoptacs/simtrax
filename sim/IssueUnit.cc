@@ -937,6 +937,7 @@ void IssueUnit::SIMDClockFall()
 
 void IssueUnit::ClockFall()
 {
+#if 0 // This method of profiling is deprecated.
   // kernel profiling
   long long int** kernel_cycles_ptr = kernel_cycles;
   int**           kernel_prof_ptr   = kernel_profiling;
@@ -949,9 +950,10 @@ void IssueUnit::ClockFall()
       //if(kernel_profiling[k][tp])
       //  kernel_cycles[k][tp]++;
       if(*kernel_prof_ptr)
-          *kernel_cycles_ptr++;
+	*kernel_cycles_ptr++;
     }
   }
+#endif
 
   std::vector<ThreadProcessor*>::iterator tpIter;
   for (tpIter = thread_procs.begin() ; tpIter != thread_procs.end(); ++tpIter)
