@@ -519,9 +519,8 @@ void * init_new_node(const dram_address_t &dram_address, long long int arrival_t
 {
 	request_t * new_node = NULL;
 
-	//new_node = (request_t*)malloc(sizeof(request_t));
 	new_node = new request_t();
-	//printf("request size = %d\n", sizeof(request_t));
+
 
 	if(new_node == NULL)
 	{
@@ -1095,9 +1094,9 @@ void clean_queues(int channel)
 			LL_DELETE(read_queue_head[channel],rd_ptr);
 
 			if(rd_ptr->user_ptr)
-				free(rd_ptr->user_ptr);
+			  free(rd_ptr->user_ptr);
 
-			free(rd_ptr);
+			delete rd_ptr;
 
 			read_queue_length[channel]--;
 
@@ -1116,9 +1115,9 @@ void clean_queues(int channel)
 			LL_DELETE(write_queue_head[channel],wrt_ptr);
 
 			if(wrt_ptr->user_ptr)
-				free(wrt_ptr->user_ptr);
+			  free(wrt_ptr->user_ptr);
 
-			free(wrt_ptr);
+			delete wrt_ptr;
 
 			write_queue_length[channel]--;
 
