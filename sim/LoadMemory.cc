@@ -60,7 +60,7 @@ void LoadMemory(LoadMemoryParams &pio)
   
 // pio.mem[21].ivalue = num_nodes;
 // pio.mem[22].ivalue = start_costs;
-  pio.mem[23].ivalue = (int)log2(static_cast<float>(pio.num_rotation_threads)); // + 1 for finer granularity on work assignments
+  pio.mem[23].ivalue = (int)log2f(static_cast<float>(pio.num_rotation_threads)); // + 1 for finer granularity on work assignments
 // pio.mem[24].ivalue = start_secondary_bvh;
   pio.mem[25].ivalue = pio.num_rotation_threads;
   //pio.mem[26].ivalue = start_subtree_sizes;

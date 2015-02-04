@@ -8,6 +8,7 @@
 #include <fstream>
 #include <boost/thread.hpp>
 #include <boost/chrono.hpp>
+#include <boost/atomic.hpp>
 
 #include "WinCommonNixFcns.h"
 #include "trax_cpp.hpp"

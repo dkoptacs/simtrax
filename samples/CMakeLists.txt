@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 2.8)
 string(COMPARE EQUAL ${CMAKE_SYSTEM_NAME} "Windows" SYS_IS_WIN)
 set(ADD_TO_EXE_NAME "")
 set(TRAX_DIR "${CMAKE_SOURCE_DIR}/../llvm_trax/" CACHE PATH "Location of TRAX Directory")
-set(LLVM_BINS "${TRAX_DIR}/bin/")
+set(LLVM_BINS "${TRAX_DIR}/bin/bin/")
 if(${SYS_IS_WIN})
 	set(ADD_TO_EXE_NAME ".exe")
 #	set(LLVM_BINS "${LLVM_BINS}/bin/")
@@ -109,21 +109,14 @@ if(WIN32 AND PTHREADS_FOUND)
 endif(WIN32 AND PTHREADS_FOUND)
 
 # find Boost
-# this is a bit whacky, on Linux we'll dynamically link
-# but for Windows - statically
-if(CMAKE_HOST_WIN32)
-	set(Boost_USE_STATIC_LIBS ON)
-	set(Boost_USE_MULTITHREADED ON)
-	set(Boost_USE_STATIC_RUNTIME OFF)
-else()
-	set(Boost_USE_STATIC_LIBS OFF)
-	set(Boost_USE_MULTITHREADED ON)
-	set(Boost_USE_STATIC_RUNTIME OFF)
-endif()
+set(Boost_USE_STATIC_LIBS OFF)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME OFF)
 #set(Boost_ADDITIONAL_VERSIONS "1.49" "1.49.0" "1.55" "1.55.0")
 #set(Boost_DEBUG TRUE)
-find_package(Boost COMPONENTS regex chrono thread system REQUIRED)
+find_package(Boost COMPONENTS regex chrono system REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
 
 
 #################################################################
@@ -205,11 +198,26 @@ function(applyToTarget targetName targetSources targetHeaders directoryPrePend a
 	source_group(TRAX_Sources FILES ${PRE_TRAX_SRC})
 	source_group(TRAX_Headers FILES ${PRE_TRAX_HDR})
 
-	install(TARGETS ${targetName} DESTINATION "bin/${TARGET_INSTALL_SUBDIR}/")
-	if(PTHREADS_LIBRARY_DLL)
-		install(FILES ${PTHREADS_LIBRARY_DLL} DESTINATION "bin/${TARGET_INSTALL_SUBDIR}/")
-	endif(PTHREADS_LIBRARY_DLL)
+	set(FINAL_INSTALL_DIR "bin/${TARGET_INSTALL_SUBDIR}/")
+	install(TARGETS ${targetName} DESTINATION ${FINAL_INSTALL_DIR})
+	if(CMAKE_HOST_WIN32)
+		if(PTHREADS_LIBRARY_DLL)
+			install(FILES ${PTHREADS_LIBRARY_DLL} DESTINATION ${FINAL_INSTALL_DIR})
+		endif(PTHREADS_LIBRARY_DLL)
 
+		if(Boost_INCLUDE_DIR)
+			set(Boost_DLLS "")
+			foreach(_file ${Boost_LIBRARIES})
+				if(NOT ${_file} MATCHES "debug" AND NOT ${_file} MATCHES "optimized")
+					get_filename_component(file_dir ${_file} PATH)
+					get_filename_component(file_cc ${_file} NAME_WE)
+					set(file_dll "${file_dir}/${file_cc}.dll")
+					list(APPEND Boost_DLLS ${file_dll})
+				endif()
+			endforeach()
+			install(FILES ${Boost_DLLS} DESTINATION ${FINAL_INSTALL_DIR})
+		endif()
+	endif(CMAKE_HOST_WIN32)
 
 	############
 	# generate TRAX target
