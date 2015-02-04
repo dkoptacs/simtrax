@@ -146,7 +146,7 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
         if(ins.srcInfo.fileNum >= 0)
           printf("%s: %d\n", source_names[ins.srcInfo.fileNum].c_str(), ins.srcInfo.lineNum);
         else
-          printf("Compile with -g for more info\n");
+          printf("Compile your TRaX program with -g for more info\n");
         exit(1);
       }
       break;

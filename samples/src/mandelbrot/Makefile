@@ -37,7 +37,6 @@ LIGHTFILE=\"${SCENEDIR}/cornell/cornell.light\"
 # use trax_setup(true)
 MEMORYFILE=\"memory.mem\"
 
-# Should not need to edit below this point unless you know what you're doing
 # The compiler to use for the executable
 CXX=g++
 CXXFILENAMES=-DVIEWFILE=${VIEWFILE} -DMODELFILE=${MODELFILE} -DLIGHTFILE=${LIGHTFILE} -DMEMORYFILE=${MEMORYFILE}
@@ -46,13 +45,13 @@ CXXSIMFILES=${SIMDIR}/LoadMemory.cc ${SIMDIR}/OBJLoader.cc ${SIMDIR}/OBJListLoad
 CXXLIBS=${LIBDIR}/trax_cpp.cpp
 
 # for OSX
-#LDFLAGS = -L/opt/local/lib/ -lboost_regex-mt -lboost_system-mt -lboost_thread-mt -boost_chrono-mt
+LDFLAGS = -I/opt/local/include/ -L/opt/local/lib/ -lboost_regex-mt -lboost_system-mt  -lboost_thread-mt -lboost_chrono-mt
 
 # for CADE
 #CXXFLAGS = ${CXXFLAGS} -I/usr/local/stow/boost/boost_1_55_0/include/ -L/usr/local/stow/boost/boost_1_55_0/lib/ -lboost_regex -lboost_system -lboost_thread -lboost_chrono
 
 # for ubuntu/other linux
-LDFLAGS = -lboost_regex -lboost_system -lboost_thread -lboost_chrono
+#LDFLAGS = -lboost_regex -lboost_system -lboost_thread -lboost_chrono
 
 
 # Front end compiler to use for trax target
@@ -73,7 +72,7 @@ COBJS := $(addprefix objs/, $(notdir $(CXXSIMFILES:.cc=.o)))
 
 ${BINARYOUTPUT}: ${SOURCES} ${COBJS}
 	@echo "Building ${BINARYOUTPUT}"
-	@${CXX} ${SOURCES} ${COBJS} ${CXXLIBS} ${CXXFLAGS} $(LDFLAGS) -o ${BINARYOUTPUT}
+	@${CXX} ${SOURCES} ${COBJS} ${CXXLIBS} ${CXXFLAGS} ${LDFLAGS} -o ${BINARYOUTPUT}
 
 ${TRAXOUTPUT}: rt.s
 	@echo "Writing ${TRAXOUTPUT}"

@@ -75,7 +75,7 @@ void LoadMemory(LoadMemoryParams &pio)
   pio.mem[35].ivalue = pio.num_TMs;
   //pio.mem[36].ivalue = start_vertex_normals;
   //pio.mem[37].ivalue = num_interior_subtrees;
-    
+  pio.mem[38].ivalue = pio.pack_split_axis;
   // Build the work queue (deprecated)
   // Keep the spot free for backwards compatibility
   pio.start_wq = 39;
