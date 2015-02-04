@@ -950,7 +950,7 @@ void IssueUnit::ClockFall()
       //if(kernel_profiling[k][tp])
       //  kernel_cycles[k][tp]++;
       if(*kernel_prof_ptr)
-	*kernel_cycles_ptr++;
+        (*kernel_cycles_ptr)++;
     }
   }
 #endif
