@@ -444,6 +444,7 @@ int usimm_setup(char* config_filename, char* usimm_vi_file)
   
   if (!vi_file) {
     printf("Missing DRAM chip parameter file.  Quitting. \n");
+    printf("Use --vi-file <path> to specify the full path to 1Gb_x16_amd2GHz.vi (should be in samples/configs/usimm_configs), or any other valid .vi file.\n");
     return -5;
   }
 
