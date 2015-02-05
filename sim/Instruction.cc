@@ -236,8 +236,6 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
       break;
 
     case Instruction::SW:
-    case Instruction::sb:
-    case Instruction::sh:
       // check args[0], args[1] and args[2] and choose the first fail_reg if there is a fail.
       if ((register_ready[args[0]] <= cur_cycle))
         if ((register_ready[args[1]] <= cur_cycle))
@@ -331,6 +329,8 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::lwr:
     case Instruction::swl:
     case Instruction::swr:
+    case Instruction::sb:
+    case Instruction::sh:
       // check args[0] and args[2] for read
       if (register_ready[args[0]] <= cur_cycle)
         if (register_ready[args[2]] <= cur_cycle)
