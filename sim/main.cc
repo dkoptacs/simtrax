@@ -345,6 +345,7 @@ void printUsage(char* program_name) {
   printf("    --model           <model file name (.obj)>\n");
   printf("    --output-prefix   <prefix for image output. Be sure any directories exist>\n");
   printf("    --usimm-config    <usimm config file name>\n");
+  printf("    --vi-file         <usimm chip config file name>\n");
   printf("    --view-file       <view file name>\n");
 
   printf("\n");
@@ -438,6 +439,7 @@ int main(int argc, char* argv[]) {
   ThreadProcessor::SchedulingScheme scheduling_scheme = ThreadProcessor::SIMPLE;
   int total_simulation_threads          = 1;
   char *usimm_config_file               = NULL;
+  char *usimm_vi_file                   = NULL;
   char *dcache_params_file              = NULL;
   char *icache_params_file              = NULL;
 
@@ -596,6 +598,8 @@ int main(int argc, char* argv[]) {
         scheduling_scheme = ThreadProcessor::POSTSTALL;
     } else if (strcmp(argv[i], "--usimm-config") == 0) {
       usimm_config_file = argv[++i];
+    } else if (strcmp(argv[i], "--vi-file") == 0) {
+      usimm_vi_file = argv[++i];
     } else if (strcmp(argv[i], "--dcacheparams") == 0) {
       dcache_params_file = argv[++i];
     } else if (strcmp(argv[i], "--icacheparams") == 0) {
@@ -944,7 +948,11 @@ int main(int argc, char* argv[]) {
       usimm_config_file = (char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/gddr5_8ch.cfg";
       printf("No USIMM configuration specified, using default: %s\n", usimm_config_file);
     }
-    usimm_setup(usimm_config_file);
+    if(usimm_setup(usimm_config_file, usimm_vi_file) < 0)
+      {
+	printf("unable to initialize usimm\n");
+	exit(1);
+      }
   }
 
   // Limit simulation threads to the number of TMs

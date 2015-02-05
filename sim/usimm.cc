@@ -236,7 +236,7 @@ long long int *time_done;
 long long int total_time_done;
 float core_power=0;
 
-int usimm_setup(char* config_filename)
+int usimm_setup(char* config_filename, char* usimm_vi_file)
 {
 
   printf("Initializing usimm memory module.\n");
@@ -430,7 +430,10 @@ int usimm_setup(char* config_filename)
 
   //if (NUM_CHANNELS > 4) {
   if (NUM_CHANNELS >= 4) {
-    vi_file = fopen((char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/1Gb_x16_amd2GHz.vi", "r");
+    if(usimm_vi_file != NULL)
+      vi_file = fopen(usimm_vi_file, "r");
+    else
+      vi_file = fopen((char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/1Gb_x16_amd2GHz.vi", "r");
     chips_per_rank= 16;
     printf("Reading vi file: 1Gb_x16_amd2GHz.vi\t\n%d Chips per Rank\n",chips_per_rank);
   }
