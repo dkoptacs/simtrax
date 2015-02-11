@@ -1487,7 +1487,7 @@ void PrintProfile(const char* assem_file, std::vector<Instruction*>& instruction
 	  StrReplace(line, '\n', ' ');
 	  
 	  fprintf(profile_output, "%d: ", line_num);
-	  fprintf(profile_output, line);
+      fprintf(profile_output, "%s", line);
 	  
 	  if(isInstruction)
 	    {

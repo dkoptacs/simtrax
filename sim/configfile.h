@@ -142,13 +142,14 @@ const tokenTranslator tokenTranslatorTable[] =
 token_t tokenize(const char * input, bool &isInteger) {
     const size_t numTokens = sizeof(tokenTranslatorTable) / sizeof(tokenTranslator);
 
-    size_t length;
-    length = strlen(input);
+    const size_t lengthInput = strlen(input);
     for(size_t i = 0; i < numTokens; ++i) {
-      if(strncmp(input, tokenTranslatorTable[i].keyword, length) == 0) {
-          isInteger = tokenTranslatorTable[i].isInteger;
-          return tokenTranslatorTable[i].token;
-      }
+        // Special case for comments which are not separated by a space, aka //BLOB
+        const size_t lengthToCompare = (tokenTranslatorTable[i].token != comment_token ? lengthInput : strlen(tokenTranslatorTable[i].keyword));
+        if(strncmp(input, tokenTranslatorTable[i].keyword, lengthToCompare) == 0) {
+            isInteger = tokenTranslatorTable[i].isInteger;
+            return tokenTranslatorTable[i].token;
+        }
     }
 
     // Unknown token
@@ -218,18 +219,18 @@ void read_config_file(FILE * fin)
             case processor_clk_multiplier_token:    PROCESSOR_CLK_MULTIPLIER = input_int;   break;
             case robsize_token:                     ROBSIZE                  = input_int;   break;
             case max_retire_token:                  MAX_RETIRE               = input_int;   break;
-            case max_fetch_token:                   MAX_FETCH                = input_int;   break;
-            case pipelinedepth_token:               PIPELINEDEPTH            = input_int;   break;
+            case max_fetch_token:                   MAX_FETCH                = input_int;                               break;
+            case pipelinedepth_token:               PIPELINEDEPTH            = input_int;                               break;
 
-            case num_channels_token:                NUM_CHANNELS             = input_int;   break;
-            case num_ranks_token:                   NUM_RANKS                = input_int;   break;
-            case num_banks_token:                   NUM_BANKS                = input_int;   break;
-            case num_rows_token:                    NUM_ROWS                 = input_int;   break;
-            case num_columns_token:                 NUM_COLUMNS              = input_int;   break;
-            case cache_line_size_token:             CACHE_LINE_SIZE          = input_int;   break;
-            case address_bits_token:                ADDRESS_BITS             = input_int;   break;
+            case num_channels_token:                NUM_CHANNELS             = input_int;                               break;
+            case num_ranks_token:                   NUM_RANKS                = input_int;                               break;
+            case num_banks_token:                   NUM_BANKS                = input_int;                               break;
+            case num_rows_token:                    NUM_ROWS                 = input_int;                               break;
+            case num_columns_token:                 NUM_COLUMNS              = input_int;                               break;
+            case cache_line_size_token:             CACHE_LINE_SIZE          = input_int;                               break;
+            case address_bits_token:                ADDRESS_BITS             = input_int;                               break;
 
-            case dram_clk_frequency_token:          DRAM_CLK_FREQUENCY       = input_int;   break;
+            case dram_clk_frequency_token:          DRAM_CLK_FREQUENCY       = input_int;                               break;
             case t_rcd_token:                       T_RCD                    = input_int * PROCESSOR_CLK_MULTIPLIER;    break;
             case t_rp_token:                        T_RP                     = input_int * PROCESSOR_CLK_MULTIPLIER;    break;
             case t_cas_token:                       T_CAS                    = input_int * PROCESSOR_CLK_MULTIPLIER;    break;

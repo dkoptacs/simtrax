@@ -193,7 +193,7 @@ link_directories(${Boost_LIBRARY_DIRS})
 add_executable(simtrax ${simSrc} ${simHdr})
 target_link_libraries(simtrax ${PTHREADS_LIBRARIES} ${Boost_LIBRARIES})
 
-set(FINAL_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/bin/)
+set(FINAL_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
 install(TARGETS simtrax DESTINATION ${FINAL_INSTALL_DIR})
 if(CMAKE_HOST_WIN32)
 	if(PTHREADS_LIBRARY_DLL)
