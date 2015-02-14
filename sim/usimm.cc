@@ -864,6 +864,17 @@ void usimmClock()
       CYCLE_VAL++;
 }
 
+bool usimmIsBusy()
+{
+  for(int channel = 0; channel < NUM_CHANNELS; channel++)
+    {
+      if(read_queue_head[channel] != NULL)
+	return true;
+      if(write_queue_head[channel] != NULL)
+	return true;
+    }
+  return false;
+}
 
 
 

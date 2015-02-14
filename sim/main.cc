@@ -79,6 +79,7 @@ pthread_cond_t sync_cond;
 int global_total_simulation_threads;
 int current_simulation_threads;
 bool disable_usimm;
+bool wait_usimm;
 
 // this branch delay is reset by code that finds the delay from the
 // config file
@@ -246,6 +247,10 @@ void *CoreThread( void* args ) {
         all_done = false;
       }
     }
+    
+    if(wait_usimm && usimmIsBusy())
+      all_done = false;
+    
     if(core_args->cores->front()->cycle_num == stop_cycle || all_done) {
       break;
     }
@@ -334,6 +339,7 @@ void printUsage(char* program_name) {
   printf("    --num-icache-banks   <number of banks per icache -- default 1>\n");
   printf("    --num-icaches        <number of icaches in a TM. Should be a power of 2 -- default 1>\n");
   printf("    --disable-usimm      [use naive DRAM simulation instead of usimm]\n");
+  printf("    --wait-usimm         [wait for all DRAM commands to finish before halting machine]\n");
 
   printf("\n");
   printf("  + Files:\n");
@@ -434,6 +440,7 @@ int main(int argc, char* argv[]) {
   bool pack_split_axis                  = 0;
   bool pack_stream_boundaries           = 0;
   disable_usimm                         = 0; // globally defined for use above
+  wait_usimm                            = false;
   BVH* bvh;
   //Animation *animation                  = NULL;
   ThreadProcessor::SchedulingScheme scheduling_scheme = ThreadProcessor::SIMPLE;
@@ -606,7 +613,10 @@ int main(int argc, char* argv[]) {
       icache_params_file = argv[++i];
     } else if (strcmp(argv[i], "--disable-usimm") == 0) {
       disable_usimm = 1;
-    } else {
+    } else if (strcmp(argv[i], "--wait-usimm") == 0) {
+      wait_usimm = true;
+    }
+    else {
       printf(" Unrecognized option %s\n", argv[i]);
       printUsage(argv[0]);
       return -1;
