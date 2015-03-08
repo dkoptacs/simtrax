@@ -6,6 +6,7 @@
 
 #include "Instruction.h"
 #include "SimpleRegisterFile.h"
+#include "Profiler.h"
 
 
 class Instruction;
@@ -88,6 +89,8 @@ public:
   Instruction* fetched_instruction;
   Instruction* last_issued;
   Instruction* issued_this_cycle;
+
+  RuntimeNode* runtime;
   
   int instructions_in_flight;
   int sleep_cycles;

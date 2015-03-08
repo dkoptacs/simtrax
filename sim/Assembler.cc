@@ -11,6 +11,7 @@ int Assembler::num_regs = 1;
 int jtable_size;
 int jtable_ptr;
 int debug_start;
+int abbrev_start;
 int ascii_table_size;
 
 //-------------------------------------------------------------------------
@@ -43,17 +44,19 @@ std::string exp2Byte( "\\.2byte" );
 std::string exp4Byte( "\\.4byte" );
 // Arbitrary-byte type
 std::string expSpace( "\\.space" );
-// String type
-std::string expAscii( "\\.asciz" );
+// String type (terminated)
+std::string expAsciz( "\\.asciz" );
+// String type (non-terminated)
+std::string expAscii( "\\.ascii" );
 // Global
 std::string expGlobal( "\\.globl" );
-// Constructors section
-std::string expConstructors( "\\.ctors" );
+// ELF Sections
+std::string expSection( "(\\.section)|(\\.text)" );
 // ---Ignored data items---
 // Not that useful in the context of the simulator
-std::string expIgnored( "(\\.data)|(\\.text)|(\\.previous)|(\\.align)|(\\.type)|(\\.ent)|(\\.frame)|(\\.mask)|(\\.fmask)|(\\.set)|(\\.size)|(\\.end)" );
+std::string expIgnored( "(\\.data)|(\\.previous)|(\\.align)|(\\.type)|(\\.ent)|(\\.frame)|(\\.mask)|(\\.fmask)|(\\.set)|(\\.size)|(\\.end)|(\\.ascii)" );
 // Declaring a piece of data
-std::string expData( "((" + expByte + ")|(" + exp2Byte + ")|(" + exp4Byte + ")|(" + expSpace + ")|(" + expAscii + ")|(" + expGlobal + ")|(" + expIgnored + "))" );
+std::string expData( "((" + expByte + ")|(" + exp2Byte + ")|(" + exp4Byte + ")|(" + expSpace + ")|(" + expAscii + ")|(" + expAsciz + ")|(" + expGlobal + ")|(" + expIgnored + "))" );
 // ---Special MIPS directives---
 std::string expHi( "\%hi" );
 std::string expLo( "\%lo" );
@@ -72,10 +75,13 @@ std::string expAssign( "=" );
 std::string expString("\".+\"");
 
 
+// add special handler for .section
+
 
 //------------------------------------------------------------------------------
 
 SourceInfo currentSourceInfo;
+char current_section;
 
 int Assembler::LoadAssem(char *filename,
                          std::vector<Instruction*>& instructions,
@@ -83,8 +89,9 @@ int Assembler::LoadAssem(char *filename,
                          int num_system_regs,
                          char*& jump_table,
                          std::vector<std::string>& ascii_literals,
-                         std::vector<std::string>& sourceNames,
-                         bool print_symbols)
+			 std::vector<std::string>& sourceNames,
+                         bool print_symbols, bool run_profile,
+			 Profiler* profiler)
 {
   printf("Loading assembly file %s\n", filename);
 
@@ -94,10 +101,12 @@ int Assembler::LoadAssem(char *filename,
     printf("ERROR: cannot open assembly file %s\n", filename);
     return -1;
   }
+  current_section = SECTION_OTHER;
   num_instructions = 0;
   jtable_size = 0;
   jtable_ptr = 0;
   debug_start = 0;
+  abbrev_start = 0;
   ascii_table_size = 0;
   currentSourceInfo.lineNum = -1;
   currentSourceInfo.colNum = -1;
@@ -148,9 +157,7 @@ int Assembler::LoadAssem(char *filename,
   temp->isJumpTable = true;
   temp->size = 4;
   labels.push_back(temp);
-  data_table.push_back(temp);
-
-  jtable_size = 4; // accommodate gnu_local_gp
+  //data_table.push_back(temp);
 
   // 1st pass
   while(!input.eof())
@@ -167,11 +174,21 @@ int Assembler::LoadAssem(char *filename,
   
   lineCount = 1;
 
-  // Interpass - allocate and pre-load gnu_local_gp
+  // Interpass - allocate .data section, calculate ELF vars
+  //jtable_size += 4; // accommodate gnu_local_gp
   jump_table = (char*)malloc(jtable_size);
-  ((int32_t*)jump_table)[0] = (int32_t)(temp->address);
-  jtable_ptr += 4;
+  //((int32_t*)jump_table)[jtable_size-4] = (int32_t)(temp->address);
+  //jtable_ptr += 4;
   
+  for(size_t i = 0; i < elf_vars.size(); i++)
+    if(!HandleAssignment(std::string(elf_vars[i]->names[1]),
+			 -1, // indicate interpass
+			 labels, regs, elf_vars))
+      {
+	printf("%s\n", elf_vars[i]->names[1]);
+	return -1;
+      }
+
   input.clear();
   input.seekg(0, std::ios::beg) ;
 
@@ -201,7 +218,18 @@ int Assembler::LoadAssem(char *filename,
 
 
   if(print_symbols)
-    PrintSymbols(regs, labels, data_table, jump_table, end_data);
+    {
+      if(!run_profile)
+	PrintSymbols(regs, labels, data_table, jump_table, end_data);
+      else
+	PrintSymbols(regs, labels, data_table, jump_table, jtable_size);
+    }
+  
+
+  if(run_profile)
+    {
+      profiler->BuildSourceTree(labels, elf_vars, data_table, jump_table, jtable_size, debug_start, abbrev_start);
+    }
 
   return end_data;
 }
@@ -239,10 +267,17 @@ int Assembler::HandleLine(std::string line,
     return 1;
   
   // Constructors section
-  if(boost::regex_search(line, m, boost::regex(expConstructors)))
+  //  if(boost::regex_search(line, m, boost::regex(expConstructors)))
+  // {
+  //   return HandleConstructors(origLine, pass, labels, regs, elf_vars);
+  // }  
+
+  // Any section
+  if(boost::regex_search(line, m, boost::regex(expSection)))
     {
-      return HandleConstructors(origLine, pass, labels, regs, elf_vars);
+      return HandleSection(origLine, pass, labels, regs, elf_vars);
     }  
+  
   // Register declaration
   if(boost::regex_search(line, m, boost::regex(expRegister)))
     {
@@ -356,9 +391,16 @@ int Assembler::HandleLabel(std::string line, int pass, std::vector<symbol*>& lab
 	  break;
 	}
 
-  symbol* r = MakeSymbol(m.str());
   // Address defaults to a PC address. Data labels will have their addresses fixed when data is encountered
-  r->address = num_instructions; 
+  // Certain labels are within sections that must be treated as data
+  symbol* r = MakeSymbol(m.str());
+  if(current_section == SECTION_DATA)
+    {
+      r->address = jtable_size;
+      r->isJumpTable = true;
+    }
+  else
+    r->address = num_instructions; 
   labels.push_back(r);
   
   return 1;
@@ -392,29 +434,28 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
 	  labels[labels.size()-1]->address = jtable_size;
 	}
 
-      // Update previous label if nothing underneath it
-      if(labels.size() > 1 && !labels[labels.size()-1]->isJumpTable && !labels[labels.size()-1]->isAscii)
-	{
-	  labels[labels.size()-2]->isJumpTable = true;
-	  labels[labels.size()-2]->address = jtable_size;
-	}
-      
 
       symbol* ds = new symbol();
       ds->address = jtable_size;      
 
       // Make space for the entry
       // Strings
-      if(m.str().compare(".asciz") == 0)
+      if(m.str().compare(".asciz") == 0 ||
+	 m.str().compare(".ascii") == 0)
 	{
+	  bool terminated = (m.str().compare(".asciz") == 0);
 	  if(!boost::regex_search(line, m, boost::regex(expString)))
 	    {
-	      printf("ERROR: Found .asciz data item without a valid string\n");
+	      printf("ERROR: Found .asci data item without a valid string\n");
 	      return 0;
 	    }
-	  // String length, subtract 2 to get rid of quotes, add one back to accomodate terminating NULL char
-	  // Total = length - 1
-	  ds->size = EscapedToAscii(m.str()).length() - 1;
+	  // String length, subtract 2 to get rid of quotes
+	  
+	  if(terminated)
+	    ds->size = EscapedToAscii(m.str()).length() - 1; // add one back to accomodate terminating NULL char
+	  else // Non-null terminated
+	    ds->size = EscapedToAscii(m.str()).length() - 2;
+
 	  ds->isAscii = true;
 	}
       // Arbitrary size
@@ -458,15 +499,24 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
   else // 2nd pass: compute the value of the data
     {
       std::string stripped = line.substr(line.find(m.str()) + m.str().length());
-      if(m.str().compare(".asciz") == 0) // strings
+
+      // strings
+      if(m.str().compare(".asciz") == 0 || 
+	 m.str().compare(".ascii") == 0) 
 	{
+	  bool terminated = (m.str().compare(".asciz") == 0);
+	  
 	  boost::regex_search(stripped, m, boost::regex(expString));
 	  // Remove quotes
 	  std::string noQuotes = EscapedToAscii(m.str().substr(1, m.str().length() - 2));
 	  
-	  // Copy 1 extra char to get the NULL terminator
-	  memcpy(&(jump_table[jtable_ptr]), noQuotes.c_str(), noQuotes.length() + 1);
-	  jtable_ptr += noQuotes.length() + 1;
+	  int copyAmount = noQuotes.length();
+	  if(terminated)
+	    copyAmount++; // Copy 1 extra char to get the NULL terminator
+	  
+	  memcpy(&(jump_table[jtable_ptr]), noQuotes.c_str(), copyAmount);
+	  
+	  jtable_ptr += copyAmount;
 	}
       else // non-string
 	{
@@ -517,7 +567,6 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
   return 0;
 }
 
-
 // Adds an instruction to the simulator's instruction memory
 int Assembler::HandleInstruction(std::string line, int pass, std::vector<Instruction*>& instructions, 
 				 std::vector<symbol*>& labels, std::vector<symbol*>& regs, 
@@ -536,10 +585,13 @@ int Assembler::HandleInstruction(std::string line, int pass, std::vector<Instruc
       // Set it as a text label
       if(labels.size() > 0)
 	labels[labels.size()-1]->isText = true;
-      // Update previous label if nothing underneath it
-      if(labels.size() > 1 && !labels[labels.size()-2]->isJumpTable && !labels[labels.size()-2]->isAscii && !labels[labels.size()-2]->isText)
-	labels[labels.size()-2]->isText = true;
-
+      // Update previous labels if nothing underneath them
+      for(int i = (int)labels.size() - 2; i >= 0; i--) 
+	{
+	  if(!labels[i]->isJumpTable && !labels[i]->isAscii && !labels[i]->isText)
+	    labels[i]->isText = true;
+	}
+      
       num_instructions++;
       return 1;
     }
@@ -565,6 +617,7 @@ int Assembler::HandleInstruction(std::string line, int pass, std::vector<Instruc
 	      printf("ERROR: Invalid arguments to op: %s\n", Instruction::Opnames[i].c_str());
 	      return 0;
 	    }
+
 	  instructions.push_back(new Instruction(i, 
 						 args[0], 
 						 args[1], 
@@ -613,16 +666,19 @@ int Assembler::GetArgs(std::string line,
   while(it != end)
     {
       // Consume operators and collapse result in to one argument
-      boost::smatch m;
-      if(boost::regex_search(it->str(), m, boost::regex(expArithmetic)))
+
+      // Using another regex search here to check if expArithmetic is matched seems to corrupt the result
+      // Check if expArithmetic is matched manually
+      if((it->str().compare(")+") == 0) || (it->str().compare(")-") == 0))
 	{
+	  std::string cpy(it->str());
 	  it++;
 	  argNum--;
 	  if(!HandleArg(it->str(), labels, regs, elf_vars, arg))
 	    return 0;
-	  if((m.str().compare("+") == 0))
+	  if((cpy.compare(")+") == 0))
 	    args[argNum] += arg;
-	  else if(m.str().compare("-") == 0)
+	  else if(cpy.compare(")-") == 0)
 	    args[argNum] -= arg;
 	}
       // Otherwise, it's a standalone argument
@@ -666,7 +722,9 @@ int Assembler::HandleArg(std::string arg,
       if((symbolIndex = HasSymbol(m.str(), labels)) >= 0)
 	symb = labels[symbolIndex];
       if((symbolIndex = HasSymbol(m.str(), elf_vars)) >= 0)
-	symb = elf_vars[symbolIndex];
+	{
+	  symb = elf_vars[symbolIndex];
+	}
 
       if(symb == NULL)
 	{
@@ -850,13 +908,15 @@ int Assembler::HandleAssignment(std::string line, int pass,
 
       // Then add it to the list
       symbol* s = MakeSymbol(m.str());
+      s->names.push_back((char*)malloc(1000));
+      strcpy(s->names.at(s->names.size()-1), line.c_str()); // save the original line so the interpass can compute the value
       s->address = -1;
       elf_vars.push_back(s);
 
     }
   
-  // 2nd pass: calculate its value
-  else
+  // interpass: calculate its value
+  if(pass == -1)
     {
       // Strip out the symbol name
       boost::smatch m;  
@@ -873,7 +933,6 @@ int Assembler::HandleAssignment(std::string line, int pass,
       // Get the argument value
       int args[4];
       // expAssignArg includes '+'/'-' in the argument matcher, GetArgs will handle them
-      //if(!GetArgs(stripped, args, labels, regs, elf_vars, expAssignArg) ||
       if(!GetArgs(stripped, args, labels, regs, elf_vars, expArg) ||
 	 args[1] != 0 || // can only have one argument for assignments (the assigned value)
 	 args[2] != 0 ||
@@ -905,6 +964,52 @@ int Assembler::HandleConstructors(std::string line, int pass, std::vector<symbol
   return 1;
 }
 
+int Assembler::HandleSection(std::string line, int pass, std::vector<symbol*>& labels, 
+			 std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars)
+{
+
+  if(pass == 2)
+    return 1;
+
+  boost::smatch m;
+
+  // text section
+  if(boost::regex_search(line, m, boost::regex(std::string( "\\.text" ))))
+    {
+      current_section = SECTION_OTHER;
+      return 1;
+    }
+
+  // Start of debug section
+  if(boost::regex_search(line, m, boost::regex(std::string( "\\.debug_info" ))))
+    {
+      current_section = SECTION_DATA;
+      debug_start = jtable_size;
+      return 1;
+    }
+
+  // Start of debug abbreviations
+  if(boost::regex_search(line, m, boost::regex(std::string( "\\.debug_abbrev" ))))
+    {
+      current_section = SECTION_DATA;
+      abbrev_start = jtable_size;
+      return 1;
+    }
+
+  // All other sections given no specific treatment for now
+  current_section = SECTION_OTHER;
+
+  // Constructors section
+  if(boost::regex_search(line, m, boost::regex(std::string( "\\.ctors" ))))
+    {
+      return HandleConstructors(line, pass, labels, regs, elf_vars);
+    }
+  
+  return 1;
+  
+
+}
+
 
 // If simulator invoked with --print-symbols
 // Prints register names, label names, and the data segment
@@ -912,16 +1017,16 @@ int Assembler::HandleConstructors(std::string line, int pass, std::vector<symbol
 void Assembler::PrintSymbols(std::vector<symbol*>& regs, std::vector<symbol*>& labels, std::vector<symbol*>& data_table, char* jump_table, int end_data)
 {
   size_t i;
-  printf("Registers:\nName\tNumber\n");
+  printf("----------Registers:----------\nName\tNumber\n");
   for(i=0; i<regs.size(); i++)
     printf("%s:\t%d\n", regs.at(i)->names.at(0), regs.at(i)->address);
-  printf("Instruction labels:\nName\tPC\n");
+  printf("----------Instruction labels:----------\nName\tPC\n");
   for(i=0; i<labels.size(); i++)
     {
       if(labels.at(i)->isText)
 	printf("%s:\t%d\n", labels.at(i)->names.at(0), labels.at(i)->address);
     }
-  printf("Data segment:\nName\tAddress\tValue\n");
+  printf("----------Data segment:----------\nName\tAddress\tValue\n");
   
   int current_address = 0;
   for(i=0; i < data_table.size(); i++ )
@@ -930,24 +1035,33 @@ void Assembler::PrintSymbols(std::vector<symbol*>& regs, std::vector<symbol*>& l
       if(current_address >= end_data)
 	break;
       // Find corresponding symbol (if any)
-      for(size_t j = 0; j < labels.size(); j++)
+      bool shared = false;
+      for(size_t j = 1; j < labels.size(); j++) // start on 1 to skip gnu_local_gp
 	if((!labels[j]->isText) && (labels[j]->address == current_address))
 	  {
-	      printf("%s", labels[j]->names[0]);
-	      break;
+	    if(shared)
+	      printf("\n");
+	    printf("%s", labels[j]->names[0]);
+	    shared = true;
 	  }
       printf("\t");
 
       printf("%d\t", current_address);
 
       if(data_table[i]->isAscii)
-	printf("\"%s\"\n", &(jump_table[current_address]));
+	{
+	  // Only print null-terminated strings
+	  if(jump_table[current_address + data_table[i]->size - 1] == '\0') 
+	    printf("\"%s\"\n", &(jump_table[current_address]));
+	  else
+	    printf("<non-terminated ASCII data>\n");
+	}
       else if(data_table[i]->size == 1)
-	printf("%d\n", *((char*)(jump_table + current_address)));
+	printf("%d\t(1 byte)\n", *((char*)(jump_table + current_address)));
       else if(data_table[i]->size == 2)
-	printf("%d\n", *((short*)(jump_table + current_address)));
+	printf("%d\t(2 bytes)\n", *((short*)(jump_table + current_address)));
       else if(data_table[i]->size == 4)
-	printf("%d\n", *((int*)(jump_table + current_address)));
+	printf("%d\t(4 bytes)\n", *((int*)(jump_table + current_address)));
       else
 	printf("(%d bytes)\n", data_table[i]->size);
 
@@ -1045,7 +1159,7 @@ void Assembler::AddTRaXInitialize(std::vector<Instruction*>& instructions,
 //------------------------------------------------------------------------------
 
 // Converts strings containing literally escaped characters to their ascii equivalent,
-// such as:
+// example:
 // "a\nb"
 // becomes
 // "a
@@ -1061,6 +1175,28 @@ std::string Assembler::EscapedToAscii(std::string input)
       it++;
       if(it == input.end())
         break;
+
+      // Check for octal notation
+      if(std::distance(it, input.end()) >= 3)
+	{
+	  
+	  if((*(it + 0) >= '0' &&  *(it + 0) <= '9') &&
+	     (*(it + 1) >= '0' &&  *(it + 1) <= '9') &&
+	     (*(it + 2) >= '0' &&  *(it + 2) <= '9'))
+	    {
+	      
+	      char str[5];
+	      // Put a '0' in front so %i reads it as octal
+	      str[0] = '0'; str[1]=*(it + 0); str[2]=*(it + 1); str[3]=*(it + 2);str[4]='\0';
+	      int oct;
+	      sscanf(str, "%i", &oct);
+	      retval += (char)oct;
+	      it += 3;
+	      continue;
+	    }
+	}
+
+      // Other escaped characters
       switch (*it)
       {
         case '\'':

@@ -5,6 +5,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include "Instruction.h"
+#include "Profiler.h"
+
+class Profiler;
 
 // A label or register name
 struct symbol
@@ -29,7 +32,7 @@ class Assembler
   static int LoadAssem(char *filename, std::vector<Instruction*>& instructions, 
 		       std::vector<symbol*>& regs, int num_system_regs, char*& jump_table, 
 		       std::vector<std::string>& ascii_literals, std::vector<std::string>& sourceNames, 
-		       bool print_symbols);
+		       bool print_symbols, bool run_profile, Profiler* profiler);
  private:
   static int HandleLine(std::string line, int pass, std::vector<Instruction*>& instructions, 
 			std::vector<symbol*>& labels, std::vector<symbol*>& regs, 
@@ -80,6 +83,9 @@ class Assembler
 
   static int HandleConstructors(std::string line, int pass, std::vector<symbol*>& labels, 
 				std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars);
+
+  static int HandleSection(std::string line, int pass, std::vector<symbol*>& labels, 
+			   std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars);
     
   static symbol* MakeSymbol(std::string name);
 
@@ -100,4 +106,9 @@ class Assembler
   static std::string EscapedToAscii(std::string input);
 
 };
+
+#define SECTION_DATA          0
+#define SECTION_OTHER         1
+
+
 #endif

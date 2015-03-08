@@ -31,10 +31,12 @@ keep_directives = [".byte",
                    ".4byte",
                    ".space",
                    ".file",
-                   ".loc"]
+                   ".loc",
+                   ".section",
+                   ".ascii",
+                   ".text"]
                    #".globl",
                    #".data",
-                   #".text",
                    #".previous",
                    #".align",
                    #".type",
@@ -276,12 +278,12 @@ def LinkFile(filename, fileid):
                 
 
                 # remove any comments
-                if tok[0] == '#':
-                    break
+                #if tok[0] == '#':
+                #    break
 
                 # temp fix all jumps to be absolute
-                if tok[0] == '(' and tok[-1] == ')':
-                    tok = tok[1:-1]
+                #if tok[0] == '(' and tok[-1] == ')':
+                #    tok = tok[1:-1]
 
                 # uniquify labels
                 ## if tok[0] == '$' and tok not in reg_list:

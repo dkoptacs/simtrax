@@ -5,6 +5,7 @@
 #include "FPMul.h"
 #include "FPAddSub.h"
 #include "ReadConfig.h"
+#include "Profiler.h"
 #include "memory_controller.h"
 #include <stdlib.h>
 #include <fstream>
@@ -14,11 +15,12 @@ extern pthread_mutex_t profile_mutex;
 IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor*>& _thread_procs,
                      std::vector<FunctionalUnit*>& functional_units,
                      int _verbosity, int _num_icaches, int _icache_banks,
-                     int _simd_width, bool _enable_profiling)
+                     int _simd_width, bool _enable_profiling, Profiler* _profiler)
     :verbosity(_verbosity)
 {
   printed_single_kernel = false;
   enable_profiling = _enable_profiling;
+  profiler = _profiler;
 
   if(!ReadCacheParams(icache_params_file, 4096, _icache_banks, 4, area, energy, false))
     perror("WARNING: Unable to find area and energy profile for specified instruction cache.\nAssuming 0\n");
@@ -612,7 +614,15 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
       else
       {
         if(fetched_instruction->op != Instruction::HALT)
-          fu_dependence++;
+	  {
+	    if(enable_profiling)
+	      {
+		pthread_mutex_lock(&profile_mutex);
+		thread->runtime = profiler->UpdateRuntime(fetched_instruction, thread->runtime, STALL_CONTENTION);
+		pthread_mutex_unlock(&profile_mutex);
+	      }
+	    fu_dependence++;
+	  }
       }
     }
   }
@@ -624,6 +634,8 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
       // All threads point to the same list of Instructions, must protect modifications to it
       pthread_mutex_lock(&profile_mutex);
       thread->GetFailInstruction(fail_reg)->data_stalls++;
+      // Data stalls are caused by an old instruction, don't reassign the runtime pointer
+      profiler->UpdateRuntime(thread->GetFailInstruction(fail_reg), thread->runtime, STALL_DATA);
       pthread_mutex_unlock(&profile_mutex);
     }
     data_dependence++;
@@ -640,6 +652,7 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
     {
       // All threads point to the same list of Instructions, must protect modifications to it
       pthread_mutex_lock(&profile_mutex);
+      thread->runtime = profiler->UpdateRuntime(fetched_instruction, thread->runtime, STALL_EXECUTE);
       fetched_instruction->executions++;
       pthread_mutex_unlock(&profile_mutex);
     }
@@ -809,6 +822,12 @@ void IssueUnit::MultipleIssueClockFall()
       else
       {
         // icache couldn't fetch
+	if(enable_profiling)
+	  {
+	    pthread_mutex_lock(&profile_mutex);
+	    thread->runtime = profiler->UpdateRuntime(thread->instructions[thread->program_counter], thread->runtime, STALL_CONTENTION);
+	    pthread_mutex_unlock(&profile_mutex);
+	  }
         iCache_conflicts++;
         instructions_stalled++;
         // unfilled_issue_slots += issued_width - num_issued;

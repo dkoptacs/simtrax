@@ -24,6 +24,7 @@
 #include "LocalStore.h"
 #include "MainMemory.h"
 #include "OBJLoader.h"
+#include "Profiler.h"
 #include "ReadConfig.h"
 #include "ReadViewfile.h"
 #include "ReadLightfile.h"
@@ -93,7 +94,9 @@ int trax_verbosity;
 // Global because many units may want use of this for better error reporting
 std::vector<std::string> source_names;
 
-void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, std::vector<std::string> srcNames, FILE* profile_output);
+void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, 
+		  std::vector<std::string> srcNames, FILE* profile_output, 
+		  Profiler profiler, long long int total_thread_cycles);
 
 void PrintElapsedTime(const char *heading, const boost::chrono::system_clock::time_point time_start) {
   boost::chrono::system_clock::time_point time_end = boost::chrono::system_clock::now();
@@ -440,6 +443,7 @@ int main(int argc, char* argv[]) {
   char *usimm_config_file               = NULL;
   char *dcache_params_file              = NULL;
   char *icache_params_file              = NULL;
+  Profiler profiler;
 
   background_color[0] = 0.561f;
   background_color[1] = 0.729f;
@@ -661,7 +665,7 @@ int main(int argc, char* argv[]) {
 
       // only one computation is needed... we'll end up with the last one after the loop
       core_size = 0;
-      TraxCore *current_core = new TraxCore(num_thread_procs, threads_per_proc, num_regs, scheduling_scheme, &instructions, L2, core_id, l2_id, run_profile);
+      TraxCore *current_core = new TraxCore(num_thread_procs, threads_per_proc, num_regs, scheduling_scheme, &instructions, L2, core_id, l2_id, run_profile, &profiler);
       config_reader.current_core = current_core;
       config_reader.LoadConfig(L2, core_size);
       current_core->modules.push_back(&globals);
@@ -859,7 +863,7 @@ int main(int argc, char* argv[]) {
 
   int jtable_size = 0;
   if(assem_file != NULL) {
-    jtable_size = Assembler::LoadAssem(assem_file, instructions, regs, num_regs, jump_table, ascii_literals, source_names, print_symbols);
+    jtable_size = Assembler::LoadAssem(assem_file, instructions, regs, num_regs, jump_table, ascii_literals, source_names, print_symbols, run_profile, &profiler);
     if(jtable_size < 0) {
       printf("assembler returned an error, exiting\n");
       exit(-1);
@@ -1018,6 +1022,13 @@ int main(int argc, char* argv[]) {
   // After reaching this point, the machine has halted.
   // Take a look and print relevant stats
   
+  // get highest cycle count
+  long long int cycle_count = 0;
+  for(size_t i = 0; i < num_cores * num_L2s; ++i) {
+    if(cores[i]->cycle_num > cycle_count) 
+      cycle_count = cores[i]->cycle_num;
+  }
+
   if(run_profile)
     {
       FILE* profile_output = fopen("profile.out", "w");      
@@ -1027,7 +1038,7 @@ int main(int argc, char* argv[]) {
 	}
       else
 	{
-	  PrintProfile(assem_file, instructions, source_names, profile_output);
+	  PrintProfile(assem_file, instructions, source_names, profile_output, profiler, cycle_count * num_cores * num_L2s * num_thread_procs);
 	  fclose(profile_output);
 	}
     }
@@ -1066,13 +1077,6 @@ int main(int argc, char* argv[]) {
       printf("System-wide instruction stats (sum/average of all cores):\n");
       cores[0]->issuer->print(num_cores * num_L2s);
       PrintUtilization(cores[0]->module_names, cores[0]->utilizations, num_cores * num_L2s);
-    }
-    
-    // get highest cycle count
-    long long int cycle_count = 0;
-    for(size_t i = 0; i < num_cores * num_L2s; ++i) {
-      if(cores[i]->cycle_num > cycle_count) 
-	cycle_count = cores[i]->cycle_num;
     }
     
     printf("System-wide L1 stats (sum of all TMs):\n");
@@ -1429,8 +1433,11 @@ void StrReplace(char* str, char old, char replace)
     }
 }
 
-void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, std::vector<std::string> srcNames, FILE* profile_output)
+void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, std::vector<std::string> srcNames, FILE* profile_output, Profiler profiler, long long int total_thread_cycles)
 {
+
+  profiler.PrintProfile(instructions, total_thread_cycles);
+
   FILE* input = fopen(assem_file, "r");
   if(!input)
     {

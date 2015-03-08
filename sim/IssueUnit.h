@@ -75,7 +75,7 @@ class IssueUnit : public HardwareModule {
   long long int* writes_register;
 
   IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor*>& _thread_procs, std::vector<FunctionalUnit*>& functional_units,
-	    int verbosity, int num_icaches, int icache_banks, int simd_width, bool _enable_profiling);
+	    int verbosity, int num_icaches, int icache_banks, int simd_width, bool _enable_profiling, Profiler* _profiler);
   ~IssueUnit();
 
   void Reset();
@@ -97,6 +97,7 @@ class IssueUnit : public HardwareModule {
 
   bool vector_stats;
   bool enable_profiling;
+  Profiler* profiler;
   size_t num_halted;
   bool halted;
   long long int halt_cycle;

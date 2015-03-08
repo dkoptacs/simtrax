@@ -182,6 +182,7 @@ ThreadState::ThreadState(SimpleRegisterFile* regs,
 
   fetched_instruction = NULL;
   issued_this_cycle = NULL;
+  runtime = NULL;
 
   register_ready = new long long int[regs->num_registers];
   writes_in_flight = new int[regs->num_registers];
