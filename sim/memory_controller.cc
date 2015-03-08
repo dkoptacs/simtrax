@@ -630,7 +630,6 @@ request_t* getReadReq(long long int physical_address)
 void updateTraxRequest(ThreadState* thread, int which_reg, long long int completion_time, unsigned result, L1Cache* L1, L2Cache* L2, int trax_addr)
 {
   
-  
   // printf("\t%u: thread id: %d, which_reg: %d, result: %u, addr: %d\n", i, thread->thread_id, 
   //	 request->trax_reqs[i].which_reg, request->trax_reqs[i].result.udata, request->trax_reqs[i].trax_addr);
   
@@ -2027,6 +2026,8 @@ void print_stats()
 				if(stats_num_read[c][r][b] > 0) 
 				  pre_cmds = pre_cmds == 0 ? 1 : pre_cmds; // if the 1 open row was never closed, need to count it
 				single_reads += total_single_col_reads[c][r][b];
+				if(current_col_reads[c][r][b] == 1) // Row may have been left in unclosed state
+				  single_reads++;
 
 				// add averages of act/read cmds
 			}

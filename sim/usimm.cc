@@ -236,7 +236,7 @@ long long int *time_done;
 long long int total_time_done;
 float core_power=0;
 
-int usimm_setup(char* config_filename)
+int usimm_setup(char* config_filename, char* usimm_vi_file)
 {
 
   printf("Initializing usimm memory module.\n");
@@ -430,7 +430,10 @@ int usimm_setup(char* config_filename)
 
   //if (NUM_CHANNELS > 4) {
   if (NUM_CHANNELS >= 4) {
-    vi_file = fopen((char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/1Gb_x16_amd2GHz.vi", "r");
+    if(usimm_vi_file != NULL)
+      vi_file = fopen(usimm_vi_file, "r");
+    else
+      vi_file = fopen((char*)REL_PATH_BIN_TO_SAMPLES"samples/configs/usimm_configs/1Gb_x16_amd2GHz.vi", "r");
     chips_per_rank= 16;
     printf("Reading vi file: 1Gb_x16_amd2GHz.vi\t\n%d Chips per Rank\n",chips_per_rank);
   }
@@ -441,6 +444,7 @@ int usimm_setup(char* config_filename)
   
   if (!vi_file) {
     printf("Missing DRAM chip parameter file.  Quitting. \n");
+    printf("Use --vi-file <path> to specify the full path to 1Gb_x16_amd2GHz.vi (should be in samples/configs/usimm_configs), or any other valid .vi file.\n");
     return -5;
   }
 
@@ -860,6 +864,17 @@ void usimmClock()
       CYCLE_VAL++;
 }
 
+bool usimmIsBusy()
+{
+  for(int channel = 0; channel < NUM_CHANNELS; channel++)
+    {
+      if(read_queue_head[channel] != NULL)
+	return true;
+      if(write_queue_head[channel] != NULL)
+	return true;
+    }
+  return false;
+}
 
 
 

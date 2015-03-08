@@ -2,6 +2,7 @@
 #include "WriteRequest.h"
 #include "SimpleRegisterFile.h"
 #include <stdlib.h>
+#include <algorithm>
 
 Instruction::Instruction(Opcode code,
                          int arg0, int arg1, int arg2,
