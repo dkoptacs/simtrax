@@ -163,6 +163,7 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       break;
 
     case Instruction::movf:
+    case Instruction::movf_s:
       // Read the register
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
       {
