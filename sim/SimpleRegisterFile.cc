@@ -136,6 +136,7 @@ bool SimpleRegisterFile::SupportsOp(Instruction::Opcode op) const
       op == Instruction::movn_s ||
       op == Instruction::movz_s ||
       op == Instruction::movt_s ||
+      op == Instruction::movf_s ||
       op == Instruction::move ||
       op == Instruction::mtc1)
     return true;
