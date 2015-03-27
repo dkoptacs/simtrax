@@ -16,7 +16,8 @@ namespace simtrax {
 class BVH : public simtrax::Primitive {
 public:
   ~BVH();
-  BVH(std::vector<simtrax::Triangle*>* triangles, int _subtree_size, bool duplicate, bool tris_store_edges, bool pack_split_axis, bool _pack_stream_boundaries);
+  BVH(std::vector<simtrax::Triangle*>* triangles, int _subtree_size, bool duplicate, 
+      bool tris_store_edges, bool pack_split_axis, bool _pack_stream_boundaries, bool _store_parent_pointers);
 
   void LoadIntoMemory(int &memory_position,
                       int max_memory,
@@ -91,6 +92,7 @@ public:
   bool triangles_store_points;
   bool store_axis;
   bool pack_stream_boundaries;
+  bool store_parent_pointers;
   
   std::vector<int> tri_orders;
 

@@ -121,7 +121,8 @@ BVH::~BVH()
   delete[] nodes;
 }
 
-BVH::BVH(std::vector<Triangle*>* _triangles, int _subtree_size, bool duplicate, bool tris_store_edges, bool pack_split_axis, bool _pack_stream_boundaries) {
+BVH::BVH(std::vector<Triangle*>* _triangles, int _subtree_size, bool duplicate, bool tris_store_edges, 
+	 bool pack_split_axis, bool _pack_stream_boundaries, bool _store_parent_pointers) {
   subtree_size = _subtree_size;
 
   // TODO: Add a separate command line option for this. For now, just use the same size as the node treelets
@@ -130,6 +131,7 @@ BVH::BVH(std::vector<Triangle*>* _triangles, int _subtree_size, bool duplicate, 
   triangles_store_points = !tris_store_edges;
   store_axis = pack_split_axis;
   pack_stream_boundaries = _pack_stream_boundaries;
+  store_parent_pointers = _store_parent_pointers;
   duplicate_BVH = duplicate;
   triangles = _triangles;
   num_tris = triangles->size();
@@ -274,7 +276,15 @@ void BVH::LoadNodes(int &memory_position,
 	  else
 	    memory[memory_position++].ivalue = nodes[i].subtree;
 	}
+      else if(store_parent_pointers)
+	{
+	  memory[start_parent_pointers + i].ivalue = nodes[i].parent;
+	}
     }
+  
+  // Move the memory pointer to accomodate parent pointers if needed
+  if(store_parent_pointers)
+    memory_position = start_parent_pointers + num_nodes;
 
   // after we've loaded all the nodes, go through and fix up the
   // memory references (in memory.. ugh)

@@ -41,10 +41,11 @@ struct LoadMemoryParams
     bool        duplicate_bvh;
     bool        triangles_store_edges;
 
-    // Subtrees
+    // Acceleration structure
     int  subtree_size;
     bool pack_split_axis;
     bool pack_stream_boundaries;
+    bool store_parent_pointers;
 
     // Data to be returned
     BVH* bvh;
@@ -81,10 +82,11 @@ struct LoadMemoryParams
         duplicate_bvh(false),
         triangles_store_edges(false),
 
-        // Subtrees
+        // Acceleration structure
         subtree_size(0),
         pack_split_axis(false),
         pack_stream_boundaries(false),
+        store_parent_pointers(false),
 
         // Data to be returned
         bvh(NULL),

@@ -147,7 +147,7 @@ void LoadMemory(LoadMemoryParams &pio)
 
       Grid* grid = NULL;
       if(pio.grid_dimensions==-1)
-        pio.bvh = new BVH( triangles, pio.subtree_size, pio.duplicate_bvh, pio.triangles_store_edges, pio.pack_split_axis, pio.pack_stream_boundaries);
+        pio.bvh = new BVH( triangles, pio.subtree_size, pio.duplicate_bvh, pio.triangles_store_edges, pio.pack_split_axis, pio.pack_stream_boundaries, pio.store_parent_pointers);
       else
         grid = new Grid(triangles, pio.triangles_store_edges, pio.grid_dimensions);
       pio.mem[21].ivalue = pio.bvh->num_nodes;

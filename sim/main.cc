@@ -373,6 +373,7 @@ void printUsage(char* program_name) {
   printf("\n");
   printf("  + Other:\n");
   printf("    --pack-split-axis         [BVH nodes will pack split axis in the 2nd byte and num_children in the 1st byte (lsB) of 6th word]\n");
+  printf("    --store-parent-pointers   [BVH parent pointers will be stored in a separate array starting at TRAX_START_PARENT_POINTERS]\n");
   printf("    --triangles-store-edges   [set flag to store 2 edge vecs in a tri instead of 2 verts -- default: off]\n");
 }
 
@@ -440,9 +441,10 @@ int main(int argc, char* argv[]) {
   bool triangles_store_edges            = false;
   int stores_between_output             = 64;
   int subtree_size                      = 0;
-  bool pack_split_axis                  = 0;
-  bool pack_stream_boundaries           = 0;
-  disable_usimm                         = 0; // globally defined for use above
+  bool pack_split_axis                  = false;
+  bool pack_stream_boundaries           = false;
+  bool store_parent_pointers            = false;
+  disable_usimm                         = false; // globally defined for use above
   wait_usimm                            = false;
   BVH* bvh;
   //Animation *animation                  = NULL;
@@ -597,6 +599,8 @@ int main(int argc, char* argv[]) {
       subtree_size = atoi(argv[++i]);
     } else if (strcmp(argv[i], "--pack-split-axis") == 0) {
       pack_split_axis = true;
+    } else if (strcmp(argv[i], "--store-parent-pointers") == 0) {
+      store_parent_pointers = true;
     } else if (strcmp(argv[i], "--pack-stream-boundaries") == 0) {
       pack_stream_boundaries = true;
     } else if (strcmp(argv[i], "--scheduling") == 0) {
@@ -824,6 +828,7 @@ int main(int argc, char* argv[]) {
       paramsForLoadMemory.triangles_store_edges     = triangles_store_edges;
       paramsForLoadMemory.pack_split_axis           = pack_split_axis;
       paramsForLoadMemory.pack_stream_boundaries    = pack_stream_boundaries;
+      paramsForLoadMemory.store_parent_pointers     = store_parent_pointers;
 
       LoadMemory(paramsForLoadMemory);
 
