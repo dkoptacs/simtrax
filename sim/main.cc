@@ -940,6 +940,7 @@ int main(int argc, char* argv[]) {
        instructions[i]->op == Instruction::mov_s ||
        instructions[i]->op == Instruction::movn_s ||
        instructions[i]->op == Instruction::movz_s ||
+       instructions[i]->op == Instruction::movz ||
        instructions[i]->op == Instruction::mtc1 ||
        instructions[i]->op == Instruction::PROF ||
        instructions[i]->op == Instruction::SETBOXPIPE ||

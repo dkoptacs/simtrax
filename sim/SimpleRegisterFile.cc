@@ -135,6 +135,7 @@ bool SimpleRegisterFile::SupportsOp(Instruction::Opcode op) const
       op == Instruction::mov_s ||
       op == Instruction::movn_s ||
       op == Instruction::movz_s ||
+      op == Instruction::movz ||
       op == Instruction::movt_s ||
       op == Instruction::movf_s ||
       op == Instruction::move ||
@@ -222,6 +223,7 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       break;
 
     case Instruction::movz_s:
+    case Instruction::movz:
       // Read the registers
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop)
           ||
