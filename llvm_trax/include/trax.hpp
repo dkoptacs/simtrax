@@ -49,6 +49,7 @@
 #define TRAX_NUM_SUBTREES          34
 #define TRAX_NUM_TMS               35
 #define TRAX_PACK_SPLIT_AXIS       38
+#define TRAX_NUM_MATLS             39
 
 
 // Some useful functions
@@ -80,6 +81,9 @@ inline int GetBVH() {
 }
 inline int GetMaterials() {
   return loadi( 0, TRAX_START_MATLS );
+}
+inline int GetNumMaterials() {
+  return loadi( 0, TRAX_NUM_MATLS );
 }
 inline int GetCamera() {
   return loadi( 0, TRAX_START_CAMERA );

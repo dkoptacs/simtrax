@@ -76,9 +76,10 @@ void LoadMemory(LoadMemoryParams &pio)
   //pio.mem[36].ivalue = start_vertex_normals;
   //pio.mem[37].ivalue = num_interior_subtrees;
   pio.mem[38].ivalue = pio.pack_split_axis;
+  // pio.mem[39] = num_materials;
   // Build the work queue (deprecated)
   // Keep the spot free for backwards compatibility
-  pio.start_wq = 39;
+  pio.start_wq = 40;
 
   // num_pixels
   pio.mem[pio.start_wq + 0].ivalue = pio.image_width * pio.image_height;
@@ -139,6 +140,8 @@ void LoadMemory(LoadMemoryParams &pio)
       for (size_t i = 0; i < matls->size(); i++) {
         matls->at(i)->LoadTextureIntoMemory(pio.start_scene, INT_MAX, pio.mem);
       }
+
+      pio.mem[39].uvalue = matls->size();
 
       //printf("Materials end at %d (0x%08x)\n", start_scene, start_scene);
 
