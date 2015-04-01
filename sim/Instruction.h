@@ -270,6 +270,7 @@ class Instruction {
     movf_s,
     mtc1,
     mul,
+    mult,
     mul_s,
     j,
     jal,

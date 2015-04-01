@@ -17,7 +17,8 @@ bool IntMul::SupportsOp(Instruction::Opcode op) const
 {
   if (op == Instruction::MUL ||
       op == Instruction::MULI ||
-      op == Instruction::mul)
+      op == Instruction::mul || 
+      op == Instruction::mult)
     return true;
   else
     return false;
@@ -28,7 +29,11 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
   if (issued_this_cycle >= width) return false;
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
-  reg_value arg1, arg2;
+  reg_value arg0, arg1, arg2;
+  // Special results for mult
+  long long int product = 0;
+  reg_value resultHI;
+  reg_value resultLO;
   Instruction::Opcode failop = Instruction::NOP;
   // Read the registers
   switch (ins.op)
@@ -57,9 +62,15 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
 
       break;
 
-    default:
-      fprintf(stderr, "ERROR IntMul FOUND SOME OTHER OP\n");
-      break;
+  case Instruction::mult:
+    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop) ||
+	!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+      printf("IntMul unit: Error in Accepting instruction. Should have passed.\n");
+    break;
+    
+  default:
+    fprintf(stderr, "ERROR IntMul FOUND SOME OTHER OP\n");
+    break;
   };
 
   // now get the result value
@@ -75,13 +86,28 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
       result.idata = arg1.idata * ins.args[2];
       break;
 
+  case Instruction::mult:
+    product = (long long int)arg0.idata * (long long int)arg1.idata;
+    resultLO.idata = product & 0xFFFFFFFF;
+    resultHI.idata = (product & 0xFFFFFFFF00000000l) >> 32;
+    break;
+
     default:
       fprintf(stderr, "ERROR IntMul FOUND SOME OTHER OP\n");
       break;
   };
 
   // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  if (ins.op == Instruction::mult)
+  {
+    if (!thread->QueueWrite(HI_REG, resultHI, write_cycle, ins.op, &ins) ||
+        !thread->QueueWrite(LO_REG, resultLO, write_cycle, ins.op, &ins))
+    {
+      // pipeline hazzard
+      return false;
+    }
+  }
+  else if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
   {
     // pipeline hazzard
     return false;
