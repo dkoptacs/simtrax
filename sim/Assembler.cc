@@ -252,7 +252,24 @@ int Assembler::HandleLine(std::string line,
   // First remove any comments 
   if(boost::regex_search(line, m, boost::regex(expComment)))
     {
-      line = line.substr(0, line.find("#"));
+      
+      if(boost::regex_search(line, m, boost::regex(expString)))
+	{
+	  int openQuote = line.find("\"");
+	  int closeQuote = openQuote + 1;
+	  while(closeQuote < line.length())
+	    {
+	      if(line[closeQuote - 1] != '\\' && line[closeQuote] == '\"')
+		break;
+	      closeQuote++;
+	    }
+	  if(line.find("#") < openQuote)
+	    line = line.substr(0, line.find("#"));
+	  else if(line.find("#", closeQuote) != std::string::npos)
+	    line = line.substr(0, line.find("#", closeQuote));
+	}
+	else
+	  line = line.substr(0, line.find("#"));
     }
 
   // Don't match anything inside strings at top level
