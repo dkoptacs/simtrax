@@ -460,6 +460,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::SETTRIPIPE:
     case Instruction::LOADPIPEGLB:
     case Instruction::LOADPIPELOC:
+    case Instruction::CLOCK:
 
     // MIPS
     case Instruction::nop:
@@ -785,6 +786,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("HALT"),
   std::string("PRINT"),
   std::string("PRINTF"),
+  std::string("CLOCK"),
   std::string("PROF"),
 
   // MIPS

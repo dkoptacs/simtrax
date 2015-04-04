@@ -1815,6 +1815,8 @@ def GETID : RI<0x20, "MOV", GPR32Opnd, simm16>;
 
 def NTHREADS : SingleOut<0x00, 0x21, "NTHREADS", GPR32Opnd, NoItinerary>;
 
+def CLOCK : SingleOut<0x00, 0x22, "CLOCK", GPR32Opnd, NoItinerary>;
+
 //===----------------------------------------------------------------------===//
 // TRaX intrinsic pattern definitions
 //===----------------------------------------------------------------------===//
@@ -1860,3 +1862,5 @@ def : Pat<(int_mips_rand), (RAND)>;
 def : Pat<(int_mips_getid imm:$imm), (GETID imm:$imm)>;
 
 def : Pat<(int_mips_nthreads), (NTHREADS)>;
+
+def : Pat<(int_mips_clock), (CLOCK)>;

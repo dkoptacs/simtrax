@@ -17,7 +17,8 @@ DebugUnit::DebugUnit(int _latency) :
 bool DebugUnit::SupportsOp(Instruction::Opcode op) const
 {
   if (op == Instruction::PRINT ||
-      op == Instruction::PRINTF)
+      op == Instruction::PRINTF ||
+      op == Instruction::CLOCK)
     return true;
   else
     return false;
@@ -29,11 +30,17 @@ bool DebugUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
     printf("\n");
   else {
     reg_value arg;
+    reg_value result;
+    int write_reg = ins.args[0];
+    long long int write_cycle = issuer->current_cycle + latency;
     Instruction::Opcode failop = Instruction::NOP;
-    if(!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg, failop))
-    {
-      printf("PRINT: failed to read register\n");
-    }
+    if(ins.op != Instruction::CLOCK) // clock doesn't read anything
+      {
+	if(!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg, failop))
+	  {
+	    printf("PRINT: failed to read register\n");
+	  }
+      }
 
     switch(ins.op)
     {
@@ -56,12 +63,23 @@ bool DebugUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       case Instruction::PRINTF:
         PrintFormatString(arg.udata, thread);
         break;
+
+    case Instruction::CLOCK:
+      result.udata = issuer->current_cycle;
+      break;
         
       default:
         printf("Error: DebugUnit executing unsupported op\n");
         exit(1);
         break;
     }
+  
+    // Write the value(s)
+    if (ins.op == Instruction::CLOCK && !thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+      {
+	// pipeline hazzard
+	return false;
+      }
   }
   return true;
 }

@@ -58,6 +58,7 @@ extern "C"
   extern void trax_printi(int value) asm("llvm.mips.printi");      // print integer
   extern void trax_printf( float value ) asm("llvm.mips.printf");  // print float (unfortunately this uses the "printf" name)
   extern void trax_printformat(const char** string_addr) asm("llvm.mips.printfmstr"); // 'equivalent' to stdio::printf
+  extern unsigned trax_clock() asm("llvm.mips.clock"); // returns the number of clock cycles passed since the beginning of simulation
   
 }
 

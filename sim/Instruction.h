@@ -222,6 +222,7 @@ class Instruction {
     HALT,        //
     PRINT,       // which_reg
     PRINTF,      // src (containing addr to format string)
+    CLOCK,
     PROF,        // kernel_id, unused, unused
     // end profiling instructions
 

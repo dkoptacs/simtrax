@@ -43,6 +43,7 @@ int loadl1( int base, int offset = 0 );
 //int loadl2( int base, int offset = 0 );
 void trax_printi(int value);
 void trax_printf( float value );
+unsigned trax_clock();
 
 
 typedef struct runrtParams_tt runrtParams_t;		// temp -> see below
