@@ -246,6 +246,7 @@ class Instruction {
     bne,
     cvt_s_w,
     c_eq_s,
+    c_ueq_s,
     c_ole_s,
     c_olt_s,
     c_ule_s,

@@ -308,6 +308,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::beq:
     case Instruction::bne:
     case Instruction::c_eq_s:
+    case Instruction::c_ueq_s:
     case Instruction::c_ole_s:
     case Instruction::c_olt_s:
     case Instruction::c_ule_s:
@@ -809,6 +810,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("bne"),
   std::string("cvt_s_w"),
   std::string("c_eq_s"),
+  std::string("c_ueq_s"),
   std::string("c_ole_s"),
   std::string("c_olt_s"),
   std::string("c_ule_s"),

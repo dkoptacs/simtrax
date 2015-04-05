@@ -29,6 +29,7 @@ bool FPCompare::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::LT ||
       op == Instruction::LE ||
       op == Instruction::c_eq_s ||
+      op == Instruction::c_ueq_s ||
       op == Instruction::c_ole_s ||
       op == Instruction::c_olt_s ||
       op == Instruction::c_ule_s ||
@@ -59,6 +60,7 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   }
 
   else if (ins.op == Instruction::c_eq_s ||
+	   ins.op == Instruction::c_ueq_s ||
            ins.op == Instruction::c_ole_s ||
            ins.op == Instruction::c_olt_s ||
            ins.op == Instruction::c_ule_s ||
@@ -90,6 +92,15 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
     case Instruction::c_eq_s:
       if (isnan(arg0.fdata) || isnan(arg1.fdata))
         thread->compare_register = 0;
+      else if (arg0.fdata == arg1.fdata)
+        thread->compare_register = 1;
+      else
+        thread->compare_register = 0;
+      break;
+
+    case Instruction::c_ueq_s:
+      if (isnan(arg0.fdata) || isnan(arg1.fdata))
+        thread->compare_register = 1;
       else if (arg0.fdata == arg1.fdata)
         thread->compare_register = 1;
       else
