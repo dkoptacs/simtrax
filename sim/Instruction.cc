@@ -202,6 +202,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::ANDI:
     case Instruction::ORI:
     case Instruction::XORI:
+    case Instruction::xori:
     case Instruction::MULI:
     case Instruction::RSUBI:
     case Instruction::LWI:
@@ -722,6 +723,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("ANDI"), //
   std::string("ORI"), //
   std::string("XORI"), //
+  std::string("xori"), //
   std::string("MULI"), //
   // local read/writes
   std::string("LW"), //

@@ -157,6 +157,7 @@ class Instruction {
     ANDI,
     ORI,
     XORI,
+    xori,
     MULI,
     // local read/writes
     LW,          // dst, addr(reg), offset(reg)

@@ -47,7 +47,8 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const
       op == Instruction::srav ||
       op == Instruction::srlv ||
       op == Instruction::sllv ||
-      op == Instruction::xor_m
+      op == Instruction::xor_m ||
+      op == Instruction::xori
       )
     return true;
   else
@@ -106,6 +107,7 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::bsrai:
     case Instruction::ORI:
     case Instruction::XORI:
+    case Instruction::xori:
     case Instruction::ANDI:
     case Instruction::ANDNI:
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
@@ -169,6 +171,7 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       break;
 
     case Instruction::XORI:
+    case Instruction::xori:
       result.udata = arg1.udata ^ ins.args[2];
       break;
 
