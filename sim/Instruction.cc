@@ -316,6 +316,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::c_ult_s:
     case Instruction::div:
     case Instruction::mult:
+    case Instruction::multu:
     case Instruction::teq:
       // check args[0] and args[1] for read
       if (register_ready[args[0]] <= cur_cycle)
@@ -839,6 +840,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("mtc1"),
   std::string("mul"),
   std::string("mult"),
+  std::string("multu"),
   std::string("mul_s"),
   std::string("j"),
   std::string("jal"),

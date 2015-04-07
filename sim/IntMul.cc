@@ -18,7 +18,8 @@ bool IntMul::SupportsOp(Instruction::Opcode op) const
   if (op == Instruction::MUL ||
       op == Instruction::MULI ||
       op == Instruction::mul || 
-      op == Instruction::mult)
+      op == Instruction::mult ||
+      op == Instruction::multu)
     return true;
   else
     return false;
@@ -30,8 +31,9 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
   reg_value arg0, arg1, arg2;
-  // Special results for mult
+  // Special results for mult, multu
   long long int product = 0;
+  unsigned long long uproduct = 0;
   reg_value resultHI;
   reg_value resultLO;
   Instruction::Opcode failop = Instruction::NOP;
@@ -63,6 +65,7 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
       break;
 
   case Instruction::mult:
+  case Instruction::multu:
     if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop) ||
 	!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
       printf("IntMul unit: Error in Accepting instruction. Should have passed.\n");
@@ -92,13 +95,19 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
     resultHI.idata = (product & 0xFFFFFFFF00000000l) >> 32;
     break;
 
+  case Instruction::multu:
+    uproduct = (unsigned long long)arg0.udata * (unsigned long long)arg1.udata;
+    resultLO.udata = uproduct & 0xFFFFFFFF;
+    resultHI.udata = (uproduct & 0xFFFFFFFF00000000l) >> 32;
+    break;
+
     default:
       fprintf(stderr, "ERROR IntMul FOUND SOME OTHER OP\n");
       break;
   };
 
   // Write the value
-  if (ins.op == Instruction::mult)
+  if (ins.op == Instruction::mult || ins.op == Instruction::multu)
   {
     if (!thread->QueueWrite(HI_REG, resultHI, write_cycle, ins.op, &ins) ||
         !thread->QueueWrite(LO_REG, resultLO, write_cycle, ins.op, &ins))

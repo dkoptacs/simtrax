@@ -274,6 +274,7 @@ class Instruction {
     mtc1,
     mul,
     mult,
+    multu,
     mul_s,
     j,
     jal,
