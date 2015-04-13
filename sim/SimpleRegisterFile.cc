@@ -13,7 +13,13 @@ SimpleRegisterFile::SimpleRegisterFile(int num_regs, int _thread_id) :
   area = 0.0147665;
   energy = 0.00789613;
 
-  fdata = new float[num_regs];
+  // Keep 4 words per register.
+  // This facilitates mixed 32/128-bit modes
+  // 128-bit registers are mapped on to 32-bit register names, so
+  // all control logic will assume only num_regs exist, and will operate on the 32-bit registers.
+  // Extra words only used in MSA instructions
+  fdata = new float[num_regs * 4];
+
   buffer = NULL;
   
   // this should be the actual thread id
@@ -93,6 +99,17 @@ void SimpleRegisterFile::WriteInt(int which_reg, int value, long long int which_
   idata[which_reg] = value;
 }
 
+void SimpleRegisterFile::WriteIntMSA(int which_reg, int value, long long int which_cycle)
+{
+  if (buffer)
+  {
+    //RegisterTrace temp = {which_cycle, RegisterTrace::Write, which_reg, thread_id};
+    //buffer->AddItem(temp);
+  }
+  assert (which_reg >= 0 && which_reg < num_registers * 4);
+  idata[which_reg] = value;
+}
+
 void SimpleRegisterFile::WriteUint(int which_reg, unsigned int value, long long int which_cycle)
 {
   if (buffer)
@@ -139,7 +156,13 @@ bool SimpleRegisterFile::SupportsOp(Instruction::Opcode op) const
       op == Instruction::movt_s ||
       op == Instruction::movf_s ||
       op == Instruction::move ||
-      op == Instruction::mtc1)
+      op == Instruction::mtc1 ||
+      // msa vector ops
+      op == Instruction::fill_w || 
+      op == Instruction::splati_w || 
+      op == Instruction::ldi_b || 
+      op == Instruction::insve_w ||
+      op == Instruction::move_v) 
     return true;
 
   return false;
@@ -154,7 +177,7 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
 
   // now get the result value
   reg_value result;
-  reg_value arg1, arg2;
+  reg_value arg0, arg1, arg2;
   Instruction::Opcode failop = Instruction::NOP;
 
   switch (ins.op)
@@ -163,6 +186,57 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
     case Instruction::lui:
       result.udata = ins.args[1] << 16;
       break;
+
+    case Instruction::fill_w:
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, true))
+	{
+	  // bad stuff happened
+	  printf("SimpleRegisterFile unit: Error with MSA fill_w.\n");
+	}
+      result.udata = arg1.udata;
+      result.udataMSA[0] = arg1.udata;
+      result.udataMSA[1] = arg1.udata;
+      result.udataMSA[2] = arg1.udata;
+      break;
+
+    case Instruction::splati_w:
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, true) ||
+	  ins.args[2] < 0 || ins.args[2] > 3)
+	{
+	  // bad stuff happened
+	  printf("SimpleRegisterFile unit: Error with MSA splati_w.\n");
+	}
+      if(ins.args[2] == 0)
+	result.udata = arg1.udata;
+      else
+	result.udata = arg1.udataMSA[ins.args[2] - 1];
+      result.udataMSA[0] = result.udata;
+      result.udataMSA[1] = result.udata;
+      result.udataMSA[2] = result.udata;
+      break;
+
+  case Instruction::insve_w:
+    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop, true) ||
+	!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop, true) || 
+	ins.args[1] < 0 || ins.args[3] > 3)
+      {
+	// bad stuff happened
+	printf("SimpleRegisterFile unit: Error with MSA insve_w.\n");
+      }
+
+    // Have to read the old contents of the register to avoid changing the 3 words that aren't involved.
+    // Can't just leave it alone because we have to do a full MSA write to the register since the word we 
+    // want can be any one of them.
+    result.udata = arg0.udata;
+    result.udataMSA[0] = arg0.udataMSA[0];
+    result.udataMSA[1] = arg0.udataMSA[1];
+    result.udataMSA[2] = arg0.udataMSA[2];
+    // Now change the word we want to move from arg2[0]
+    if(ins.args[1] == 0)
+      result.udata = arg2.udata;
+    else
+      result.udataMSA[ins.args[1] - 1] = arg2.udata;
+    break;
 
     case Instruction::movf:
     case Instruction::movf_s:
@@ -324,9 +398,29 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       result.udata = arg1.udata;
       break;
 
+    case Instruction::move_v:
+      // Read the register
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, true))
+      {
+        // bad stuff happened
+        printf("SimpleRegisterFile unit: Error in Accepting instruction. Should have passed.\n");
+      }
+      result.udata = arg1.udata;
+      result.udataMSA[0] = arg1.udataMSA[0];
+      result.udataMSA[1] = arg1.udataMSA[1];
+      result.udataMSA[2] = arg1.udataMSA[2];
+      break;
+
     case Instruction::LOADIMM:
       result.idata = ins.args[1];
       break;
+
+  case Instruction::ldi_b:
+    result.udata = (((unsigned)ins.args[1]) & 0x000000FF);
+    result.udataMSA[0] = result.udata;
+    result.udataMSA[1] = result.udata;
+    result.udataMSA[2] = result.udata;
+    break;
 
     case Instruction::MOVINDRD:
       // indirect move
@@ -361,12 +455,17 @@ bool SimpleRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       break;
 
     default:
-      fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
+      fprintf(stderr, "ERROR SimpleRegisterFile FOUND SOME OTHER OP\n");
       break;
   };
 
   // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  bool isMSA = (ins.op == Instruction::fill_w || 
+		ins.op == Instruction::splati_w ||
+		ins.op == Instruction::ldi_b ||
+		ins.op == Instruction::insve_w ||
+		ins.op == Instruction::move_v);
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins, isMSA))
   {
     // pipeline hazzard
     return false;

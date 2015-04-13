@@ -4,7 +4,7 @@
 
 echo Setting up llvm-trax workspace
 
-NUM_CORES=3
+NUM_CORES=4
 
 PWD=`pwd`
 #http://llvm.org/releases/3.5.0/clang+llvm-3.5.0-macosx-apple-darwin.tar.xz
@@ -49,7 +49,7 @@ cp Trax/IntrinsicsMips.td llvm-3.5.0.src/include/llvm/IR/IntrinsicsMips.td
 cp Trax/MipsInstrFormats.td llvm-3.5.0.src/lib/Target/Mips/MipsInstrFormats.td
 cp Trax/MipsSchedule.td llvm-3.5.0.src/lib/Target/Mips/MipsSchedule.td
 cp Trax/MipsInstrInfo.td llvm-3.5.0.src/lib/Target/Mips/MipsInstrInfo.td
-
+cp Trax/MipsSubtarget.cpp llvm-3.5.0.src/lib/Target/Mips/MipsSubtarget.cpp
 
 mkdir build
 cd build

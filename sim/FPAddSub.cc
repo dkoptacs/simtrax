@@ -26,7 +26,8 @@ bool FPAddSub::SupportsOp(Instruction::Opcode op) const
       op == Instruction::COS ||
       op == Instruction::SIN ||
       op == Instruction::add_s ||
-      op == Instruction::sub_s)
+      op == Instruction::sub_s ||
+      op == Instruction::fadd_w)
     return true;
   else
     return false;
@@ -41,9 +42,11 @@ bool FPAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadStat
   long long int write_cycle = issuer->current_cycle + latency;
   Instruction::Opcode failop = Instruction::NOP;
 
+  bool isMSA = ins.op == Instruction::fadd_w;
+
   // Read the registers
-  if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
-      !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
+  if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
+      !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop, isMSA))
   {
     // bad stuff happened
     printf("Error in FPAddSub. Should have passed.\n");
@@ -62,6 +65,13 @@ bool FPAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadStat
     case Instruction::FPSUB:
       result.fdata = arg1.fdata - arg2.fdata;
       break;
+
+  case Instruction::fadd_w:
+    result.fdata = arg1.fdata + arg2.fdata;
+    result.fdataMSA[0] = arg1.fdataMSA[0] + arg2.fdataMSA[0];
+    result.fdataMSA[1] = arg1.fdataMSA[1] + arg2.fdataMSA[1];
+    result.fdataMSA[2] = arg1.fdataMSA[2] + arg2.fdataMSA[2];
+    break;
 
     case Instruction::FPRSUB:
       result.fdata = arg2.fdata - arg1.fdata;
@@ -85,7 +95,7 @@ bool FPAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadStat
   };
 
   // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins, isMSA))
   {
     // pipeline hazzard
     return false;

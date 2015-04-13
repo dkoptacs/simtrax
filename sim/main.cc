@@ -942,6 +942,11 @@ int main(int argc, char* argv[]) {
        instructions[i]->op == Instruction::movz_s ||
        instructions[i]->op == Instruction::movz ||
        instructions[i]->op == Instruction::mtc1 ||
+       instructions[i]->op == Instruction::fill_w ||
+       instructions[i]->op == Instruction::splati_w ||
+       instructions[i]->op == Instruction::ldi_b ||
+       instructions[i]->op == Instruction::insve_w ||
+       instructions[i]->op == Instruction::move_v ||
        instructions[i]->op == Instruction::PROF ||
        instructions[i]->op == Instruction::SETBOXPIPE ||
        instructions[i]->op == Instruction::SETTRIPIPE ||

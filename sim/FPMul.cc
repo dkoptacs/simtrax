@@ -15,7 +15,8 @@ FPMul::FPMul(int _latency, int _width) :
 // From FunctionalUnit
 bool FPMul::SupportsOp(Instruction::Opcode op) const
 {
-  if (op == Instruction::FPMUL || op == Instruction::mul_s)
+  if (op == Instruction::FPMUL || op == Instruction::mul_s ||
+      op == Instruction::fmul_w)
     return true;
   else
     return false;
@@ -30,9 +31,11 @@ bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
   long long int write_cycle = issuer->current_cycle + latency;
   Instruction::Opcode failop = Instruction::NOP;
 
+  bool isMSA = ins.op == Instruction::fmul_w;
+
   // Read the registers
-  if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
-      !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
+  if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
+      !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop, isMSA))
   {
     // bad stuff happened
     printf("FPMul unit: Error in Accepting instruction. Should have passed.\n");
@@ -47,13 +50,21 @@ bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
       result.fdata = arg1.fdata * arg2.fdata;
       break;
 
+  case Instruction::fmul_w:
+    result.fdata = arg1.fdata * arg2.fdata;
+    result.fdataMSA[0] = arg1.fdataMSA[0] * arg2.fdataMSA[0];
+    result.fdataMSA[1] = arg1.fdataMSA[1] * arg2.fdataMSA[1];
+    result.fdataMSA[2] = arg1.fdataMSA[2] * arg2.fdataMSA[2];
+    break;
+
+
     default:
       fprintf(stderr, "ERROR FPMul FOUND SOME OTHER OP\n");
       break;
   };
 
   // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins)) {
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins, isMSA)) {
     // pipeline hazard
     return false;
   }

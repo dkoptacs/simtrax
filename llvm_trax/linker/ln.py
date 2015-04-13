@@ -138,6 +138,14 @@ def main():
         sys.stdout.write('\tjr $ra\n')
         sys.stdout.write('\tnop\n')
 
+    # Add a label for __stack_chk_guard, which contains 0
+    # Simulator checks for stack safety on its own
+    sys.stdout.write('__stack_chk_guard:\n')
+    sys.stdout.write('.4byte 0\n')
+    sys.stdout.write('__stack_chk_fail:\n')
+    sys.stdout.write('jr $ra\n')
+    sys.stdout.write('nop\n')
+
     # Add a label for TRaX initialization 
     sys.stdout.write('.TRaX_INIT:\n')
     sys.stdout.write('# .TRaX_INIT instructions are not emmited by compiler, but added by assembler\n')

@@ -58,7 +58,11 @@ bool LocalStore::SupportsOp(Instruction::Opcode op) const
       op == Instruction::swl ||
       op == Instruction::swr ||
       op == Instruction::lwc1 ||
-      op == Instruction::swc1)
+      op == Instruction::swc1 || 
+      op == Instruction::ld_w || 
+      op == Instruction::st_w ||
+      op == Instruction::ld_b || 
+      op == Instruction::st_b)
     return true;
   else
     return false;
@@ -71,6 +75,7 @@ bool LocalStore::IssueLoad(int write_reg, int address, ThreadState* thread, Issu
                            long long int write_cycle, Instruction& ins)
 {
   reg_value result;
+  bool isMSA = (ins.op == Instruction::ld_w || ins.op == Instruction::ld_b);
   if (address < 0 || address > LOCAL_SIZE)
   {
     printf("Error Issuing load in LocalStore. 0x%8x not in [0x%8x, 0x%8x].\n", address, 0, LOCAL_SIZE);
@@ -99,6 +104,16 @@ bool LocalStore::IssueLoad(int write_reg, int address, ThreadState* thread, Issu
   else {
     result.udata = ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue;
   }
+  
+
+  // Load remaining vector elements (first word already loaded above)
+  // Vector laod_w and _b load the same amount of data
+  if(ins.op == Instruction::ld_w || ins.op == Instruction::ld_b)
+    {
+      result.udataMSA[0] = ((FourByte *)((char *)(storage[thread->thread_id]) + address + 4))->uvalue;
+      result.udataMSA[1] = ((FourByte *)((char *)(storage[thread->thread_id]) + address + 8))->uvalue;
+      result.udataMSA[2] = ((FourByte *)((char *)(storage[thread->thread_id]) + address + 12))->uvalue;
+    }
 
   // Sign extend/mask
   if(ins.op == Instruction::lb)
@@ -113,7 +128,7 @@ bool LocalStore::IssueLoad(int write_reg, int address, ThreadState* thread, Issu
   if(ins.op == Instruction::lwr)
     result = LoadWordRight(thread, address, write_reg, issuer->current_cycle);
 
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins, isMSA))
   {
     // pipeline hazzard
     return false;
@@ -176,6 +191,14 @@ bool LocalStore::IssueStore(reg_value write_val, int address, ThreadState* threa
     ((FourByte *)((char *)(storage[thread->thread_id]) + address))->uvalue = write_val.udata;
   }
 
+  // Store remaining vector elements (first word already stored above)
+  if(ins.op == Instruction::st_w || ins.op == Instruction::st_b)
+    {
+      ((FourByte *)((char *)(storage[thread->thread_id]) + address + 4))->uvalue = write_val.udataMSA[0];
+      ((FourByte *)((char *)(storage[thread->thread_id]) + address + 8))->uvalue = write_val.udataMSA[1];
+      ((FourByte *)((char *)(storage[thread->thread_id]) + address + 12))->uvalue = write_val.udataMSA[2];
+    }
+
   return true;
 }
 
@@ -188,6 +211,9 @@ bool LocalStore::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
   Instruction::Opcode failop;
   long long int write_cycle = issuer->current_cycle + latency;
   
+  bool isMSA = (ins.op == Instruction::ld_w || ins.op == Instruction::st_w ||
+		ins.op == Instruction::ld_b || ins.op == Instruction::st_b);
+
   switch (ins.op) 
   {      
     case Instruction::lb:
@@ -198,6 +224,8 @@ bool LocalStore::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
     case Instruction::lwl:
     case Instruction::lwr:
     case Instruction::lwc1:
+    case Instruction::ld_w:
+    case Instruction::ld_b:
       if (!thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
       {
         // something bad
@@ -217,7 +245,9 @@ bool LocalStore::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSt
     case Instruction::sw:
     case Instruction::swl:
     case Instruction::swr:
-      if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop))
+    case Instruction::st_w:
+    case Instruction::st_b:
+      if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop, isMSA))
       {
         // something bad
         printf("Error in LocalStore.\n");

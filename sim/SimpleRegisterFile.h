@@ -39,6 +39,7 @@ class SimpleRegisterFile : public FunctionalUnit {
   void ReadForwarded(int which_reg, long long int which_cycle) const;
 
   void WriteInt(int which_reg, int value, long long int which_cycle);
+  void WriteIntMSA(int which_reg, int value, long long int which_cycle);
   void WriteUint(int which_reg, unsigned int value, long long int which_cycle);
   void WriteFloat(int which_reg, float value, long long int which_cycle);
 
@@ -66,10 +67,26 @@ class SimpleRegisterFile : public FunctionalUnit {
   int width;
 };
 
-union reg_value {
+struct reg_value {
+  union{
   int idata;
   unsigned int udata;
   float fdata;
+  };
+  union{ // For MSA instructions (3 extra words)
+    int idataMSA[3];
+    unsigned int udataMSA[3];
+    float fdataMSA[3];
+  };
 };
+
+// For MSA instructions
+/*
+union reg128_value {
+  int idata[4];
+  unsigned int udata[4];
+  float fdata[4];
+};
+*/
 
 #endif // _SIMHWRT_SIMPLE_REGISTER_FILE_H_

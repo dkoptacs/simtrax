@@ -5,13 +5,14 @@
 #include <algorithm>
 
 Instruction::Instruction(Opcode code,
-                         int arg0, int arg1, int arg2,
+                         int arg0, int arg1, int arg2, int arg3,
                          int pc_addr)
 {
   op = code;
   args[0] = arg0;
   args[1] = arg1;
   args[2] = arg2;
+  args[3] = arg3;
   pc_address = pc_addr;
   id = 0;
   depends[0] = depends[1] = -1;
@@ -25,7 +26,7 @@ Instruction::Instruction(Opcode code,
 }
 
 Instruction::Instruction(Opcode code,
-                         int arg0, int arg1, int arg2,
+                         int arg0, int arg1, int arg2, int arg3,
                          SourceInfo _srcInfo,
                          int pc_addr)
 {
@@ -33,6 +34,7 @@ Instruction::Instruction(Opcode code,
   args[0] = arg0;
   args[1] = arg1;
   args[2] = arg2;
+  args[3] = arg3;
   pc_address = pc_addr;
   id = 0;
   depends[0] = depends[1] = -1;
@@ -46,7 +48,7 @@ Instruction::Instruction(const Instruction& ins)
 {
   op = ins.op;
 
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < 4; i++)
     args[i] = ins.args[i];
 
   id = ins.id;
@@ -87,6 +89,8 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::lhu:
     case Instruction::lw:
     case Instruction::lwc1:
+    case Instruction::ld_w:
+    case Instruction::ld_b:
     case Instruction::FTOD:
       // check args[2] and choose the first fail_reg if there is a fail.
 
@@ -160,6 +164,9 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::sllv:
     case Instruction::srav:
     case Instruction::srlv:
+    case Instruction::lsa:
+    case Instruction::fmul_w:
+    case Instruction::fadd_w:
 
       // check args[1] and args[2] and choose the first fail_reg if there is a fail.
       if ( (register_ready[args[1]] <= cur_cycle) )
@@ -229,6 +236,9 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::sra_m:
     case Instruction::srl_m:
     case Instruction::trunc_w_s:
+    case Instruction::fill_w:
+    case Instruction::splati_w:
+    case Instruction::move_v:
 
       // check args[1] and select it if it fails
       if ( register_ready[args[1]] <= cur_cycle )
@@ -338,6 +348,9 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::swr:
     case Instruction::sb:
     case Instruction::sh:
+    case Instruction::st_w:
+    case Instruction::st_b:
+    case Instruction::insve_w:
       // check args[0] and args[2] for read
       if (register_ready[args[0]] <= cur_cycle)
         if (register_ready[args[2]] <= cur_cycle)
@@ -473,6 +486,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::j:
     case Instruction::jal:
     case Instruction::lui:
+    case Instruction::ldi_b:
       return true;
       break;
 
@@ -490,10 +504,10 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
 
 void Instruction::print()
 {
-  printf("%d: %s %d %d %d",
+  printf("%d: %s %d %d %d %d",
          pc_address,
          Instruction::Opnames[op].c_str(),
-         args[0], args[1], args[2]);
+         args[0], args[1], args[2], args[3]);
 }
 
 InstructionRecord::InstructionRecord(Instruction& ins,
@@ -869,5 +883,19 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("teq"),
   std::string("trunc_w_s"),
   std::string("xor_m"),
+  // MSA instructions
+  std::string("fill_w"), 
+  std::string("lsa"),
+  std::string("splati_w"),
+  std::string("fmul_w"), 
+  std::string("fadd_w"),
+  std::string("ld_w"),
+  std::string("st_w"),
+  std::string("ld_b"),
+  std::string("st_b"),
+  std::string("ldi_b"),
+  std::string("insve_w"),
+  std::string("move_v"),
+
   // End MIPS
 };

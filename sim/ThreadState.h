@@ -24,6 +24,7 @@ class WriteQueue {
   void pop();
   bool empty();
   bool update(ThreadState* thread, int which_reg, long long int which_cycle, unsigned int val, long long new_cycle, unsigned int new_val, Instruction::Opcode new_op, Instruction* new_instr);
+  bool updateMSA(ThreadState* thread, int which_reg, long long int which_cycle, reg_value val, long long new_cycle, reg_value new_val, Instruction::Opcode new_op, Instruction* new_instr);
   bool CycleUsed(long long int cycle);
   Instruction::Opcode GetOp(int which_reg);
   Instruction* GetInstruction(int which_reg);
@@ -59,7 +60,7 @@ public:
   //WriteRequest* RequestWrite(int which_reg, long long int ready_cycle, Instruction::Opcode op);
   // end deprecated
 
-  bool ReadRegister(int which_reg, long long int which_cycle, reg_value &val, Instruction::Opcode &op);
+  bool ReadRegister(int which_reg, long long int which_cycle, reg_value &val, Instruction::Opcode &op, bool isMSA = false);
 
   void ApplyWrites(long long int cur_cycle);
 
@@ -69,7 +70,7 @@ public:
   std::vector<Instruction*> instructions;
 
   // Begin new write queue stuff
-  bool QueueWrite(int which_reg, reg_value val, long long int which_cycle, Instruction::Opcode op, Instruction* instr);
+  bool QueueWrite(int which_reg, reg_value val, long long int which_cycle, Instruction::Opcode op, Instruction* instr, bool isMSA = false);
   Instruction::Opcode GetFailOp(int which_reg);
   Instruction* GetFailInstruction(int which_reg);
 

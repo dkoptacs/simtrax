@@ -303,6 +303,19 @@ class Instruction {
     teq,
     trunc_w_s,
     xor_m,
+    // MSA instructions
+    fill_w,
+    lsa,
+    splati_w,
+    fmul_w,
+    fadd_w,
+    ld_w,
+    st_w,
+    ld_b,
+    st_b,
+    ldi_b,
+    insve_w,
+    move_v,
     // End MIPS
 
     NUM_OPS
@@ -310,8 +323,8 @@ class Instruction {
 
   static std::string Opnames[NUM_OPS];
 
-  Instruction(Opcode code, int arg0, int arg1, int arg2, int pc_addr = 0);
-  Instruction(Opcode code, int arg0, int arg1, int arg2, SourceInfo _srcInfo,
+  Instruction(Opcode code, int arg0, int arg1, int arg2, int arg3, int pc_addr = 0);
+  Instruction(Opcode code, int arg0, int arg1, int arg2, int arg3, SourceInfo _srcInfo,
               int pc_addr = 0);
   Instruction(const Instruction& ins);
 
@@ -320,7 +333,7 @@ class Instruction {
   bool ReadyToIssue(long long int* register_ready, int* fail_reg, long long int cur_cycle) const;
   void print();
   Opcode op;
-  int args[3];
+  int args[4];
 
   // For profiling/debugging
   // Keep track of performance data

@@ -84,7 +84,35 @@ bool WriteQueue::update(ThreadState* thread, int which_reg, long long int which_
   
   // If we can't find the write request to be updated, that means it was squashed by a more relevant one
   return false;
+}
+
+bool WriteQueue::updateMSA(ThreadState* thread, int which_reg, long long int which_cycle, reg_value val, long long new_cycle, reg_value new_val, Instruction::Opcode new_op, Instruction* new_instr)
+{
+  int num = size();
+
+  for(int i = 0; i < num; ++i) 
+    {
+      if (requests[(tail+i)%N].which_reg == which_reg &&
+	  requests[(tail+i)%N].ready_cycle == which_cycle &&
+	  requests[(tail+i)%N].udata == val.udata)
+	{
+
+	  requests[(tail+i)%N].ready_cycle = new_cycle;
+	  requests[(tail+i)%N].udata = new_val.udata;
+	  requests[(tail+i)%N].udataMSA[0] = new_val.udataMSA[0];
+	  requests[(tail+i)%N].udataMSA[1] = new_val.udataMSA[1];
+	  requests[(tail+i)%N].udataMSA[2] = new_val.udataMSA[2];
+	  requests[(tail+i)%N].op = new_op;
+	  // If this function was called by UpdateWriteCycle, then we don't change the instruction
+	  if(new_instr != NULL)
+	    requests[(tail+i)%N].instr = new_instr;
+	  thread->register_ready[which_reg] = new_cycle;
+	  return true;
+	}
+    }
   
+  // If we can't find the write request to be updated, that means it was squashed by a more relevant one
+  return false;
 }
 
 bool WriteQueue::CycleUsed(long long int cycle) {
@@ -214,11 +242,8 @@ ThreadState::~ThreadState(){
   delete registers;
 }
 
-bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_cycle, Instruction::Opcode op, Instruction* instr) {
+bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_cycle, Instruction::Opcode op, Instruction* instr, bool isMSA) {
   // check to make sure we can write on the cycle
-//   printf("Queuing write to reg: %d with val: %d on cycle: %lld from op: %s\n", which_reg, val.idata, which_cycle,
-//   Instruction::Opnames[op].c_str());
-  //  write_requests.print();
 
   // If there is already a write in flight to this register, either 
   // -The compiler generated a useless instruction, squash the old one
@@ -232,7 +257,8 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
       // Get the old enqueued result
       write_requests.ReadyBy(which_reg, UNKNOWN_LATENCY, old_ready, old_val, temp);
       // This should never fail
-      if(!write_requests.update(this, which_reg, old_ready, old_val.udata, which_cycle, val.udata, op, instr))
+      if((!isMSA && !write_requests.update(this, which_reg, old_ready, old_val.udata, which_cycle, val.udata, op, instr)) ||
+	 (isMSA && !write_requests.updateMSA(this, which_reg, old_ready, old_val, which_cycle, val, op, instr)))
 	{
 	  printf("Error: found old write request but could not update it(1)\n");
 	  exit(1);
@@ -240,21 +266,23 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
       return true;
     }
 
-
-  //if (which_cycle == UNKNOWN_LATENCY || !write_requests.CycleUsed(which_cycle)) 
-  //{
   WriteRequest* new_write = write_requests.push(which_cycle);
   new_write->which_reg = which_reg;
   new_write->idata = val.idata;
   new_write->op = op;
   new_write->instr = instr;
+  if(isMSA)
+    {
+      new_write->isMSA = true;
+      new_write->idataMSA[0] = val.idataMSA[0];
+      new_write->idataMSA[1] = val.idataMSA[1];
+      new_write->idataMSA[2] = val.idataMSA[2];
+    }
   writes_in_flight[which_reg]++;
-  //printf("%d writes in flight.\n",writes_in_flight[which_reg]);
   register_ready[which_reg] = which_cycle;
   return true;
-  //}
-  //return false;
 }
+
 
 void ThreadState::UpdateWriteCycle(int which_reg, long long int which_cycle, unsigned int val, long long int new_cycle, Instruction::Opcode op)
 {
@@ -271,17 +299,9 @@ Instruction* ThreadState::GetFailInstruction(int which_reg) {
   return write_requests.GetInstruction(which_reg);
 }
 
-bool ThreadState::ReadRegister(int which_reg, long long int which_cycle, reg_value& val, Instruction::Opcode &op) {
-  //printf("which reg = %d\n", which_reg);
-  //write_requests.print();
-  //printf("writes_in_flight[33] = %d\n", writes_in_flight[33]);
-  // attempts to read the given register by the given cycle, if it fails return the op it's stalled on
-  // check if register is being written
-  //printf("Reading reg %d, on cycle: %lld, %d writes in flight\n", which_reg, which_cycle, writes_in_flight[which_reg]);
-  //printf("Write queue size: %d\n", write_requests.size());
+// Check if a register can be read, and return its value.
+bool ThreadState::ReadRegister(int which_reg, long long int which_cycle, reg_value& val, Instruction::Opcode &op, bool isMSA) {
 
-  //printf("reading register %d", which_reg);
-  //printf("\tin flight = %d\n", writes_in_flight[which_reg]);
 
   if (writes_in_flight[which_reg] > 0) {
     // check if register forwarding is possible
@@ -291,17 +311,21 @@ bool ThreadState::ReadRegister(int which_reg, long long int which_cycle, reg_val
       // report forwarding
       registers->ReadForwarded(which_reg, which_cycle);
     }
-    //write_requests.print();
-    //printf("\tReadyBy returning %d, %d\n", val.idata, retval);
-    //printf("\tReadRegister returning %d\n", retval);
+
     return retval;
   }
   else {
-    //if (which_reg == 35) printf("Reg 35 being read.");
     // not being written, read the value and return true
-    //printf("2ReadRegister returning %d, true\n", registers->idata[which_reg]);
     val.idata = registers->idata[which_reg];
-    //printf("\tReadRegister returning true\n");
+    if(isMSA)
+      {
+	// 128-bit (4x32) version of ReadRegister. Since the 128-bit registers are mapped to the 32-bit registers, we use the same 
+	// control logic for the 32-bit register to determine if it's ready to be read, then simply read the other three 32-bit words.
+	// 128-bit registers are never read two different 32-words at a time
+	val.idataMSA[0] = registers->idata[which_reg + (registers->num_registers * 1)];
+	val.idataMSA[1] = registers->idata[which_reg + (registers->num_registers * 2)];
+	val.idataMSA[2] = registers->idata[which_reg + (registers->num_registers * 3)];
+      }
     return true;
   }
 }
@@ -309,20 +333,21 @@ bool ThreadState::ReadRegister(int which_reg, long long int which_cycle, reg_val
 void ThreadState::ApplyWrites(long long int cur_cycle) {
 
   WriteRequest* request = write_requests.front();
-  //printf("Write queue size: %d\n", write_requests.size());
   while(!write_requests.empty() && request->IsReady(cur_cycle)) {
     registers->WriteInt(request->which_reg, request->idata, request->ready_cycle);
+    if(request->isMSA)
+      {
+	registers->WriteIntMSA(request->which_reg + (registers->num_registers * 1), request->idataMSA[0], request->ready_cycle);
+	registers->WriteIntMSA(request->which_reg + (registers->num_registers * 2), request->idataMSA[1], request->ready_cycle);
+	registers->WriteIntMSA(request->which_reg + (registers->num_registers * 3), request->idataMSA[2], request->ready_cycle);
+      }
     writes_in_flight[request->which_reg]--;
-    //printf("%d writes in flight.\n",writes_in_flight[request->which_reg]);
     write_requests.pop();
     request = write_requests.front();
   }
 }
 
 void ThreadState::CompleteInstruction(Instruction* ins) {
-  //printf("Completed Instruction: ");
-  //ins->print();
-  //printf("\n");
   instructions_in_flight--;
 }
 

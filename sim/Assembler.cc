@@ -358,6 +358,14 @@ int Assembler::HandleRegister(std::string line, int pass, std::vector<symbol*>& 
      
   symbol* r = MakeSymbol(m.str());
   r->address = num_regs++;
+  
+  // MSA registers map to the floating point registers from a different name
+  if(m.str().length() > 2 && m.str()[1] == 'f' && m.str()[2] <= '9' && m.str()[2] >= '0')
+    {
+      r->names.push_back((char*)malloc(1000));
+      strcpy(r->names.at(r->names.size()-1), m.str().c_str());
+      (r->names.at(r->names.size()-1))[1] = 'w';
+    }
   regs.push_back(r);
 
   return 1;
@@ -639,6 +647,7 @@ int Assembler::HandleInstruction(std::string line, int pass, std::vector<Instruc
 						 args[0], 
 						 args[1], 
 						 args[2], 
+						 args[3],
 						 currentSourceInfo,
 						 instructions.size()));
 	  return 1;
@@ -1136,12 +1145,14 @@ void Assembler::AddTRaXInitialize(std::vector<Instruction*>& instructions,
 	  instructions.push_back(new Instruction(Instruction::jal,
 						 *((int*)(jump_table + startCtors)),
 						 0, 
+						 0,
 						 0, 
 						 tmpSrcInfo,
 						 instructions.size()));
 	  instructions.push_back(new Instruction(Instruction::nop,
 						 0,
 						 0, 
+						 0,
 						 0, 
 						 tmpSrcInfo,
 						 instructions.size()));
@@ -1160,12 +1171,14 @@ void Assembler::AddTRaXInitialize(std::vector<Instruction*>& instructions,
 					 labels[startID]->address,
 					 0, 
 					 0, 
+					 0,
 					 tmpSrcInfo,
 					 instructions.size()));
 
   instructions.push_back(new Instruction(Instruction::nop,
 					 0,
 					 0, 
+					 0,
 					 0, 
 					 tmpSrcInfo,
 					 instructions.size()));

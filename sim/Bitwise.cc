@@ -48,7 +48,8 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const
       op == Instruction::srlv ||
       op == Instruction::sllv ||
       op == Instruction::xor_m ||
-      op == Instruction::xori
+      op == Instruction::xori || 
+      op == Instruction::lsa
       )
     return true;
   else
@@ -84,6 +85,7 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::srav:
     case Instruction::srlv:
     case Instruction::sllv:
+    case Instruction::lsa:
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
           !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
       {
@@ -213,6 +215,11 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::sll:
     case Instruction::bslli:
       result.udata = arg1.udata << ins.args[2];
+      break;
+
+  case Instruction::lsa: // MSA instruction
+    // TODO: According to the spec, this should shift by (shamt + 1), but the llvm compiler disagrees
+    result.udata = (arg1.udata << (ins.args[3])) + arg2.udata;
       break;
 
     case Instruction::bsll:

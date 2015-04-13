@@ -17,11 +17,17 @@ public:
   Instruction::Opcode op;
   Instruction* instr;
   int which_reg;
+  bool isMSA;
   
   union {
     int idata;
     unsigned int udata;
     float fdata;
+  };
+  union {
+    int idataMSA[3];
+    unsigned int udataMSA[3];
+    float fdataMSA[3];
   };
 };
 
