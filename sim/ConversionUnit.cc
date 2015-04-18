@@ -19,7 +19,8 @@ bool ConversionUnit::SupportsOp(Instruction::Opcode op) const
       op == Instruction::FTOD ||
       op == Instruction::INTCONV ||
       op == Instruction::cvt_s_w ||
-      op == Instruction::trunc_w_s)
+      op == Instruction::trunc_w_s ||
+      op == Instruction::ffint_s_w)
     return true;
   else
     return false;
@@ -35,6 +36,8 @@ bool ConversionUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, Thre
   long long int write_cycle = issuer->current_cycle + latency;
   Instruction::Opcode failop = Instruction::NOP;
 
+  bool isMSA = ins.op == Instruction::ffint_s_w;
+
   // Read the register
   if(ins.op == Instruction::FTOD)
   {
@@ -45,7 +48,7 @@ bool ConversionUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, Thre
   else
   {
     // Check for unexpected error
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA))
       printf("Error in conversionUnit.\n");
   }
 
@@ -63,6 +66,13 @@ bool ConversionUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, Thre
     case Instruction::INTCONV:
       result.idata = static_cast<int>(arg1.fdata);
       break;
+
+    case Instruction::ffint_s_w:
+      result.fdata = static_cast<float>(arg1.idata);
+      result.fdataMSA[0] = static_cast<float>(arg1.idataMSA[0]);
+      result.fdataMSA[1] = static_cast<float>(arg1.idataMSA[1]);
+      result.fdataMSA[2] = static_cast<float>(arg1.idataMSA[2]);
+      break;
       
     case Instruction::FTOD: // float to double (destination is 2 registers)
       d = static_cast<double>(arg2.fdata);
@@ -77,7 +87,7 @@ bool ConversionUnit::AcceptInstruction(Instruction& ins, IssueUnit* issuer, Thre
   };
 
   // Write the value(s)
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins, isMSA))
   {
     // pipeline hazzard
     return false;

@@ -33,7 +33,11 @@ bool FPCompare::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::c_ole_s ||
       op == Instruction::c_olt_s ||
       op == Instruction::c_ule_s ||
-      op == Instruction::c_ult_s
+      op == Instruction::c_ult_s ||
+      op == Instruction::fclt_w ||
+      op == Instruction::clt_s_w ||
+      op == Instruction::ceq_w ||
+      op == Instruction::clti_s_w
       )
     return true;
   else
@@ -48,11 +52,19 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   long long int write_cycle = issuer->current_cycle + latency;
   Instruction::Opcode failop = Instruction::NOP;
   bool mips_compare = false;
+  bool isMSA = (ins.op == Instruction::fclt_w ||
+		ins.op == Instruction::clt_s_w ||
+		ins.op == Instruction::ceq_w ||
+		ins.op == Instruction::clti_s_w
+		);
 
   // Read the registers
-  if (ins.op == Instruction::FPNEG || ins.op == Instruction::neg_s)
+  if (ins.op == Instruction::FPNEG || 
+      ins.op == Instruction::neg_s ||
+      ins.op == Instruction::clti_s_w
+      )
   {
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA))
     {
       // bad stuff happened
       printf("FPCompare unit: Error in Accepting instruction. Should have passed.\n");
@@ -64,7 +76,8 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
            ins.op == Instruction::c_ole_s ||
            ins.op == Instruction::c_olt_s ||
            ins.op == Instruction::c_ule_s ||
-           ins.op == Instruction::c_ult_s)
+           ins.op == Instruction::c_ult_s
+	   )
   {
     mips_compare = true;
     if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop) ||
@@ -77,8 +90,8 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   else
   {
     // all other instructions read 2 registers
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
-        !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop)) {
+    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
+        !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop, isMSA)) {
       // bad stuff happened
       printf("FPCompare unit: Error in Accepting instruction. Should have passed.\n");
     }
@@ -207,13 +220,41 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       result.idata = (arg1.idata <= arg2.idata) ? 0xffffffff : 0;
       break;
 
+  case Instruction::fclt_w:
+    result.udata = arg1.fdata < arg2.fdata ? 0xFFFFFFFF : 0;    
+    result.udataMSA[0] = arg1.fdataMSA[0] < arg2.fdataMSA[0] ? 0xFFFFFFFF : 0;
+    result.udataMSA[1] = arg1.fdataMSA[1] < arg2.fdataMSA[1] ? 0xFFFFFFFF : 0;
+    result.udataMSA[2] = arg1.fdataMSA[2] < arg2.fdataMSA[2] ? 0xFFFFFFFF : 0;
+    break;
+
+  case Instruction::clt_s_w:
+    result.udata = arg1.idata < arg2.idata ? 0xFFFFFFFF : 0;    
+    result.udataMSA[0] = arg1.idataMSA[0] < arg2.idataMSA[0] ? 0xFFFFFFFF : 0;
+    result.udataMSA[1] = arg1.idataMSA[1] < arg2.idataMSA[1] ? 0xFFFFFFFF : 0;
+    result.udataMSA[2] = arg1.idataMSA[2] < arg2.idataMSA[2] ? 0xFFFFFFFF : 0;
+    break;
+
+  case Instruction::clti_s_w:
+    result.udata = arg1.idata < ins.args[2] ? 0xFFFFFFFF : 0;
+    result.udataMSA[0] = arg1.idataMSA[0] < ins.args[2] ? 0xFFFFFFFF : 0;
+    result.udataMSA[1] = arg1.idataMSA[1] < ins.args[2] ? 0xFFFFFFFF : 0;
+    result.udataMSA[2] = arg1.idataMSA[2] < ins.args[2] ? 0xFFFFFFFF : 0;
+    break;
+
+  case Instruction::ceq_w:
+    result.udata = arg1.idata == arg2.idata ? 0xFFFFFFFF : 0;    
+    result.udataMSA[0] = arg1.idataMSA[0] == arg2.idataMSA[0] ? 0xFFFFFFFF : 0;
+    result.udataMSA[1] = arg1.idataMSA[1] == arg2.idataMSA[1] ? 0xFFFFFFFF : 0;
+    result.udataMSA[2] = arg1.idataMSA[2] == arg2.idataMSA[2] ? 0xFFFFFFFF : 0;
+    break;
+
     default:
       fprintf(stderr, "ERROR FPCompare OP NOT RECOGNIZED\n");
       break;
   };
 
   // Write the value
-  if (!mips_compare && !thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  if (!mips_compare && !thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins, isMSA))
   {
     // pipeline hazzard
     return false;

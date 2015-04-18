@@ -167,6 +167,17 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::lsa:
     case Instruction::fmul_w:
     case Instruction::fadd_w:
+    case Instruction::fclt_w:
+    case Instruction::and_v:
+    case Instruction::mulv_w:
+    case Instruction::div_s_w:
+    case Instruction::mod_s_w:
+    case Instruction::subv_w:
+    case Instruction::ceq_w:
+    case Instruction::fdiv_w:
+    case Instruction::clt_s_w:
+    case Instruction::fsub_w:
+    case Instruction::addv_w:
 
       // check args[1] and args[2] and choose the first fail_reg if there is a fail.
       if ( (register_ready[args[1]] <= cur_cycle) )
@@ -239,7 +250,13 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::fill_w:
     case Instruction::splati_w:
     case Instruction::move_v:
-
+    case Instruction::pcnt_w:
+    case Instruction::copy_s_w:
+    case Instruction::ffint_s_w:
+    case Instruction::frcp_w:
+    case Instruction::slli_w:
+    case Instruction::addvi_w:
+    case Instruction::clti_s_w:
       // check args[1] and select it if it fails
       if ( register_ready[args[1]] <= cur_cycle )
         return true;
@@ -250,6 +267,9 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
       break;
 
     case Instruction::SW:
+    case Instruction::fmadd_w:
+    case Instruction::fmsub_w:
+    case Instruction::bmnz_v:
       // check args[0], args[1] and args[2] and choose the first fail_reg if there is a fail.
       if ((register_ready[args[0]] <= cur_cycle))
         if ((register_ready[args[1]] <= cur_cycle))
@@ -351,6 +371,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::st_w:
     case Instruction::st_b:
     case Instruction::insve_w:
+    case Instruction::insert_w:
       // check args[0] and args[2] for read
       if (register_ready[args[0]] <= cur_cycle)
         if (register_ready[args[2]] <= cur_cycle)
@@ -487,6 +508,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::jal:
     case Instruction::lui:
     case Instruction::ldi_b:
+    case Instruction::ldi_w:
       return true;
       break;
 
@@ -896,6 +918,29 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("ldi_b"),
   std::string("insve_w"),
   std::string("move_v"),
+  std::string("insert_w"),
+  std::string("pcnt_w"),
+  std::string("copy_s_w"),
+  std::string("fclt_w"),
+  std::string("ldi_w"),
+  std::string("clt_s_w"),
+  std::string("and_v"),
+  std::string("ffint_s_w"),
+  std::string("frcp_w"),
+  std::string("mulv_w"),
+  std::string("slli_w"),
+  std::string("div_s_w"),
+  std::string("mod_s_w"),
+  std::string("subv_w"),
+  std::string("fmadd_w"),
+  std::string("fmsub_w"),
+  std::string("bmnz_v"),
+  std::string("addvi_w"),
+  std::string("ceq_w"),
+  std::string("fdiv_w"),
+  std::string("fsub_w"),
+  std::string("clti_s_w"),
+  std::string("addv_w"),  
 
   // End MIPS
 };

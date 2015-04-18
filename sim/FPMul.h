@@ -2,6 +2,7 @@
 #define _SIMHWRT_FPMUL_H_
 
 #include "FunctionalUnit.h"
+#include "FPAddSub.h"
 
 class FPMul : public FunctionalUnit {
  public:
@@ -17,6 +18,9 @@ class FPMul : public FunctionalUnit {
   virtual void print();
   virtual double Utilization();
 
+  void SetAdder(FPAddSub* adder);
+
+  FPAddSub* add_unit;
   int width;
   int issued_this_cycle;
 };

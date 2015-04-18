@@ -168,6 +168,12 @@ bool WriteQueue::ReadyBy(int which_reg, long long int which_cycle,
       // this magic number represents the number of pipe stages ahead you can read the value
       if (requests[(head-i+N)%N].ready_cycle <= which_cycle) {
 	val.idata = requests[(head-i+N)%N].idata;
+	if(requests[(head-i+N)%N].isMSA)
+	  {
+	    val.idataMSA[0] = requests[(head-i+N)%N].idataMSA[0];
+	    val.idataMSA[1] = requests[(head-i+N)%N].idataMSA[1];
+	    val.idataMSA[2] = requests[(head-i+N)%N].idataMSA[2];
+	  }
 	ready_cycle = requests[(head-i+N)%N].ready_cycle;
 	return true;
       }
@@ -249,6 +255,7 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
   // -The compiler generated a useless instruction, squash the old one
   // -Or the old one hasn't cleared the write queue yet, but it's cycle has passed
   //  (hence the register has been read then written by a subsequent instruction(s))
+
   if(writes_in_flight[which_reg] > 0)
     {
       Instruction::Opcode temp;
@@ -280,6 +287,8 @@ bool ThreadState::QueueWrite(int which_reg, reg_value val, long long int which_c
     }
   writes_in_flight[which_reg]++;
   register_ready[which_reg] = which_cycle;
+
+
   return true;
 }
 

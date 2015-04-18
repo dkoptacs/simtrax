@@ -49,7 +49,11 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const
       op == Instruction::sllv ||
       op == Instruction::xor_m ||
       op == Instruction::xori || 
-      op == Instruction::lsa
+      op == Instruction::lsa ||
+      op == Instruction::pcnt_w ||
+      op == Instruction::and_v ||
+      op == Instruction::slli_w ||
+      op == Instruction::bmnz_v
       )
     return true;
   else
@@ -64,6 +68,17 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
   Instruction::Opcode failop = Instruction::NOP;
+
+  // Temp data for pcnt_w
+  unsigned int wordVal;
+  unsigned int wordBits;
+  int i, j;
+
+  bool isMSA = (ins.op == Instruction::pcnt_w ||
+		ins.op == Instruction::and_v ||
+		ins.op == Instruction::slli_w ||
+		ins.op == Instruction::bmnz_v
+		);
 
   // Read the registers
   switch (ins.op)
@@ -86,8 +101,10 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::srlv:
     case Instruction::sllv:
     case Instruction::lsa:
-      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
-          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
+    case Instruction::and_v:
+    case Instruction::bmnz_v:
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
+          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop, isMSA))
       {
         // bad stuff happened
         printf("Bitwise unit: Error in Accepting instruction. Should have passed.\n");
@@ -112,7 +129,9 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::xori:
     case Instruction::ANDI:
     case Instruction::ANDNI:
-      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+    case Instruction::pcnt_w:
+    case Instruction::slli_w:
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA))
       {
         // bad stuff happened
         printf("Bitwise unit: Error in Accepting instruction. Should have passed.\n");
@@ -217,11 +236,6 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       result.udata = arg1.udata << ins.args[2];
       break;
 
-  case Instruction::lsa: // MSA instruction
-    // TODO: According to the spec, this should shift by (shamt + 1), but the llvm compiler disagrees
-    result.udata = (arg1.udata << (ins.args[3])) + arg2.udata;
-      break;
-
     case Instruction::bsll:
     case Instruction::sllv:
       result.udata = arg1.udata << arg2.udata;
@@ -249,13 +263,64 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
       result.udata = arg1.udata >> arg2.udata;
       break;
 
+      // MSA instructions
+  case Instruction::lsa: 
+    // TODO: According to the spec, this should shift by (shamt + 1), but the llvm compiler disagrees
+    result.udata = (arg1.udata << (ins.args[3])) + arg2.udata;
+      break;
+
+  case Instruction::pcnt_w:
+    for(i = 0; i < 4; i++)
+      {
+	wordVal = i == 0 ? arg1.udata : arg1.udataMSA[i-1];
+	wordBits = 0;
+	for(j = 0; j < 32; j++)
+	  {
+	    wordBits += wordVal & 1;
+	    wordVal = wordVal >> 1;
+	  }
+	if(i == 0)
+	  result.udata = wordBits;
+	else
+	  result.udataMSA[i-1] = wordBits;
+      }
+    break;
+
+  case Instruction::and_v:
+    result.udata = arg1.udata & arg2.udata;
+    result.udataMSA[0] = arg1.udataMSA[0] & arg2.udataMSA[0];
+    result.udataMSA[1] = arg1.udataMSA[1] & arg2.udataMSA[1];
+    result.udataMSA[2] = arg1.udataMSA[2] & arg2.udataMSA[2];
+    break;
+
+  case Instruction::slli_w:
+    result.udata = arg1.udata << ins.args[2];
+    result.udataMSA[0] = arg1.udataMSA[0] << ins.args[2];
+    result.udataMSA[1] = arg1.udataMSA[1] << ins.args[2];
+    result.udataMSA[2] = arg1.udataMSA[2] << ins.args[2];
+    break;
+
+  case Instruction::bmnz_v:
+    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, result, failop, true))
+      {
+        // bad stuff happened
+        printf("Bitwise unit: Error in Accepting instruction bmnz_v. Should have passed.\n");
+      }
+
+    result.udata = (arg1.udata & arg2.udata) | (result.udata & ~arg2.udata);
+    result.udataMSA[0] = (arg1.udataMSA[0] & arg2.udataMSA[0]) | (result.udataMSA[0] & ~arg2.udataMSA[0]);
+    result.udataMSA[1] = (arg1.udataMSA[1] & arg2.udataMSA[1]) | (result.udataMSA[1] & ~arg2.udataMSA[1]);
+    result.udataMSA[2] = (arg1.udataMSA[2] & arg2.udataMSA[2]) | (result.udataMSA[2] & ~arg2.udataMSA[2]);
+
+    break;
+
     default:
       fprintf(stderr, "ERROR Bitwise FOUND SOME OTHER OP\n");
       break;
   };
 
   // Write the value
-  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins, isMSA))
   {
     // pipeline hazzard
     return false;

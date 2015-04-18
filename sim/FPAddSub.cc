@@ -27,7 +27,9 @@ bool FPAddSub::SupportsOp(Instruction::Opcode op) const
       op == Instruction::SIN ||
       op == Instruction::add_s ||
       op == Instruction::sub_s ||
-      op == Instruction::fadd_w)
+      op == Instruction::fadd_w ||
+      op == Instruction::fsub_w
+      )
     return true;
   else
     return false;
@@ -42,7 +44,9 @@ bool FPAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadStat
   long long int write_cycle = issuer->current_cycle + latency;
   Instruction::Opcode failop = Instruction::NOP;
 
-  bool isMSA = ins.op == Instruction::fadd_w;
+  bool isMSA = (ins.op == Instruction::fadd_w ||
+		ins.op == Instruction::fsub_w
+		);
 
   // Read the registers
   if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
@@ -71,6 +75,13 @@ bool FPAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadStat
     result.fdataMSA[0] = arg1.fdataMSA[0] + arg2.fdataMSA[0];
     result.fdataMSA[1] = arg1.fdataMSA[1] + arg2.fdataMSA[1];
     result.fdataMSA[2] = arg1.fdataMSA[2] + arg2.fdataMSA[2];
+    break;
+
+  case Instruction::fsub_w:
+    result.fdata = arg1.fdata - arg2.fdata;
+    result.fdataMSA[0] = arg1.fdataMSA[0] - arg2.fdataMSA[0];
+    result.fdataMSA[1] = arg1.fdataMSA[1] - arg2.fdataMSA[1];
+    result.fdataMSA[2] = arg1.fdataMSA[2] - arg2.fdataMSA[2];
     break;
 
     case Instruction::FPRSUB:

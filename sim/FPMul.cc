@@ -10,16 +10,26 @@ FPMul::FPMul(int _latency, int _width) :
     FunctionalUnit(_latency), width(_width)
 {
   issued_this_cycle = 0;
+  add_unit = NULL;
 }
 
 // From FunctionalUnit
 bool FPMul::SupportsOp(Instruction::Opcode op) const
 {
-  if (op == Instruction::FPMUL || op == Instruction::mul_s ||
-      op == Instruction::fmul_w)
+  if (op == Instruction::FPMUL || 
+      op == Instruction::mul_s ||
+      op == Instruction::fmul_w || 
+      (op == Instruction::fmadd_w && add_unit != NULL) ||
+      (op == Instruction::fmsub_w && add_unit != NULL)
+      )
     return true;
   else
     return false;
+}
+
+void FPMul::SetAdder(FPAddSub* adder)
+{
+  add_unit = adder;
 }
 
 bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* thread)
@@ -31,7 +41,9 @@ bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
   long long int write_cycle = issuer->current_cycle + latency;
   Instruction::Opcode failop = Instruction::NOP;
 
-  bool isMSA = ins.op == Instruction::fmul_w;
+  bool isMSA = (ins.op == Instruction::fmul_w ||
+		ins.op == Instruction::fmadd_w ||
+		ins.op == Instruction::fmsub_w);
 
   // Read the registers
   if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
@@ -57,6 +69,39 @@ bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
     result.fdataMSA[2] = arg1.fdataMSA[2] * arg2.fdataMSA[2];
     break;
 
+  case Instruction::fmadd_w:
+    // Tie up the add unit and the mul unit on the same cycle
+    if(add_unit->issued_this_cycle >= add_unit->width)
+      return false;
+    // fmadd reads the dst register as well
+    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, result, failop, true))
+      {
+	// bad stuff happened
+	printf("FPMul unit: Error in Accepting fmadd_w.\n");
+      }
+    write_cycle += add_unit->GetLatency();
+    result.fdata += arg1.fdata * arg2.fdata;
+    result.fdataMSA[0] += arg1.fdataMSA[0] * arg2.fdataMSA[0];
+    result.fdataMSA[1] += arg1.fdataMSA[1] * arg2.fdataMSA[1];
+    result.fdataMSA[2] += arg1.fdataMSA[2] * arg2.fdataMSA[2];
+    break;
+
+  case Instruction::fmsub_w:
+    // Tie up the add unit and the mul unit on the same cycle
+    if(add_unit->issued_this_cycle >= add_unit->width)
+      return false;
+    // fmadd reads the dst register as well
+    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, result, failop, true))
+      {
+	// bad stuff happened
+	printf("FPMul unit: Error in Accepting fmsub_w.\n");
+      }
+    write_cycle += add_unit->GetLatency();
+    result.fdata -= arg1.fdata * arg2.fdata;
+    result.fdataMSA[0] -= arg1.fdataMSA[0] * arg2.fdataMSA[0];
+    result.fdataMSA[1] -= arg1.fdataMSA[1] * arg2.fdataMSA[1];
+    result.fdataMSA[2] -= arg1.fdataMSA[2] * arg2.fdataMSA[2];
+    break;
 
     default:
       fprintf(stderr, "ERROR FPMul FOUND SOME OTHER OP\n");
@@ -69,6 +114,11 @@ bool FPMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState* 
     return false;
   }
   issued_this_cycle++;
+
+  if(ins.op == Instruction::fmadd_w ||
+     ins.op == Instruction::fmsub_w)
+    add_unit->issued_this_cycle++;
+  
   return true;
 }
 

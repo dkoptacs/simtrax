@@ -704,6 +704,19 @@ int main(int argc, char* argv[]) {
       current_core->functional_units.push_back(ls_unit);
       current_core->SetSymbols(&regs);
 
+      // Link the FPAdder to the FPMul for fmad ops
+      FPMul* fpmul = NULL;
+      FPAddSub* fpadd = NULL;
+      for(size_t unit_id = 0; unit_id < current_core->functional_units.size(); unit_id++)
+	{
+	  if(fpmul == NULL)
+	    fpmul = dynamic_cast<FPMul*>(current_core->functional_units[unit_id]);
+	  if(fpadd == NULL)
+	    fpadd = dynamic_cast<FPAddSub*>(current_core->functional_units[unit_id]);
+	}
+      if(fpmul != NULL && fpadd != NULL)
+	fpmul->SetAdder(fpadd);
+
       cores.push_back(current_core);
     }
   }
@@ -945,8 +958,11 @@ int main(int argc, char* argv[]) {
        instructions[i]->op == Instruction::fill_w ||
        instructions[i]->op == Instruction::splati_w ||
        instructions[i]->op == Instruction::ldi_b ||
+       instructions[i]->op == Instruction::ldi_w ||
        instructions[i]->op == Instruction::insve_w ||
        instructions[i]->op == Instruction::move_v ||
+       instructions[i]->op == Instruction::insert_w ||
+       instructions[i]->op == Instruction::copy_s_w ||
        instructions[i]->op == Instruction::PROF ||
        instructions[i]->op == Instruction::SETBOXPIPE ||
        instructions[i]->op == Instruction::SETTRIPIPE ||
@@ -960,8 +976,9 @@ int main(int argc, char* argv[]) {
       }
     }
     if(!op_found) {
-      printf("Instruction not supported in current config. Try a different config or add the following instruction to the exception list in main_new.cc\n");
+      printf("Instruction not supported in current config. Try a different config or add the following instruction to the exception list in main_new.cc:\n");
       instructions[i]->print();
+      printf("\n");
       exit(-1);
     }
   }

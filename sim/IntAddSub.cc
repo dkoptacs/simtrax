@@ -43,7 +43,11 @@ bool IntAddSub::SupportsOp(Instruction::Opcode op) const
       op == Instruction::sltiu ||
       op == Instruction::subu ||
       op == Instruction::negu ||
-      op == Instruction::teq )
+      op == Instruction::teq ||
+      op == Instruction::subv_w ||
+      op == Instruction::addvi_w ||
+      op == Instruction::addv_w
+      )
     return true;
   else
     return false;
@@ -57,7 +61,10 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   int write_reg = ins.args[0];
   long long int write_cycle = issuer->current_cycle + latency;
   Instruction::Opcode failop = Instruction::NOP;
-
+  bool isMSA = (ins.op == Instruction::subv_w ||
+		ins.op == Instruction::addvi_w ||
+		ins.op == Instruction::addv_w
+		);
   // Read the registers
   // Single register operands
   if (ins.op == Instruction::ADDI  ||
@@ -66,9 +73,11 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       ins.op == Instruction::addiu ||
       ins.op == Instruction::slti ||
       ins.op == Instruction::sltiu ||
-      ins.op == Instruction::negu)
+      ins.op == Instruction::negu ||
+      ins.op == Instruction::addvi_w
+      )
   {
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA))
     {
       // bad stuff happened
       printf("IntAddSub unit: Error in Accepting instruction. Should have passed.\n");
@@ -90,8 +99,8 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   else
   {
     // Two register operands (1, 2)
-    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
-        !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
+    if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
+        !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop, isMSA))
     {
       // bad stuff happened
       printf("IntAddSub unit: Error in Accepting instruction. Should have passed.\n");
@@ -236,6 +245,27 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
       result.idata = ins.args[2] - arg1.idata;
       break;
 
+    case Instruction::subv_w:
+      result.idata = arg1.idata - arg2.idata;
+      result.idataMSA[0] = arg1.idataMSA[0] - arg2.idataMSA[0];
+      result.idataMSA[1] = arg1.idataMSA[1] - arg2.idataMSA[1];
+      result.idataMSA[2] = arg1.idataMSA[2] - arg2.idataMSA[2];
+      break;
+
+    case Instruction::addvi_w:
+      result.idata = arg1.idata + ins.args[2];
+      result.idataMSA[0] = arg1.idataMSA[0] + ins.args[2];
+      result.idataMSA[1] = arg1.idataMSA[1] + ins.args[2];
+      result.idataMSA[2] = arg1.idataMSA[2] + ins.args[2];
+      break;
+
+    case Instruction::addv_w:
+      result.idata = arg1.idata + arg2.idata;
+      result.idataMSA[0] = arg1.idataMSA[0] + arg2.idataMSA[0];
+      result.idataMSA[1] = arg1.idataMSA[1] + arg2.idataMSA[1];
+      result.idataMSA[2] = arg1.idataMSA[2] + arg2.idataMSA[2];
+      break;
+
     default:
       fprintf(stderr, "ERROR IntAddSub FOUND SOME OTHER OP\n");
       break;
@@ -244,7 +274,7 @@ bool IntAddSub::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   // Write the value
   if(ins.op != Instruction::teq) // trap doesn't write anything
   {
-    if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+    if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins, isMSA))
     {
       // pipeline hazard
       return false;

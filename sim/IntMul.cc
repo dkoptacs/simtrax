@@ -19,7 +19,8 @@ bool IntMul::SupportsOp(Instruction::Opcode op) const
       op == Instruction::MULI ||
       op == Instruction::mul || 
       op == Instruction::mult ||
-      op == Instruction::multu)
+      op == Instruction::multu ||
+      op == Instruction::mulv_w)
     return true;
   else
     return false;
@@ -37,13 +38,16 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
   reg_value resultHI;
   reg_value resultLO;
   Instruction::Opcode failop = Instruction::NOP;
+  bool isMSA = ins.op == Instruction::mulv_w;
+
   // Read the registers
   switch (ins.op)
   {
     case Instruction::MUL:
     case Instruction::mul:
-      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop) ||
-          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop))
+    case Instruction::mulv_w:
+      if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
+          !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop, isMSA))
       {
         // bad stuff happened
         printf("IntMul unit: Error in Accepting instruction. Should have passed.\n");
@@ -85,6 +89,13 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
       result.idata = arg1.idata * arg2.idata;
       break;
 
+    case Instruction::mulv_w:
+      result.idata = arg1.idata * arg2.idata;
+      result.idataMSA[0] = arg1.idataMSA[0] * arg2.idataMSA[0];
+      result.idataMSA[1] = arg1.idataMSA[1] * arg2.idataMSA[1];
+      result.idataMSA[2] = arg1.idataMSA[2] * arg2.idataMSA[2];
+      break;
+
     case Instruction::MULI:
       result.idata = arg1.idata * ins.args[2];
       break;
@@ -116,7 +127,7 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
       return false;
     }
   }
-  else if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
+  else if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins, isMSA))
   {
     // pipeline hazzard
     return false;
