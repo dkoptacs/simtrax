@@ -103,7 +103,7 @@ def main():
     sys.stdout.write('.TRaX_START_PREAMBLE:\n')
     sys.stdout.write("\txor_m\t$zero, $zero, $zero\n")
     sys.stdout.write("\txor_m\t$gp, $gp, $gp\n")
-    sys.stdout.write("\taddi\t$sp, $zero, {0}\n".format(STACK_OFFSET))
+    sys.stdout.write("\tLOADIMM\t$sp, {0}\n".format(STACK_OFFSET))
 
     # Add a jump to TRaX initialization 
     sys.stdout.write('\tbal\t$ra, .TRaX_INIT\n')
