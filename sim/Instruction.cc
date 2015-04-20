@@ -201,7 +201,6 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::FPINVSQRT:
     case Instruction::FPINV:
     case Instruction::LOAD:
-    case Instruction::LOADIMM:
     case Instruction::LOADL1:
     case Instruction::MOV:
     case Instruction::move:
@@ -498,6 +497,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::LOADPIPEGLB:
     case Instruction::LOADPIPELOC:
     case Instruction::CLOCK:
+    case Instruction::LOADIMM:
 
     // MIPS
     case Instruction::nop:
