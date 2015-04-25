@@ -82,7 +82,7 @@ bool GlobalRegisterFile::SupportsOp(Instruction::Opcode op) const
   if (op == Instruction::ATOMIC_INC || op == Instruction::ATOMIC_ADD ||
       op == Instruction::INC_RESET || op == Instruction::BARRIER ||
       op == Instruction::GLOBAL_READ || op == Instruction::SEM_ACQ ||
-      op == Instruction::SEM_REL)
+      op == Instruction::SEM_REL || op == Instruction::GLOBAL_STORE)
     return true;
 
   return false;
@@ -122,6 +122,15 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
         // bad stuff happened
         printf("Error in GlobalRegisterFile. Should have passed.\n");
       }
+      break;
+
+    case Instruction::GLOBAL_STORE:
+      if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, arg0, failop) || 
+	  !thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop))
+	{
+	  // bad stuff happened
+	  printf("Error in GlobalRegisterFile. Should have passed.\n");
+	}
       break;
 
     default:
@@ -187,6 +196,10 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       result.udata = ReadUint(arg1.udata);
       break;
 
+    case Instruction::GLOBAL_STORE:
+      WriteUint(arg0.udata, arg1.udata);
+      break;
+
     case Instruction::INC_RESET:
       result.udata = ReadUint(arg1.udata);
       if(result.udata == total_system_threads - 1)
@@ -231,9 +244,10 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
   };
 
   // Apply thread register writes, or undo global writes if thread-write fails
-  if(ins.op != Instruction::BARRIER     // barrier doesn't write anything to thread's RF
-     && ins.op != Instruction::SEM_ACQ  // semaphore ops don't write anything to thread's RF
-     && ins.op != Instruction::SEM_REL)
+  if(ins.op != Instruction::BARRIER     // these ops don't write anything to thread's RF
+     && ins.op != Instruction::SEM_ACQ  
+     && ins.op != Instruction::SEM_REL
+     && ins.op != Instruction::GLOBAL_STORE) 
   {
     if (!thread->QueueWrite(write_reg, result, write_cycle, ins.op, &ins))
     {

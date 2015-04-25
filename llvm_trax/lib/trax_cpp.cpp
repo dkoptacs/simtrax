@@ -124,6 +124,9 @@ int atomicinc( int location) {
 int global_reg_read( int location ) {
   return trax_global_registers[location].load();
 }
+void global_reg_set(int location, int value){
+  trax_global_registers[location].store(value);
+}
 float min( float left, float right ) {
   return left < right ? left : right;
 }
@@ -135,8 +138,6 @@ float max( float left, float right ) {
 float invsqrt( float value ) {
   return 1.f / sqrt(value);
 }
-
-
 
 float trax_rand() {
   return drand48();

@@ -1795,4 +1795,6 @@ def int_mips_rand : Intrinsic<[llvm_float_ty], []>;
 def int_mips_getid : Intrinsic<[llvm_i32_ty], [llvm_i32_ty]>;
 def int_mips_nthreads : Intrinsic<[llvm_i32_ty], []>;
 def int_mips_clock : Intrinsic<[llvm_i32_ty], []>;
+def int_mips_globalrrd : Intrinsic<[llvm_i32_ty], [llvm_i32_ty]>;
+def int_mips_globalrset : Intrinsic<[], [llvm_i32_ty, llvm_i32_ty]>;
 }

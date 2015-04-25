@@ -19,6 +19,7 @@ extern "C"
 
   // Misc
   extern int global_reg_read( int location ) asm("llvm.mips.globalrrd");
+  extern void global_reg_set( int location, int value ) asm("llvm.mips.globalrset");
   extern int trax_getid( int value ) asm("llvm.mips.getid");
   
   // Random

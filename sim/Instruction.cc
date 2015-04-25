@@ -347,6 +347,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::mult:
     case Instruction::multu:
     case Instruction::teq:
+    case Instruction::GLOBAL_STORE:
       // check args[0] and args[1] for read
       if (register_ready[args[0]] <= cur_cycle)
         if (register_ready[args[1]] <= cur_cycle)
@@ -674,6 +675,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("SEM_ACQ"),
   std::string("SEM_REL"),
   std::string("GLOBAL_READ"),
+  std::string("GLOBAL_STORE"),
   std::string("ATOMIC_ADD"),
   std::string("ATOMIC_FPADD"),
   std::string("FPINVSQRT"),

@@ -1769,6 +1769,13 @@ include "MicroMipsInstrFPU.td"
 def ATOMIC_INC : FR<0x0, 0x2B, (outs GPR32Opnd:$rd), (ins GPR32Opnd:$rt),
     "ATOMIC_INC $rd, $rt", [], II_SW >;
 
+def GLOBAL_RD : FR<0x0, 0x23, (outs GPR32Opnd:$rd), (ins GPR32Opnd:$rt),
+    "GLOBAL_READ $rd, $rt", [], II_SW >;
+
+def GLOBAL_SET : FI<0x2C, (outs), (ins GPR32Opnd:$rg, GPR32Opnd:$rs),
+    "GLOBAL_STORE $rg, $rs", [], II_SW>;
+
+
 def FPINVSQRT : ABSS_FT<"FPINVSQRT", FGR32Opnd, FGR32Opnd, II_INVSQRT_S>,
               ABSS_FM<0x10, 16>, ISA_MIPS2;
 
@@ -1789,6 +1796,7 @@ def SEM_ACQ : SingleArg<0x00, 0x16, "SEM_ACQ", GPR32Opnd, NoItinerary>;
 
 def SEM_REL : SingleArg<0x00, 0x17, "SEM_REL", GPR32Opnd, NoItinerary>;
 }
+
 
 def LOADI : FI<0x11, (outs GPR32Opnd:$rt), (ins GPR32Opnd:$rs, simm16:$imm16),
     "LOAD $rt, $rs, $imm16", [], II_TRAX_LOAD>;
@@ -1822,6 +1830,10 @@ def CLOCK : SingleOut<0x00, 0x22, "CLOCK", GPR32Opnd, NoItinerary>;
 //===----------------------------------------------------------------------===//
 
 def : Pat<(int_mips_atominc (i32 GPR32Opnd:$in)), (ATOMIC_INC GPR32Opnd:$in)>;
+
+def : Pat<(int_mips_globalrrd (i32 GPR32Opnd:$in)), (GLOBAL_RD GPR32Opnd:$in)>;
+
+def : Pat<(int_mips_globalrset (i32 GPR32Opnd:$rg), (i32 GPR32Opnd:$rs)), (GLOBAL_SET GPR32Opnd:$rg, GPR32Opnd:$rs)>;
 
 def : Pat<(int_mips_invsqrt (f32 FGR32:$fd)), (FPINVSQRT FGR32:$fd)>;
 

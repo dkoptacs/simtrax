@@ -13,6 +13,7 @@ void storef( float value, int base, int offset = 0 );
 // Misc
 int trax_getid( int value );
 int global_reg_read( int location );
+void global_reg_set( int location, int value );
 
 // Arithmetic
 int atomicinc( int location );

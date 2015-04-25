@@ -69,6 +69,7 @@ class Instruction {
     SEM_ACQ,
     SEM_REL,
     GLOBAL_READ, // dest, source(global)
+    GLOBAL_STORE,
     ATOMIC_ADD,  // dst, source1(global), source2 (dst = source1 += source2)
     ATOMIC_FPADD, // addr(reg), source, offset(imm)
     FPINVSQRT,   // dst, source
