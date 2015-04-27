@@ -7,6 +7,7 @@
 #include "SimpleRegisterFile.h"
 #include "Instruction.h"
 #include <vector>
+#include <list>
 
 #define MAX_QUEUE_LENGTH 80
 
@@ -94,7 +95,17 @@ typedef struct req
 
 
   void * user_ptr; // user_specified data
-  struct req * next;
+
+  req() :
+      user_ptr(NULL)
+  {
+  }
+
+  ~req()
+  {
+      if (user_ptr)
+          free(user_ptr);
+  }
 } request_t;
 
 // Bankstates
@@ -141,10 +152,10 @@ extern int command_issued_current_cycle[MAX_NUM_CHANNELS];
 extern int cas_issued_current_cycle[MAX_NUM_CHANNELS][MAX_NUM_RANKS][MAX_NUM_BANKS]; // 1/2 for COL_READ/COL_WRITE
 
 // Per channel read queue
-extern request_t * read_queue_head[MAX_NUM_CHANNELS];
+extern std::list<request_t> read_queue_head[MAX_NUM_CHANNELS];
 
 // Per channel write queue
-extern request_t * write_queue_head[MAX_NUM_CHANNELS];
+extern std::list<request_t> write_queue_head[MAX_NUM_CHANNELS];
 
 // issuables_for_different commands
 extern int cmd_precharge_issuable[MAX_NUM_CHANNELS][MAX_NUM_RANKS][MAX_NUM_BANKS];

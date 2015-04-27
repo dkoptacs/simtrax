@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <string.h>
-#include "utlist.h"
 #include "utils.h"
 
 #include "memory_controller.h"
@@ -60,11 +59,6 @@ int drain_writes[MAX_NUM_CHANNELS];
 void schedule(int channel)
 {
   schedule_count++;
-  request_t * rd_ptr = NULL;
-  request_t * wr_ptr = NULL;
-
-  request_t * rd_ptr1 = NULL;
-  request_t * wr_ptr1 = NULL;
 
 #define Priority_factor  1
 
@@ -118,16 +112,18 @@ void schedule(int channel)
       if(drain_writes[channel])
       {
         /// printf("enter to write queue \n");
-        LL_FOREACH(write_queue_head[channel], wr_ptr)
+                std::list<request_t> &queueRef      = write_queue_head[channel];
+                std::list<request_t>::iterator iter = queueRef.begin();
+                for (; iter != queueRef.end(); ++iter)
         {
-          if (wr_ptr->dram_addr.row == dram_state[channel][wr_ptr->dram_addr.rank][wr_ptr->dram_addr.bank].active_row)
+          if (iter->dram_addr.row == dram_state[channel][iter->dram_addr.rank][iter->dram_addr.bank].active_row)
           {
 
-            BANK_CAN_BE_CLOSED[channel][wr_ptr->dram_addr.rank][wr_ptr->dram_addr.bank] = 0;
+            BANK_CAN_BE_CLOSED[channel][iter->dram_addr.rank][iter->dram_addr.bank] = 0;
           }
           else // all conditions are met escept it is not issuable
           {
-            BANK_CAN_BE_CLOSED[channel][wr_ptr->dram_addr.rank][wr_ptr->dram_addr.bank] = 1;
+            BANK_CAN_BE_CLOSED[channel][iter->dram_addr.rank][iter->dram_addr.bank] = 1;
           }
         }
 
@@ -135,22 +131,21 @@ void schedule(int channel)
         //now if we could not find this command we need to do according to FCFS but we are awared of this fact
         // that if there is any Col_Write_CMD for the current open row but it is not issuable we need to make
         //all precharge commands hold to that unissuable command gets issuable.
-
-        LL_FOREACH(write_queue_head[channel], wr_ptr)
+        for (iter = queueRef.begin(); iter != queueRef.end(); ++iter)
         {
-          if (wr_ptr->command_issuable)
+          if (iter->command_issuable)
           {
-            if (wr_ptr->next_command == PRE_CMD)
+            if (iter->next_command == PRE_CMD)
             {
-              if (BANK_CAN_BE_CLOSED[channel][wr_ptr->dram_addr.rank][wr_ptr->dram_addr.bank])
+              if (BANK_CAN_BE_CLOSED[channel][iter->dram_addr.rank][iter->dram_addr.bank])
               {
-                issue_request_command(wr_ptr);
+                issue_request_command(&(*iter));
                 break;
               }
             }
             else
             {
-              issue_request_command(wr_ptr);
+              issue_request_command(&(*iter));
               break;
             }
           }
@@ -163,30 +158,33 @@ void schedule(int channel)
 
       if(drain_writes[channel])
       {
-        LL_FOREACH(write_queue_head[channel], wr_ptr)
+        std::list<request_t> &queueRef      = write_queue_head[channel];
+        std::list<request_t>::iterator iter = queueRef.begin();
+        for (; iter != queueRef.end(); ++iter)
         {
-          if (wr_ptr->command_issuable)
+          if (iter->command_issuable)
           {
-            if(wr_ptr->next_command == PRE_CMD)
+            if(iter->next_command == PRE_CMD)
             {
               int row_is_still_needed=0;
-              LL_FOREACH(write_queue_head[channel], wr_ptr1)
+              std::list<request_t>::iterator iter2 = queueRef.begin();
+              for (; iter2 != queueRef.end(); ++iter2)
               {
-                if((wr_ptr1->dram_addr.row==dram_state[channel][wr_ptr->dram_addr.rank][wr_ptr->dram_addr.bank].active_row)
-                   && (wr_ptr1->next_command == COL_WRITE_CMD))
+                if((iter2->dram_addr.row==dram_state[channel][iter->dram_addr.rank][iter->dram_addr.bank].active_row)
+                   && (iter2->next_command == COL_WRITE_CMD))
                 {
                   row_is_still_needed=1;
                 }
               }
               if(!row_is_still_needed)
               {
-                issue_request_command(wr_ptr);
+                issue_request_command(&(*iter));
                 break;
               }
             }
             else
             {
-              issue_request_command(wr_ptr);
+              issue_request_command(&(*iter));
               break;
             }
           }
@@ -201,10 +199,11 @@ void schedule(int channel)
       // ali
       if(!drain_writes[channel])
       {
-
-        LL_FOREACH(read_queue_head[channel], rd_ptr)
+        std::list<request_t> &queueRef      = read_queue_head[channel];
+        std::list<request_t>::iterator iter = queueRef.begin();
+        for (; iter != queueRef.end(); ++iter)
         {
-          if (rd_ptr->command_issuable)
+          if (iter->command_issuable)
           {
             // TODO: take this out
             //issue_request_command(rd_ptr);
@@ -214,24 +213,25 @@ void schedule(int channel)
             //if(really old)
             //issue and break;
 
-            if(rd_ptr->next_command == PRE_CMD)
+            if(iter->next_command == PRE_CMD)
             {
               int row_is_still_needed=0;
-              LL_FOREACH(read_queue_head[channel], rd_ptr1)
+              std::list<request_t>::iterator iter2 = queueRef.begin();
+              for (; iter2 != queueRef.end(); ++iter2)
               {
-                if((rd_ptr1->dram_addr.row == dram_state[channel][rd_ptr->dram_addr.rank][rd_ptr->dram_addr.bank].active_row) &&
-                   (rd_ptr1->next_command == COL_READ_CMD))
+                if((iter2->dram_addr.row == dram_state[channel][iter->dram_addr.rank][iter->dram_addr.bank].active_row) &&
+                   (iter2->next_command == COL_READ_CMD))
                   row_is_still_needed=1;
               }
               if(!row_is_still_needed)
               {
-                issue_request_command(rd_ptr);
+                issue_request_command(&(*iter));
                 break;
               }
             }
             else
             {
-              issue_request_command(rd_ptr);
+              issue_request_command(&(*iter));
               break;
             }
           }
@@ -244,8 +244,9 @@ void schedule(int channel)
     {
       if(!drain_writes[channel])
       {
-        ///     printf("enter to read queue \n");
-        LL_FOREACH(read_queue_head[channel], rd_ptr)
+        std::list<request_t> &queueRef      = read_queue_head[channel];
+        std::list<request_t>::iterator iter = queueRef.begin();
+        for (; iter != queueRef.end(); ++iter)
         {
           // TODO: Take this out
           //if (rd_ptr->command_issuable)
@@ -254,15 +255,15 @@ void schedule(int channel)
           //}
           //break;
 
-          if (rd_ptr->dram_addr.row == dram_state[channel][rd_ptr->dram_addr.rank][rd_ptr->dram_addr.bank].active_row)
+          if (iter->dram_addr.row == dram_state[channel][iter->dram_addr.rank][iter->dram_addr.bank].active_row)
           {
-            BANK_CAN_BE_CLOSED[channel][rd_ptr->dram_addr.rank][rd_ptr->dram_addr.bank] = 0;
+            BANK_CAN_BE_CLOSED[channel][iter->dram_addr.rank][iter->dram_addr.bank] = 0;
           }
 
           // all conditions are met except it is not issuable
           else
           {
-            BANK_CAN_BE_CLOSED[channel][rd_ptr->dram_addr.rank][rd_ptr->dram_addr.bank] = 1;
+            BANK_CAN_BE_CLOSED[channel][iter->dram_addr.rank][iter->dram_addr.bank] = 1;
             // printf("this request is Unissuable = %x\n", rd_ptr->dram_addr.row);
           }
         }
@@ -271,26 +272,25 @@ void schedule(int channel)
         //now if we could not find this command we need to do according to FCFS but we are awared of this fact
         // that if there is any Col_Read_CMD for the current open row but it is not issuable we need to make
         //all precharge commands hold to that unissuable command gets issuable.
-
-        LL_FOREACH(read_queue_head[channel], rd_ptr)
+        for (iter = queueRef.begin(); iter != queueRef.end(); ++iter)
         {
-          if (rd_ptr->command_issuable)
+          if (iter->command_issuable)
           {
             // to add fairness to FR-FCFS and prevent from starvation
             // hereby we check the latency of rquest resident in read queue
             // to find any request which is waited for more than Priority_factor
             // times average latency of read queue.
-            if (rd_ptr->next_command == PRE_CMD)
+            if (iter->next_command == PRE_CMD)
             {
-              if (BANK_CAN_BE_CLOSED[channel][rd_ptr->dram_addr.rank][rd_ptr->dram_addr.bank])
+              if (BANK_CAN_BE_CLOSED[channel][iter->dram_addr.rank][iter->dram_addr.bank])
               {
-                issue_request_command(rd_ptr);
+                issue_request_command(&(*iter));
                 break;
               }
             }
             else
             {
-              issue_request_command(rd_ptr);
+              issue_request_command(&(*iter));
               break;
             }
           }

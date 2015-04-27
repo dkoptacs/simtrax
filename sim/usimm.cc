@@ -868,9 +868,9 @@ bool usimmIsBusy()
 {
   for(int channel = 0; channel < NUM_CHANNELS; channel++)
     {
-      if(read_queue_head[channel] != NULL)
+      if(read_queue_head[channel].size() > 0)
 	return true;
-      if(write_queue_head[channel] != NULL)
+      if(write_queue_head[channel].size() > 0)
 	return true;
     }
   return false;

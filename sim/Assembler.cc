@@ -1,3 +1,4 @@
+#include "Profiler.h"
 #include "Assembler.h"
 //#include <regex>
 #include <boost/regex.hpp>

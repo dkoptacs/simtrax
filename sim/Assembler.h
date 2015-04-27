@@ -5,7 +5,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include "Instruction.h"
-#include "Profiler.h"
 
 class Profiler;
 

@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "utlist.h"
 
 #include "utils.h"
 
@@ -44,10 +43,10 @@ long long int current_col_reads[MAX_NUM_CHANNELS][MAX_NUM_RANKS][MAX_NUM_BANKS];
 int cas_issued_current_cycle[MAX_NUM_CHANNELS][MAX_NUM_RANKS][MAX_NUM_BANKS]; // 1/2 for COL_READ/COL_WRITE
 
 // Per channel read queue
-request_t * read_queue_head[MAX_NUM_CHANNELS];
+std::list<request_t> read_queue_head[MAX_NUM_CHANNELS];
 
 // Per channel write queue
-request_t * write_queue_head[MAX_NUM_CHANNELS];
+std::list<request_t> write_queue_head[MAX_NUM_CHANNELS];
 
 // issuables_for_different commands
   int cmd_precharge_issuable[MAX_NUM_CHANNELS][MAX_NUM_RANKS][MAX_NUM_BANKS];
@@ -235,8 +234,8 @@ void init_memory_controller_vars()
 		}
 
 
-		read_queue_head[i]=NULL;
-		write_queue_head[i]=NULL;
+        read_queue_head[i].clear();
+        write_queue_head[i].clear();
 
 		read_queue_length[i]=0;
 		write_queue_length[i]=0;
@@ -514,83 +513,69 @@ dram_address_t calcDramAddr(long long int physical_address)
 
 // Function to create a new request node to be inserted into the read
 // or write queue.
-void * init_new_node(const dram_address_t &dram_address, long long int arrival_time, optype_t type, int thread_id, int instruction_id, long long int instruction_pc, 
-		     int which_reg, reg_value result, Instruction::Opcode op, ThreadState* thread, L1Cache* L1, L2Cache* L2, int trax_addr)
+request_t init_new_node(const dram_address_t &dram_address,
+                        long long int arrival_time,
+                        optype_t type,
+                        int thread_id,
+                        int instruction_id,
+                        long long int instruction_pc,
+                        int which_reg,
+                        reg_value result,
+                        Instruction::Opcode op,
+                        ThreadState* thread,
+                        L1Cache* L1,
+                        L2Cache* L2,
+                        int trax_addr)
 {
-	request_t * new_node = NULL;
+    request_t new_node;
 
-	new_node = new request_t();
+    new_node.physical_address  = dram_address.actual_address;
+    new_node.arrival_time      = arrival_time;
+    new_node.dispatch_time     = -100;
+    new_node.completion_time   = -100;
+    new_node.latency           = -100;
+    new_node.thread_id         = thread_id;
+    new_node.next_command      = NOP;
+    new_node.command_issuable  = 0;
+    new_node.operation_type    = type;
+    new_node.request_served    = 0;
+    new_node.instruction_id    = instruction_id;
+    new_node.instruction_pc    = instruction_pc;
+//        new_node.next              = NULL;
 
+    //dram_address_t * this_node_addr = calc_dram_addr(physical_address);
 
-	if(new_node == NULL)
-	{
-		printf("FATAL : Malloc Error\n");
+    new_node.dram_addr.actual_address  = dram_address.actual_address;
+    new_node.dram_addr.channel         = dram_address.channel;
+    new_node.dram_addr.rank            = dram_address.rank;
+    new_node.dram_addr.bank            = dram_address.bank;
+    new_node.dram_addr.row             = dram_address.row;
+    new_node.dram_addr.column          = dram_address.column;
 
-		exit(-1);
-	}
-	else
-	{
+    //TRaX stuff
+    //new_node.trax_reqs = std::vector<trax_request>();
+    trax_request newTraxReq;
+    newTraxReq.which_reg = which_reg;
+    newTraxReq.trax_addr = trax_addr;
+    newTraxReq.thread    = thread;
+    newTraxReq.L1        = L1;
+    newTraxReq.L2        = L2;
+    newTraxReq.result    = result;
 
-		new_node->physical_address = dram_address.actual_address;
+    //printf("pushing back, vector addr = %p\n", &(new_node.trax_reqs));
+    //printf("newnode addr = %p\n", new_node);
+    //printf("size of new req = %d\n", sizeof(trax_request));
 
-		new_node->arrival_time = arrival_time;
+    new_node.trax_reqs.push_back(newTraxReq);
+    //printf("finished push back\n");
 
-		new_node->dispatch_time = -100;
+    new_node.op       = op;
 
-		new_node->completion_time = -100;
+    //free(this_node_addr);
 
-		new_node->latency = -100;
+    new_node.user_ptr = NULL;
 
-		new_node->thread_id = thread_id;
-
-		new_node->next_command = NOP;
-
-		new_node->command_issuable = 0;
-
-		new_node->operation_type = type;
-
-		new_node->request_served = 0;
-
-		new_node->instruction_id = instruction_id;
-
-		new_node->instruction_pc = instruction_pc;
-
-		new_node->next = NULL;
-
-		//dram_address_t * this_node_addr = calc_dram_addr(physical_address);
-
-		new_node->dram_addr.actual_address = dram_address.actual_address;
-		new_node->dram_addr.channel = dram_address.channel;
-		new_node->dram_addr.rank = dram_address.rank;
-		new_node->dram_addr.bank = dram_address.bank;
-		new_node->dram_addr.row = dram_address.row;
-		new_node->dram_addr.column = dram_address.column;
-
-		//TRaX stuff
-		//new_node->trax_reqs = std::vector<trax_request>();
-		trax_request newTraxReq;
-		newTraxReq.which_reg = which_reg;
-		newTraxReq.trax_addr = trax_addr;
-		newTraxReq.thread = thread;
-		newTraxReq.L1 = L1;
-		newTraxReq.L2 = L2;
-		newTraxReq.result = result;
-
-		//printf("pushing back, vector addr = %p\n", &(new_node->trax_reqs));
-		//printf("newnode addr = %p\n", new_node);
-		//printf("size of new req = %d\n", sizeof(trax_request));
-
-		new_node->trax_reqs.push_back(newTraxReq);
-		//printf("finished push back\n");
-
-		new_node->op = op;
-
-		//free(this_node_addr);
-
-		new_node->user_ptr = NULL;
-
-		return (new_node);
-	}
+    return (new_node);
 }
 
 // Function that checks to see if an incoming read can be served by a
@@ -606,21 +591,21 @@ void * init_new_node(const dram_address_t &dram_address, long long int arrival_t
 
 request_t* getReadReq(long long int physical_address)
 {
-  //get channel info
-  dram_address_t * this_addr = calc_dram_addr(physical_address);
-  int channel = this_addr->channel;
-  free(this_addr);
-  
-  request_t * rd_ptr = NULL;
-  
-  LL_FOREACH(read_queue_head[channel], rd_ptr)
+    //get channel info
+    dram_address_t * this_addr = calc_dram_addr(physical_address);
+    const int channel          = this_addr->channel;
+    free(this_addr);
+
+    std::list<request_t> &queueRef      = read_queue_head[channel];
+    std::list<request_t>::iterator iter = queueRef.begin();
+    for (; iter != queueRef.end(); ++iter)
     {
-      if(rd_ptr->dram_addr.actual_address == physical_address)
-	{
-	  return rd_ptr;
-	}
+        if (iter->dram_addr.actual_address == physical_address)
+        {
+            return &(*iter);
+        }
     }
-  return NULL;
+    return NULL;
 }
 
 
@@ -668,65 +653,64 @@ int read_matches_write_or_read_queue(const dram_address_t &physical_address, req
   
   //printf("checking for duplicate load on line: %lld", physical_address);
 
-  //get channel info
+    //get channel info
   //dram_address_t * this_addr = calc_dram_addr(physical_address);
-  int channel = physical_address.channel;
-  //free(this_addr);
-  
-  //request_t * wr_ptr = NULL;
-  request_t * rd_ptr = NULL;
-  
-  //DK: We don't need this for TRaX, since we never read the framebuffer.
-  //    Framebuffer is only region of memory that gets written
-  /*
-  LL_FOREACH(write_queue_head[channel], wr_ptr)
+    const int channel = physical_address.channel;
+
+    //printf("checking for duplicate load on line: %lld", physical_address);
+
+/*
+    std::list<request_t> &wQueueRef      = write_queue_head[channel];
+    std::list<request_t>::iterator wIter = wQueueRef.begin();
+    for (; wIter != wQueueRef.end(); ++wIter)
     {
-      if(wr_ptr->dram_addr.actual_address == physical_address)
-	{
-	  num_read_merge ++;
-	  stats_reads_merged_per_channel[channel]++;
-	  existing_request = NULL;
-	  return WQ_LOOKUP_LATENCY;
-	}
+        if (wIter->dram_addr.actual_address == physical_address.actual_address)
+        {
+            num_read_merge++;
+            stats_reads_merged_per_channel[channel]++;
+            existing_request = &(*wIter);
+            return WQ_LOOKUP_LATENCY;
+        }
     }
-  */
-  
-  LL_FOREACH(read_queue_head[channel], rd_ptr)
+*/
+
+    std::list<request_t> &rQueueRef      = read_queue_head[channel];
+    std::list<request_t>::iterator rIter = rQueueRef.begin();
+    for (; rIter != rQueueRef.end(); ++rIter)
     {
-      if(rd_ptr->dram_addr.actual_address == physical_address.actual_address)
-	{
-	  //num_read_merge ++;
-	  stats_reads_merged_per_channel[channel]++;
-	  existing_request = rd_ptr;
-	  return RQ_LOOKUP_LATENCY;
-	}
+        if (rIter->dram_addr.actual_address == physical_address.actual_address)
+        {
+            num_read_merge++;
+            stats_reads_merged_per_channel[channel]++;
+            existing_request = &(*rIter);
+            return RQ_LOOKUP_LATENCY;
+        }
     }
-  return 0;
+    return 0;
 }
 
 
 // Function to merge writes to the same address
 int write_exists_in_write_queue(const dram_address_t &dram_address, request_t*& existing_request)
 {
-	//get channel info
-	//dram_address_t * this_addr = calc_dram_addr(physical_address);
-	int channel = dram_address.channel;
-	//free(this_addr);
-	
-	request_t * wr_ptr = NULL;
+    //get channel info
+    //dram_address_t * this_addr = calc_dram_addr(physical_address);
+    const int channel = dram_address.channel;
+    //free(this_addr);
 
-	LL_FOREACH(write_queue_head[channel], wr_ptr)
-	{
-		if(wr_ptr->dram_addr.actual_address == dram_address.actual_address)
-		{
-		  existing_request = wr_ptr;
-		  num_write_merge ++;
-		  stats_writes_merged_per_channel[channel]++;
-		  return 1;
-		}
-	}
-	return 0;
-
+    std::list<request_t> &queueRef      = write_queue_head[channel];
+    std::list<request_t>::iterator iter = queueRef.begin();
+    for (; iter != queueRef.end(); ++iter)
+    {
+        if (iter->dram_addr.actual_address == dram_address.actual_address)
+        {
+            existing_request = &(*iter);
+            num_write_merge++;
+            stats_writes_merged_per_channel[channel]++;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 // Insert a new read to the read queue
@@ -800,7 +784,7 @@ request_t * insert_read(const dram_address_t &dram_address, int trax_address, lo
 
   stats_reads_seen[channel] ++;
   
-  request_t * new_node = (request_t*)init_new_node(dram_address, arrival_time, this_op, thread_id, instruction_id, instruction_pc, which_reg, result, op, thread, L1, L2, trax_address);
+  request_t new_node = init_new_node(dram_address, arrival_time, this_op, thread_id, instruction_id, instruction_pc, which_reg, result, op, thread, L1, L2, trax_address);
   
 
   // TODO: Try decreasing the critical section to just these next 3 statements. 
@@ -809,7 +793,7 @@ request_t * insert_read(const dram_address_t &dram_address, int trax_address, lo
   //       to an existing read. Usimm would report slightly more reads and corresponding performance hit
   //       If the difference is neglegible, might be worth doing
   // TODO: Can also use separate semaphores for the read and write queues
-  LL_APPEND(read_queue_head[channel], new_node);
+  read_queue_head[channel].push_front(new_node);
   
   read_queue_length[channel] ++;
   max_read_queue_length[channel] = read_queue_length[channel] > max_read_queue_length[channel] ? read_queue_length[channel] : max_read_queue_length[channel];
@@ -818,7 +802,7 @@ request_t * insert_read(const dram_address_t &dram_address, int trax_address, lo
   //UT_MEM_DEBUG("\nCyc: %lld New READ:%lld Core:%d Chan:%d Rank:%d Bank:%d Row:%lld RD_Q_Length:%lld\n", CYCLE_VAL, new_node->id, new_node->thread_id, new_node->dram_addr.channel,  new_node->dram_addr.rank,  new_node->dram_addr.bank,  new_node->dram_addr.row, read_queue_length[channel]);
   
   //printf("returning new node at %p\n", new_node);
-  return new_node;
+  return &(read_queue_head[channel].front());
 }
 
 // Insert a new write to the write queue
@@ -857,17 +841,17 @@ request_t * insert_write(const dram_address_t &dram_address, int trax_address, l
 
   stats_writes_seen[channel] ++;
   
-  request_t * new_node = (request_t*)init_new_node(dram_address, arrival_time, this_op, thread_id, instruction_id, instruction_pc, which_reg, result, op, thread, L1, L2, trax_address);
+  request_t new_node = init_new_node(dram_address, arrival_time, this_op, thread_id, instruction_id, instruction_pc, which_reg, result, op, thread, L1, L2, trax_address);
  
 
-  LL_APPEND(write_queue_head[channel], new_node);
+  write_queue_head[channel].push_front(new_node);
   
   write_queue_length[channel] ++;
   max_write_queue_length[channel] = write_queue_length[channel] > max_write_queue_length[channel] ? write_queue_length[channel] : max_write_queue_length[channel];
   
   //UT_MEM_DEBUG("\nCyc: %lld New WRITE:%lld Core:%d Chan:%d Rank:%d Bank:%d Row:%lld WR_Q_Length:%lld\n", CYCLE_VAL, new_node->id, new_node->thread_id, new_node->dram_addr.channel,  new_node->dram_addr.rank,  new_node->dram_addr.bank,  new_node->dram_addr.row, write_queue_length[channel]);
   
-  return new_node;
+  return &(write_queue_head[channel].front());
 }
 
 // Function to update the states of the read queue requests.
@@ -876,10 +860,12 @@ request_t * insert_write(const dram_address_t &dram_address, int trax_address, l
 // commands can be issued this cycle
 void update_read_queue_commands(int channel)
 {
-	request_t * curr = NULL;
+    std::list<request_t> &queueRef      = read_queue_head[channel];
+    std::list<request_t>::iterator iter = queueRef.begin();
+    for (; iter != queueRef.end(); ++iter)
+    {
+        request_t *curr = &(*iter);
 
-	LL_FOREACH(read_queue_head[channel],curr)
-	{
 		// ignore the requests whose completion time has been determined
 		// these requests will be removed this very cycle 
 		if(curr->request_served == 1)
@@ -978,10 +964,11 @@ void update_read_queue_commands(int channel)
 // Similar to update_read_queue above, but for write queue
 void update_write_queue_commands(int channel)
 {
-	request_t * curr = NULL;
-
-	LL_FOREACH(write_queue_head[channel], curr)
-	{
+    std::list<request_t> &queueRef      = write_queue_head[channel];
+    std::list<request_t>::iterator iter = queueRef.begin();
+    for (; iter != queueRef.end(); ++iter)
+    {
+        request_t *curr = &(*iter);
 
 		if(curr->request_served == 1)
 			continue; 
@@ -1071,56 +1058,50 @@ void update_write_queue_commands(int channel)
 // Remove finished requests from the queues.
 void clean_queues(int channel)
 {
-
-	request_t * rd_ptr =  NULL;
-	request_t * rd_tmp = NULL;
-	request_t * wrt_ptr = NULL;
-	request_t * wrt_tmp = NULL;
-
-	// Delete all READ requests whose completion time has been determined i.e. COL_RD has been issued
-	LL_FOREACH_SAFE(read_queue_head[channel],rd_ptr,rd_tmp) 
-	{
-	  //DK: Changing this to clean them out once their completion time has arrived,
-	  //    not once their completion time is known
-	  //if(rd_ptr->completion_time != -100 && CYCLE_VAL >= rd_ptr->completion_time)
-	  if(rd_ptr->request_served == 1)
-		{
-		  //printf("cleaning read request with completion time %lld on cycle %lld\n", rd_ptr->completion_time, CYCLE_VAL);
-			assert(rd_ptr->next_command == COL_READ_CMD);
+    std::list<request_t> &rQueueRef      = read_queue_head[channel];
+    std::list<request_t>::iterator rIter = rQueueRef.begin();
+    while (rIter != rQueueRef.end())
+    {
+        //DK: Changing this to clean them out once their completion time has arrived,
+        //    not once their completion time is known
+        //if(rIter->completion_time != -100 && CYCLE_VAL >= rIter->completion_time)
+        if (rIter->request_served == 1)
+        {
+            //printf("cleaning read request with completion time %lld on cycle %lld\n", rd_ptr->completion_time, CYCLE_VAL);
+            assert(rIter->next_command == COL_READ_CMD);
 
 			assert(rd_ptr->completion_time != -100);
 
-			LL_DELETE(read_queue_head[channel],rd_ptr);
-
-			if(rd_ptr->user_ptr)
-			  free(rd_ptr->user_ptr);
-
-			delete rd_ptr;
-
+            rIter = rQueueRef.erase(rIter);
 			read_queue_length[channel]--;
 
 			assert(read_queue_length[channel]>=0);
-
+        }
+        else
+        {
+            // erase operation increments iterator for us
+            ++rIter;
 		}
 	}
 
 	// Delete all WRITE requests whose completion time has been determined i.e COL_WRITE has been issued
-	LL_FOREACH_SAFE(write_queue_head[channel],wrt_ptr,wrt_tmp) 
-	{
-		if(wrt_ptr->request_served == 1)
-		{
-			assert(wrt_ptr->next_command == COL_WRITE_CMD);
+    std::list<request_t> &wQueueRef      = write_queue_head[channel];
+    std::list<request_t>::iterator wIter = wQueueRef.begin();
+    while (wIter != wQueueRef.end())
+    {
+        if (wIter->request_served == 1)
+        {
+            assert(wIter->next_command == COL_WRITE_CMD);
 
-			LL_DELETE(write_queue_head[channel],wrt_ptr);
-
-			if(wrt_ptr->user_ptr)
-			  free(wrt_ptr->user_ptr);
-
-			delete wrt_ptr;
-
+            wIter = wQueueRef.erase(wIter);
 			write_queue_length[channel]--;
 
 			assert(write_queue_length[channel]>=0);
+        }
+        else
+        {
+            // erase operation increments iterator for us
+            ++wIter;
 		}
 	}
 }
