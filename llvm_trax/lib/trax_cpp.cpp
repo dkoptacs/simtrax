@@ -121,6 +121,10 @@ int atomicinc( int location) {
   return trax_global_registers[location].fetch_add(1);
 }
 
+int atomicdec( int location) {
+  return trax_global_registers[location].fetch_add(-1);
+}
+
 int global_reg_read( int location ) {
   return trax_global_registers[location].load();
 }

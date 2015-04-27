@@ -13,6 +13,7 @@ extern "C"
 
   // Arithmetic
   extern int atomicinc( int location ) asm("llvm.mips.atominc");
+  extern int atomicdec( int location ) asm("llvm.mips.atomdec");
   extern float min( float left, float right ) asm("llvm.mips.min");
   extern float max( float left, float right ) asm("llvm.mips.max");
   extern float invsqrt( float value ) asm("llvm.mips.invsqrt");

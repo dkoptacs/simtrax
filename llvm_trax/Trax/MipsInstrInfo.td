@@ -1769,6 +1769,9 @@ include "MicroMipsInstrFPU.td"
 def ATOMIC_INC : FR<0x0, 0x2B, (outs GPR32Opnd:$rd), (ins GPR32Opnd:$rt),
     "ATOMIC_INC $rd, $rt", [], II_SW >;
 
+def ATOMIC_DEC : FR<0x0, 0x2D, (outs GPR32Opnd:$rd), (ins GPR32Opnd:$rt),
+    "ATOMIC_DEC $rd, $rt", [], II_SW >;
+
 def GLOBAL_RD : FR<0x0, 0x23, (outs GPR32Opnd:$rd), (ins GPR32Opnd:$rt),
     "GLOBAL_READ $rd, $rt", [], II_SW >;
 
@@ -1830,6 +1833,8 @@ def CLOCK : SingleOut<0x00, 0x22, "CLOCK", GPR32Opnd, NoItinerary>;
 //===----------------------------------------------------------------------===//
 
 def : Pat<(int_mips_atominc (i32 GPR32Opnd:$in)), (ATOMIC_INC GPR32Opnd:$in)>;
+
+def : Pat<(int_mips_atomdec (i32 GPR32Opnd:$in)), (ATOMIC_DEC GPR32Opnd:$in)>;
 
 def : Pat<(int_mips_globalrrd (i32 GPR32Opnd:$in)), (GLOBAL_RD GPR32Opnd:$in)>;
 

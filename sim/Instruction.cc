@@ -475,6 +475,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
 
       //TODO: these global atomic instructions are always ready to issue (this is wrong though)
     case Instruction::ATOMIC_INC:
+    case Instruction::ATOMIC_DEC:
     case Instruction::ATOMIC_ADD:
     case Instruction::ATOMIC_FPADD:
     case Instruction::INC_RESET:
@@ -670,6 +671,7 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("LOAD"),
   std::string("INTCONV"),
   std::string("ATOMIC_INC"),
+  std::string("ATOMIC_DEC"),
   std::string("INC_RESET"),
   std::string("BARRIER"),
   std::string("SEM_ACQ"),

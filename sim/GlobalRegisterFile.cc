@@ -79,10 +79,16 @@ void GlobalRegisterFile::WriteFloat(int which_reg, float value)
 
 bool GlobalRegisterFile::SupportsOp(Instruction::Opcode op) const
 {
-  if (op == Instruction::ATOMIC_INC || op == Instruction::ATOMIC_ADD ||
-      op == Instruction::INC_RESET || op == Instruction::BARRIER ||
-      op == Instruction::GLOBAL_READ || op == Instruction::SEM_ACQ ||
-      op == Instruction::SEM_REL || op == Instruction::GLOBAL_STORE)
+  if (op == Instruction::ATOMIC_INC || 
+      op == Instruction::ATOMIC_DEC || 
+      op == Instruction::ATOMIC_ADD ||
+      op == Instruction::INC_RESET || 
+      op == Instruction::BARRIER ||
+      op == Instruction::GLOBAL_READ || 
+      op == Instruction::SEM_ACQ ||
+      op == Instruction::SEM_REL || 
+      op == Instruction::GLOBAL_STORE
+)
     return true;
 
   return false;
@@ -149,6 +155,7 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
   switch (ins.op)
   {
     case Instruction::ATOMIC_INC:
+    case Instruction::ATOMIC_DEC:
       // Instruction is ATOMIC_INC: Copy globalreg[args[1]]++ to args[0]
       // postincrement
       result.udata = ReadUint(arg1.udata);
@@ -181,8 +188,11 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
         fflush(stdout);
         last_report_cycle += report_period;
       }
-
-      WriteUint(arg1.udata, result.udata+1);
+      
+      if(ins.op  == Instruction::ATOMIC_INC)
+	WriteUint(arg1.udata, result.udata+1);
+      else
+	WriteUint(arg1.udata, result.udata-1);
       break;
 
     case Instruction::ATOMIC_ADD:
@@ -255,6 +265,7 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
       switch (ins.op)
       {
         case Instruction::ATOMIC_INC:
+        case Instruction::ATOMIC_DEC:
           WriteUint(arg1.udata, result.udata);
           break;
 

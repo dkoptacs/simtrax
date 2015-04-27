@@ -17,6 +17,7 @@ void global_reg_set( int location, int value );
 
 // Arithmetic
 int atomicinc( int location );
+int atomicdec( int location );
 float min( float left, float right );
 float max( float left, float right );
 float invsqrt( float value );

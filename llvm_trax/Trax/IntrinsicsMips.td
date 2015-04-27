@@ -1777,6 +1777,7 @@ def int_mips_xori_b : GCCBuiltin<"__builtin_msa_xori_b">,
 //===----------------------------------------------------------------------===//
 
 def int_mips_atominc : Intrinsic<[llvm_i32_ty], [llvm_i32_ty]>;
+def int_mips_atomdec : Intrinsic<[llvm_i32_ty], [llvm_i32_ty]>;
 def int_mips_invsqrt : Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
 def int_mips_printfmstr : Intrinsic<[], [llvm_ptrptr_ty]>;
 def int_mips_printi : Intrinsic<[], [llvm_i32_ty]>;

@@ -64,6 +64,7 @@ class Instruction {
     // end 14 arithmetic ops
     INTCONV,     // dst, source (float->int)
     ATOMIC_INC,  // dst, source(global), offset(imm -- ignored)
+    ATOMIC_DEC,
     INC_RESET,   // dst, source(global)
     BARRIER,     // source(global)
     SEM_ACQ,
