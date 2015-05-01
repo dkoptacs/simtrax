@@ -178,6 +178,9 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::clt_s_w:
     case Instruction::fsub_w:
     case Instruction::addv_w:
+    case Instruction::xor_v:
+    case Instruction::or_v:
+    case Instruction::cle_s_w:
 
       // check args[1] and args[2] and choose the first fail_reg if there is a fail.
       if ( (register_ready[args[1]] <= cur_cycle) )
@@ -269,6 +272,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::fmadd_w:
     case Instruction::fmsub_w:
     case Instruction::bmnz_v:
+    case Instruction::msubv_w:
       // check args[0], args[1] and args[2] and choose the first fail_reg if there is a fail.
       if ((register_ready[args[0]] <= cur_cycle))
         if ((register_ready[args[1]] <= cur_cycle))
@@ -348,6 +352,7 @@ bool Instruction::ReadyToIssue(long long int* register_ready, int* fail_reg, lon
     case Instruction::multu:
     case Instruction::teq:
     case Instruction::GLOBAL_STORE:
+    case Instruction::bseli_b:
       // check args[0] and args[1] for read
       if (register_ready[args[0]] <= cur_cycle)
         if (register_ready[args[1]] <= cur_cycle)
@@ -945,6 +950,11 @@ std::string Instruction::Opnames[NUM_OPS] = {
   std::string("fsub_w"),
   std::string("clti_s_w"),
   std::string("addv_w"),  
+  std::string("xor_v"),
+  std::string("or_v"),
+  std::string("cle_s_w"),
+  std::string("msubv_w"),
+  std::string("bseli_b"),
 
   // End MIPS
 };

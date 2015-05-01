@@ -37,7 +37,8 @@ bool FPCompare::SupportsOp(Instruction::Opcode op) const {
       op == Instruction::fclt_w ||
       op == Instruction::clt_s_w ||
       op == Instruction::ceq_w ||
-      op == Instruction::clti_s_w
+      op == Instruction::clti_s_w ||
+      op == Instruction::cle_s_w
       )
     return true;
   else
@@ -55,7 +56,8 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
   bool isMSA = (ins.op == Instruction::fclt_w ||
 		ins.op == Instruction::clt_s_w ||
 		ins.op == Instruction::ceq_w ||
-		ins.op == Instruction::clti_s_w
+		ins.op == Instruction::clti_s_w ||
+		ins.op == Instruction::cle_s_w
 		);
 
   // Read the registers
@@ -246,6 +248,13 @@ bool FPCompare::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadSta
     result.udataMSA[0] = arg1.idataMSA[0] == arg2.idataMSA[0] ? 0xFFFFFFFF : 0;
     result.udataMSA[1] = arg1.idataMSA[1] == arg2.idataMSA[1] ? 0xFFFFFFFF : 0;
     result.udataMSA[2] = arg1.idataMSA[2] == arg2.idataMSA[2] ? 0xFFFFFFFF : 0;
+    break;
+
+  case Instruction::cle_s_w:
+    result.udata = arg1.idata <= arg2.idata ? 0xFFFFFFFF : 0;    
+    result.udataMSA[0] = arg1.idataMSA[0] <= arg2.idataMSA[0] ? 0xFFFFFFFF : 0;
+    result.udataMSA[1] = arg1.idataMSA[1] <= arg2.idataMSA[1] ? 0xFFFFFFFF : 0;
+    result.udataMSA[2] = arg1.idataMSA[2] <= arg2.idataMSA[2] ? 0xFFFFFFFF : 0;
     break;
 
     default:

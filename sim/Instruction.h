@@ -341,6 +341,11 @@ class Instruction {
     fsub_w,
     clti_s_w,
     addv_w,
+    xor_v,
+    or_v,
+    cle_s_w,
+    msubv_w,
+    bseli_b,
     // End MIPS
 
     NUM_OPS

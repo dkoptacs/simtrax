@@ -53,7 +53,10 @@ bool Bitwise::SupportsOp(Instruction::Opcode op) const
       op == Instruction::pcnt_w ||
       op == Instruction::and_v ||
       op == Instruction::slli_w ||
-      op == Instruction::bmnz_v
+      op == Instruction::bmnz_v ||
+      op == Instruction::xor_v ||
+      op == Instruction::or_v ||
+      op == Instruction::bseli_b
       )
     return true;
   else
@@ -77,7 +80,10 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   bool isMSA = (ins.op == Instruction::pcnt_w ||
 		ins.op == Instruction::and_v ||
 		ins.op == Instruction::slli_w ||
-		ins.op == Instruction::bmnz_v
+		ins.op == Instruction::bmnz_v ||
+		ins.op == Instruction::xor_v ||
+		ins.op == Instruction::or_v ||
+		ins.op == Instruction::bseli_b
 		);
 
   // Read the registers
@@ -103,6 +109,8 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::lsa:
     case Instruction::and_v:
     case Instruction::bmnz_v:
+    case Instruction::xor_v:
+    case Instruction::or_v:
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
           !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop, isMSA))
       {
@@ -131,6 +139,7 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     case Instruction::ANDNI:
     case Instruction::pcnt_w:
     case Instruction::slli_w:
+    case Instruction::bseli_b:
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA))
       {
         // bad stuff happened
@@ -144,7 +153,7 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
   };
 
   // now get the result value
-  reg_value result;
+  reg_value result, temp;
   switch (ins.op)
   {
     case Instruction::nor:
@@ -312,6 +321,38 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     result.udataMSA[1] = (arg1.udataMSA[1] & arg2.udataMSA[1]) | (result.udataMSA[1] & ~arg2.udataMSA[1]);
     result.udataMSA[2] = (arg1.udataMSA[2] & arg2.udataMSA[2]) | (result.udataMSA[2] & ~arg2.udataMSA[2]);
 
+    break;
+
+  case Instruction::bseli_b:
+    if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, result, failop, true))
+      {
+        // bad stuff happened
+        printf("Bitwise unit: Error in Accepting instruction bseli_b. Should have passed.\n");
+      }
+    temp.udata = 0;
+    for(i = 0; i < 4; i++) // apply the bitsel to each byte, since immediate input is 8 bits
+      { 
+	j = 0x000000FF << (i * 8);// use j as a byte mask
+	temp.udata += ((arg1.udata & j) & ~(result.udata & j)) || (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udata & j));
+	temp.udataMSA[0] += ((arg1.udataMSA[0] & j) & ~(result.udataMSA[0] & j)) || (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udataMSA[0] & j));
+	temp.udataMSA[1] += ((arg1.udataMSA[1] & j) & ~(result.udataMSA[1] & j)) || (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udataMSA[1] & j));
+	temp.udataMSA[2] += ((arg1.udataMSA[2] & j) & ~(result.udataMSA[2] & j)) || (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udataMSA[2] & j));
+      }
+    result = temp;
+    break;
+
+  case Instruction::xor_v:
+    result.udata = arg1.udata ^ arg2.udata;
+    result.udataMSA[0] = arg1.udataMSA[0] ^ arg2.udataMSA[0];
+    result.udataMSA[1] = arg1.udataMSA[1] ^ arg2.udataMSA[1];
+    result.udataMSA[2] = arg1.udataMSA[2] ^ arg2.udataMSA[2];
+    break;
+
+  case Instruction::or_v:
+    result.udata = arg1.udata | arg2.udata;
+    result.udataMSA[0] = arg1.udataMSA[0] | arg2.udataMSA[0];
+    result.udataMSA[1] = arg1.udataMSA[1] | arg2.udataMSA[1];
+    result.udataMSA[2] = arg1.udataMSA[2] | arg2.udataMSA[2];
     break;
 
     default:

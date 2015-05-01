@@ -705,17 +705,26 @@ int main(int argc, char* argv[]) {
       current_core->SetSymbols(&regs);
 
       // Link the FPAdder to the FPMul for fmad ops
+      // Similarly for integers
       FPMul* fpmul = NULL;
       FPAddSub* fpadd = NULL;
+      IntMul* intmul = NULL;
+      IntAddSub* intadd = NULL;
       for(size_t unit_id = 0; unit_id < current_core->functional_units.size(); unit_id++)
 	{
 	  if(fpmul == NULL)
 	    fpmul = dynamic_cast<FPMul*>(current_core->functional_units[unit_id]);
 	  if(fpadd == NULL)
 	    fpadd = dynamic_cast<FPAddSub*>(current_core->functional_units[unit_id]);
+	  if(intmul == NULL)
+	    intmul = dynamic_cast<IntMul*>(current_core->functional_units[unit_id]);
+	  if(intadd == NULL)
+	    intadd = dynamic_cast<IntAddSub*>(current_core->functional_units[unit_id]);
 	}
       if(fpmul != NULL && fpadd != NULL)
 	fpmul->SetAdder(fpadd);
+      if(intmul != NULL && intadd != NULL)
+	intmul->SetAdder(intadd);
 
       cores.push_back(current_core);
     }

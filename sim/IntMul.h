@@ -2,6 +2,7 @@
 #define _SIMHWRT_INTMUL_H_
 
 #include "FunctionalUnit.h"
+#include "IntAddSub.h"
 
 class SimpleRegisterFile;
 
@@ -18,6 +19,9 @@ class IntMul : public FunctionalUnit {
   virtual void ClockFall();
   virtual void print();
   virtual double Utilization();
+
+  void SetAdder(IntAddSub* adder);
+  IntAddSub* add_unit;
 
   int width;
   int issued_this_cycle;

@@ -12,6 +12,11 @@ IntMul::IntMul(int _latency, int _width) :
   issued_this_cycle = 0;
 }
 
+void IntMul::SetAdder(IntAddSub* adder)
+{
+  add_unit = adder;
+}
+
 // From FunctionalUnit
 bool IntMul::SupportsOp(Instruction::Opcode op) const
 {
@@ -20,7 +25,8 @@ bool IntMul::SupportsOp(Instruction::Opcode op) const
       op == Instruction::mul || 
       op == Instruction::mult ||
       op == Instruction::multu ||
-      op == Instruction::mulv_w)
+      op == Instruction::mulv_w ||
+      op == Instruction::msubv_w)
     return true;
   else
     return false;
@@ -38,7 +44,9 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
   reg_value resultHI;
   reg_value resultLO;
   Instruction::Opcode failop = Instruction::NOP;
-  bool isMSA = ins.op == Instruction::mulv_w;
+  bool isMSA = (ins.op == Instruction::mulv_w ||
+		ins.op == Instruction::msubv_w 
+		);
 
   // Read the registers
   switch (ins.op)
@@ -46,6 +54,7 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
     case Instruction::MUL:
     case Instruction::mul:
     case Instruction::mulv_w:
+    case Instruction::msubv_w:
       if (!thread->ReadRegister(ins.args[1], issuer->current_cycle, arg1, failop, isMSA) ||
           !thread->ReadRegister(ins.args[2], issuer->current_cycle, arg2, failop, isMSA))
       {
@@ -94,6 +103,22 @@ bool IntMul::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState*
       result.idataMSA[0] = arg1.idataMSA[0] * arg2.idataMSA[0];
       result.idataMSA[1] = arg1.idataMSA[1] * arg2.idataMSA[1];
       result.idataMSA[2] = arg1.idataMSA[2] * arg2.idataMSA[2];
+      break;
+
+    case Instruction::msubv_w:
+      // Tie up the add unit and the mul unit on the same cycle
+      if(add_unit->issued_this_cycle >= add_unit->width)
+	return false;
+      if (!thread->ReadRegister(ins.args[0], issuer->current_cycle, result, failop, true))
+	{
+	  // bad stuff happened
+	  printf("IntMul unit: Error in Accepting instruction. Should have passed.\n");
+	}
+      write_cycle += add_unit->GetLatency();
+      result.idata -= arg1.idata * arg2.idata;
+      result.idataMSA[0] -= arg1.idataMSA[0] * arg2.idataMSA[0];
+      result.idataMSA[1] -= arg1.idataMSA[1] * arg2.idataMSA[1];
+      result.idataMSA[2] -= arg1.idataMSA[2] * arg2.idataMSA[2];
       break;
 
     case Instruction::MULI:
