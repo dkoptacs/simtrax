@@ -116,6 +116,7 @@ set(simHdr
 	PPM.h
 	Primitive.h
 	processor.h
+	Profiler.h
 	ReadConfig.h
 	ReadLightfile.h
 	ReadViewfile.h
@@ -172,6 +173,7 @@ set(simSrc
 	OBJListLoader.cc
 	OBJLoader.cc
 	PPM.cc
+	Profiler.cc
 	ReadConfig.cc
 	ReadLightfile.cc
 	ReadViewfile.cc
