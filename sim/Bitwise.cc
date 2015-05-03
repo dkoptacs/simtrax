@@ -333,12 +333,12 @@ bool Bitwise::AcceptInstruction(Instruction& ins, IssueUnit* issuer, ThreadState
     for(i = 0; i < 4; i++) // apply the bitsel to each byte, since immediate input is 8 bits
       { 
 	j = 0x000000FF << (i * 8);// use j as a byte mask
-	temp.udata += ((arg1.udata & j) & ~(result.udata & j)) || (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udata & j));
-	temp.udataMSA[0] += ((arg1.udataMSA[0] & j) & ~(result.udataMSA[0] & j)) || (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udataMSA[0] & j));
-	temp.udataMSA[1] += ((arg1.udataMSA[1] & j) & ~(result.udataMSA[1] & j)) || (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udataMSA[1] & j));
-	temp.udataMSA[2] += ((arg1.udataMSA[2] & j) & ~(result.udataMSA[2] & j)) || (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udataMSA[2] & j));
+	temp.udata += (((arg1.udata & j) & ~(result.udata & j)) | (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udata & j)));
+	temp.udataMSA[0] += ((arg1.udataMSA[0] & j) & ~(result.udataMSA[0] & j)) | (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udataMSA[0] & j));
+	temp.udataMSA[1] += ((arg1.udataMSA[1] & j) & ~(result.udataMSA[1] & j)) | (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udataMSA[1] & j));
+	temp.udataMSA[2] += ((arg1.udataMSA[2] & j) & ~(result.udataMSA[2] & j)) | (((ins.args[2] & 0x000000FF) << (i * 8)) & (result.udataMSA[2] & j));
       }
-    result = temp;
+    result = temp;    
     break;
 
   case Instruction::xor_v:
