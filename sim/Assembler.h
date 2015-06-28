@@ -5,9 +5,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include "Instruction.h"
-#include "Profiler.h"
+#include "DwarfReader.h"
 
-class Profiler;
+class DwarfReader;
 
 // A label or register name
 struct symbol
@@ -32,13 +32,15 @@ class Assembler
   static int LoadAssem(char *filename, std::vector<Instruction*>& instructions, 
 		       std::vector<symbol*>& regs, int num_system_regs, char*& jump_table, 
 		       std::vector<std::string>& ascii_literals, std::vector<std::string>& sourceNames, 
-		       bool print_symbols, bool run_profile, Profiler* profiler);
+		       std::vector< std::vector< std::string > >& sourceLines,
+		       bool print_symbols, bool needs_debug_symbols, DwarfReader* dwarfReader);
  private:
-  static int HandleLine(std::string line, int pass, std::vector<Instruction*>& instructions, 
+  static int HandleLine(std::string line, int pass, int lineNum, std::vector<Instruction*>& instructions, 
 			std::vector<symbol*>& labels, std::vector<symbol*>& regs, 
 			std::vector<symbol*>& elf_vars, std::vector<symbol*>& data_table, 
 			char*& jump_table, std::vector<std::string>& ascii_literals, 
-			std::vector<std::string>& sourceNames);
+			std::vector<std::string>& sourceNames,
+			std::vector< std::vector< std::string> >& sourceLines);
 
   static int HandleRegister(std::string line, int pass, std::vector<symbol*>& labels, 
 			    std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars);
@@ -50,7 +52,7 @@ class Assembler
 			std::vector<symbol*>& regs, std::vector<symbol*>& elf_vars, 
 			std::vector<symbol*>& data_table, char*& jump_table);
 
-  static int HandleInstruction(std::string line, int pass, std::vector<Instruction*>& instructions, 
+  static int HandleInstruction(std::string line, int pass, int lineNum, std::vector<Instruction*>& instructions, 
 			       std::vector<symbol*>& labels, std::vector<symbol*>& regs, 
 			       std::vector<symbol*>& elf_vars);
 
@@ -71,7 +73,8 @@ class Assembler
 			      std::vector<symbol*>& regs,
 			      std::vector<symbol*>& elf_vars);
 
-  static int HandleFileName(std::string line, int pass, std::vector<std::string>& sourceNames);
+  static int HandleFileName(std::string line, int pass, std::vector<std::string>& sourceNames,
+			    std::vector< std::vector< std::string > >& sourceLines);
 
   static int HandleAssignment(std::string line, int pass,
 			      std::vector<symbol*>& labels,
@@ -104,6 +107,8 @@ class Assembler
 			   std::vector<symbol*>& data_table, char* jump_table, int end_data);
 
   static std::string EscapedToAscii(std::string input);
+
+  static void AddFileLines(std::string, std::vector< std::vector< std::string > >& sourceLines);
 
 };
 

@@ -37,6 +37,13 @@ struct SourceInfo
       fileNum(-1), lineNum(-1), colNum(-1)
   {}
 
+  bool operator!=(const SourceInfo& rhs)
+  {
+    return (fileNum != rhs.fileNum) || 
+      (lineNum != rhs.lineNum);
+    // For these purposes we don't care about column number
+  }
+
 };
 
 class Instruction {
@@ -355,6 +362,7 @@ class Instruction {
 
   Instruction(Opcode code, int arg0, int arg1, int arg2, int arg3, int pc_addr = 0);
   Instruction(Opcode code, int arg0, int arg1, int arg2, int arg3, SourceInfo _srcInfo,
+	      std::string _asmLine, int _lineNum,
               int pc_addr = 0);
   Instruction(const Instruction& ins);
 
@@ -370,6 +378,8 @@ class Instruction {
   long long int executions;
   long long int data_stalls;
   SourceInfo srcInfo;
+  std::string asmLine;
+  int lineNum;
 
   // Since we're assuming an in-order processor, we never have to wait
   // for the destination register (since anyone that depended on it

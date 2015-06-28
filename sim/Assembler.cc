@@ -2,6 +2,7 @@
 //#include <regex>
 #include <boost/regex.hpp>
 #include <iostream>
+#include <stdio.h>
 #include <fstream>
 #include <stdint.h>
 #include <cassert>
@@ -90,8 +91,9 @@ int Assembler::LoadAssem(char *filename,
                          char*& jump_table,
                          std::vector<std::string>& ascii_literals,
 			 std::vector<std::string>& sourceNames,
-                         bool print_symbols, bool run_profile,
-			 Profiler* profiler)
+			 std::vector< std::vector< std::string> >& sourceLines,
+                         bool print_symbols, bool needs_debug_symbols,
+			 DwarfReader* dwarfReader)
 {
   printf("Loading assembly file %s\n", filename);
 
@@ -164,7 +166,7 @@ int Assembler::LoadAssem(char *filename,
     {
       std::string line;
       getline(input, line);
-      if(!HandleLine(line, 1, instructions, labels, regs, elf_vars, data_table, jump_table, ascii_literals, sourceNames))
+      if(!HandleLine(line, 1, lineCount, instructions, labels, regs, elf_vars, data_table, jump_table, ascii_literals, sourceNames, sourceLines))
 	{
 	  printf("Line %d: %s\n", lineCount, line.c_str());
 	  return -1;
@@ -198,7 +200,7 @@ int Assembler::LoadAssem(char *filename,
     {
       std::string line;
       getline(input, line);
-      if(!HandleLine(line, 2, instructions, labels, regs, elf_vars, data_table, jump_table, ascii_literals, sourceNames))
+      if(!HandleLine(line, 2, lineCount, instructions, labels, regs, elf_vars, data_table, jump_table, ascii_literals, sourceNames, sourceLines))
 	{
 	  printf("Line %d: %s\n", lineCount, line.c_str());
 	  return -1;
@@ -219,16 +221,16 @@ int Assembler::LoadAssem(char *filename,
 
   if(print_symbols)
     {
-      if(!run_profile)
+      if(!needs_debug_symbols)
 	PrintSymbols(regs, labels, data_table, jump_table, end_data);
       else
 	PrintSymbols(regs, labels, data_table, jump_table, jtable_size);
     }
   
 
-  if(run_profile)
+  if(needs_debug_symbols)
     {
-      profiler->BuildSourceTree(labels, elf_vars, data_table, jump_table, jtable_size, debug_start, abbrev_start);
+      dwarfReader->BuildSourceTree(labels, elf_vars, data_table, jump_table, jtable_size, debug_start, abbrev_start);
     }
 
   return end_data;
@@ -237,6 +239,7 @@ int Assembler::LoadAssem(char *filename,
 // Parses a single line of assembly
 int Assembler::HandleLine(std::string line,
                           int pass,
+			  int lineNum,
                           std::vector<Instruction*>& instructions,
                           std::vector<symbol*>& labels,
                           std::vector<symbol*>& regs,
@@ -244,7 +247,8 @@ int Assembler::HandleLine(std::string line,
                           std::vector<symbol*>& data_table,
                           char*& jump_table,
                           std::vector<std::string>& ascii_literals,
-                          std::vector<std::string>& sourceNames)
+                          std::vector<std::string>& sourceNames,
+			  std::vector< std::vector< std::string> >& sourceLines)
 {
 
   boost::smatch m;
@@ -318,7 +322,7 @@ int Assembler::HandleLine(std::string line,
   // Debug source file declaration
   if(boost::regex_search(line, m, boost::regex(expFile)))
     {
-      return HandleFileName(origLine, pass, sourceNames);
+      return HandleFileName(origLine, pass, sourceNames, sourceLines);
     }
   // ELF assignment
   if(boost::regex_search(line, m, boost::regex(expAssign)))
@@ -326,7 +330,7 @@ int Assembler::HandleLine(std::string line,
       return HandleAssignment(origLine, pass, labels, regs, elf_vars);
     }
   // Otherwise, it must be an instruction
-  return HandleInstruction(origLine, pass, instructions, labels, regs, elf_vars);
+  return HandleInstruction(origLine, pass, lineNum, instructions, labels, regs, elf_vars);
 }
 
 
@@ -593,7 +597,7 @@ int Assembler::HandleData(std::string line, int pass, std::vector<symbol*>& labe
 }
 
 // Adds an instruction to the simulator's instruction memory
-int Assembler::HandleInstruction(std::string line, int pass, std::vector<Instruction*>& instructions, 
+int Assembler::HandleInstruction(std::string line, int pass, int lineNum, std::vector<Instruction*>& instructions, 
 				 std::vector<symbol*>& labels, std::vector<symbol*>& regs, 
 				 std::vector<symbol*>& elf_vars)
 {
@@ -649,6 +653,8 @@ int Assembler::HandleInstruction(std::string line, int pass, std::vector<Instruc
 						 args[2], 
 						 args[3],
 						 currentSourceInfo,
+						 line,
+						 lineNum,
 						 instructions.size()));
 	  return 1;
 	}
@@ -881,7 +887,8 @@ int Assembler::HandleSourceInfo(std::string line, int pass,
 
 
 // Debug info: (.file) declares a path to one of the source files, used by .loc
-int Assembler::HandleFileName(std::string line, int pass, std::vector<std::string>& sourceNames)
+int Assembler::HandleFileName(std::string line, int pass, std::vector<std::string>& sourceNames, 
+			      std::vector< std::vector< std::string > >& sourceLines)
 {
 
   if(pass == 2) // ignore .file on pass 2
@@ -906,6 +913,7 @@ int Assembler::HandleFileName(std::string line, int pass, std::vector<std::strin
   // Strip out the enclosing quotes
   sourceNames.push_back(m.str().substr(1, m.str().length() - 2));
 
+  AddFileLines(sourceNames[sourceNames.size()-1], sourceLines);
   return 1;
 }
 
@@ -1148,6 +1156,8 @@ void Assembler::AddTRaXInitialize(std::vector<Instruction*>& instructions,
 						 0,
 						 0, 
 						 tmpSrcInfo,
+						 "<system generated init>",
+						 0,
 						 instructions.size()));
 	  instructions.push_back(new Instruction(Instruction::nop,
 						 0,
@@ -1155,6 +1165,8 @@ void Assembler::AddTRaXInitialize(std::vector<Instruction*>& instructions,
 						 0,
 						 0, 
 						 tmpSrcInfo,
+						 "<system generated init>",
+						 0,
 						 instructions.size()));
 	  startCtors += 4; // instruction addresses have to be 4 bytes
 	}
@@ -1173,6 +1185,8 @@ void Assembler::AddTRaXInitialize(std::vector<Instruction*>& instructions,
 					 0, 
 					 0,
 					 tmpSrcInfo,
+					 "<system generated init>",
+					 0,
 					 instructions.size()));
 
   instructions.push_back(new Instruction(Instruction::nop,
@@ -1181,6 +1195,8 @@ void Assembler::AddTRaXInitialize(std::vector<Instruction*>& instructions,
 					 0,
 					 0, 
 					 tmpSrcInfo,
+					 "<system generated init>",
+					 0,
 					 instructions.size()));
 }
 
@@ -1278,3 +1294,22 @@ std::string Assembler::EscapedToAscii(std::string input)
 }
 
 
+void Assembler::AddFileLines(std::string filename, std::vector< std::vector< std::string > >& sourceLines)
+{
+  FILE* input = fopen(filename.c_str(), "r");
+  if(!input)
+    {
+      printf("Assembler unable to load source symbols from file %s\n", filename.c_str());
+    }
+  
+  std::vector<std::string> newFile;
+
+  while (input && !feof(input)) 
+    {
+      char line_buf[1024];
+      fgets(line_buf, sizeof(line_buf), input);
+      newFile.push_back(std::string(line_buf));
+    }
+  
+  sourceLines.push_back(newFile);
+}

@@ -6,6 +6,7 @@
 #include "FPAddSub.h"
 #include "ReadConfig.h"
 #include "Profiler.h"
+#include "Debugger.h"
 #include "memory_controller.h"
 #include <stdlib.h>
 #include <fstream>
@@ -15,12 +16,14 @@ extern pthread_mutex_t profile_mutex;
 IssueUnit::IssueUnit(const char* icache_params_file, std::vector<ThreadProcessor*>& _thread_procs,
                      std::vector<FunctionalUnit*>& functional_units,
                      int _verbosity, int _num_icaches, int _icache_banks,
-                     int _simd_width, bool _enable_profiling, Profiler* _profiler)
+                     int _simd_width, bool _enable_profiling, 
+		     Profiler* _profiler, Debugger* _debugger)
     :verbosity(_verbosity)
 {
   printed_single_kernel = false;
   enable_profiling = _enable_profiling;
   profiler = _profiler;
+  debugger = _debugger;
 
   if(!ReadCacheParams(icache_params_file, 4096, _icache_banks, 4, area, energy, false))
     perror("WARNING: Unable to find area and energy profile for specified instruction cache.\nAssuming 0\n");
@@ -656,6 +659,11 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
       fetched_instruction->executions++;
       pthread_mutex_unlock(&profile_mutex);
     }
+
+    // TODO: Need to design a multi-threaded debugger.
+    // For now, not supported with --num-simulations-threads > 1    
+    if(debugger->isEnabled())
+      debugger->run(thread, fetched_instruction);
 
     // stats and info
     simd_issue++;

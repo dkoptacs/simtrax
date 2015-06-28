@@ -9,6 +9,7 @@
 #include "DebugUnit.h"
 #include "LocalStore.h"
 #include "Profiler.h"
+#include "Debugger.h"
 #include <pthread.h>
 
 class Instruction;
@@ -23,9 +24,10 @@ class L1Cache;
 class TraxCore {
 public:
   long long int cycle_num;
-  TraxCore(int num_thread_procs, int _threads_per_core, int num_regs, ThreadProcessor::SchedulingScheme ss, 
-	   std::vector<Instruction*>* instructions, L2Cache* L2,
-	   size_t coreid, size_t l2id, bool _enable_profiling, Profiler* _profiler);
+  TraxCore(int num_thread_procs, int _threads_per_core, int num_regs, 
+	   ThreadProcessor::SchedulingScheme ss, std::vector<Instruction*>* instructions, 
+	   L2Cache* L2, size_t coreid, size_t l2id, bool _enable_profiling, 
+	   Profiler* _profiler, Debugger* _debugger);
   ~TraxCore();
 
   // sets up issue unit and thread states
@@ -43,6 +45,7 @@ public:
   //data members...
   bool enable_profiling;
   Profiler* profiler;
+  Debugger* debugger;
   int num_thread_procs;
   int threads_per_proc;
   int num_regs;

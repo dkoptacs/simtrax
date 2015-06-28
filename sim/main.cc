@@ -25,6 +25,8 @@
 #include "MainMemory.h"
 #include "OBJLoader.h"
 #include "Profiler.h"
+#include "Debugger.h"
+#include "DwarfReader.h"
 #include "ReadConfig.h"
 #include "ReadViewfile.h"
 #include "ReadLightfile.h"
@@ -94,6 +96,7 @@ int trax_verbosity;
 // Assembler needs somewhere to put file names for debug info if compiled with -g
 // Global because many units may want use of this for better error reporting
 std::vector<std::string> source_names;
+std::vector< std::vector< std::string > > source_lines;
 
 void PrintProfile(const char* assem_file, std::vector<Instruction*>& instructions, 
 		  std::vector<std::string> srcNames, FILE* profile_output, 
@@ -316,6 +319,7 @@ void printUsage(char* program_name) {
   printf("%s\n", program_name);
   printf(" + Simulator Parameters:\n");
   printf("    --atominc-report       <(debug): number of cycles between reporting global registers -- default 0, 0 means off>\n");
+  printf("    --debug                <(debug): run TRaX progrem in the simtrax debugger>\n");
   printf("    --ignore-dcache-area   <reported chip area will not include data caches>\n");
   printf("    --issue-verbosity      <level of verbosity for issue unit -- default 0>\n");
   printf("    --load-mem-file        [read memory dump from file]\n");
@@ -383,6 +387,8 @@ int main(int argc, char* argv[]) {
   boost::chrono::system_clock::time_point time_start = boost::chrono::system_clock::now();
   bool print_system_info                = false;
   bool run_profile                      = false;
+  bool run_debugger                     = false;
+  bool needs_debug_symbols              = false;
   bool print_cpi                        = true;
   bool print_png                        = true;
   bool cache_snoop                      = false;
@@ -455,6 +461,8 @@ int main(int argc, char* argv[]) {
   char *dcache_params_file              = NULL;
   char *icache_params_file              = NULL;
   Profiler profiler;
+  Debugger debugger;
+  DwarfReader dwarfReader;
 
   background_color[0] = 0.561f;
   background_color[1] = 0.729f;
@@ -580,6 +588,10 @@ int main(int argc, char* argv[]) {
       print_symbols = true;
     } else if (strcmp(argv[i], "--profile") == 0) {
       run_profile = true;
+      needs_debug_symbols = true;
+    } else if (strcmp(argv[i], "--debug") == 0) {
+      run_debugger = true;
+      needs_debug_symbols = true;
     } else if (strcmp(argv[i], "--mem-file") == 0) {
       mem_file = argv[++i];
     } else if (strcmp(argv[i], "--load-mem-file") == 0) {
@@ -683,7 +695,9 @@ int main(int argc, char* argv[]) {
 
       // only one computation is needed... we'll end up with the last one after the loop
       core_size = 0;
-      TraxCore *current_core = new TraxCore(num_thread_procs, threads_per_proc, num_regs, scheduling_scheme, &instructions, L2, core_id, l2_id, run_profile, &profiler);
+      TraxCore *current_core = new TraxCore(num_thread_procs, threads_per_proc, num_regs, 
+					    scheduling_scheme, &instructions, L2, core_id, 
+					    l2_id, run_profile, &profiler, &debugger);
       config_reader.current_core = current_core;
       config_reader.LoadConfig(L2, core_size);
       current_core->modules.push_back(&globals);
@@ -904,7 +918,7 @@ int main(int argc, char* argv[]) {
 
   int jtable_size = 0;
   if(assem_file != NULL) {
-    jtable_size = Assembler::LoadAssem(assem_file, instructions, regs, num_regs, jump_table, ascii_literals, source_names, print_symbols, run_profile, &profiler);
+    jtable_size = Assembler::LoadAssem(assem_file, instructions, regs, num_regs, jump_table, ascii_literals, source_names, source_lines, print_symbols, needs_debug_symbols, &dwarfReader);
     if(jtable_size < 0) {
       printf("assembler returned an error, exiting\n");
       exit(-1);
@@ -917,6 +931,9 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
+  if(run_profile)
+    profiler.setDwarfReader(&dwarfReader);
+  
   int last_instruction = static_cast<int>(instructions.size());
   if(trax_verbosity)
     printf("Number of instructions: %d\n\n", last_instruction);
@@ -1054,6 +1071,15 @@ int main(int argc, char* argv[]) {
   PrintElapsedTime("Setup time", time_start);
 
   // Now run the simulation
+
+  // Allow the debugger a chance to interrupt right before simulation starts 
+  // so users can enter initial commands (breakpoints, etc).
+  if(run_debugger)
+    {
+      debugger.setDwarfReader(&dwarfReader);
+      debugger.enable();
+      debugger.run(NULL, NULL); // null args to indicate first invocation 
+    }
 
   //while(true) { // put a loop here for multiple frames
   boost::chrono::system_clock::time_point prev_frame_time = boost::chrono::system_clock::now();

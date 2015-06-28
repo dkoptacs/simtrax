@@ -23,11 +23,16 @@ Instruction::Instruction(Opcode code,
   srcInfo.colNum = -1;
   srcInfo.fileNum = -1;
 
+  asmLine = "";
+  lineNum = 0;
+
 }
 
 Instruction::Instruction(Opcode code,
                          int arg0, int arg1, int arg2, int arg3,
                          SourceInfo _srcInfo,
+			 std::string _asmLine,
+			 int _lineNum,
                          int pc_addr)
 {
   op = code;
@@ -42,6 +47,8 @@ Instruction::Instruction(Opcode code,
   data_stalls = 0;
 
   srcInfo = _srcInfo;
+  asmLine = _asmLine;
+  lineNum = _lineNum;
 }
 
 Instruction::Instruction(const Instruction& ins)
@@ -58,7 +65,8 @@ Instruction::Instruction(const Instruction& ins)
   data_stalls = ins.data_stalls;
 
   srcInfo = ins.srcInfo;
-
+  asmLine = ins.asmLine;
+  lineNum = ins.lineNum;
 }
 
 bool Instruction::RayReady(int ray_start, long long int* writes_in_flight, int kNoBlock) const
