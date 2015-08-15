@@ -1077,9 +1077,12 @@ int main(int argc, char* argv[]) {
   if(run_debugger)
     {
       debugger.setDwarfReader(&dwarfReader);
+      debugger.setRegisterSymbols(&regs);
       debugger.enable();
-      debugger.run(NULL, NULL); // null args to indicate first invocation 
     }
+
+  // Allow for the user to set up initial breakpoints
+  debugger.run(NULL, NULL); // null args to indicate first invocation 
 
   //while(true) { // put a loop here for multiple frames
   boost::chrono::system_clock::time_point prev_frame_time = boost::chrono::system_clock::now();

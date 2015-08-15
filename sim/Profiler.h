@@ -13,8 +13,6 @@ class Profiler
   Profiler();
   void setDwarfReader(DwarfReader* _dwarfReader);
   
-  RuntimeNode* MostRelevantAncestor(Instruction* ins, RuntimeNode* current);
-  RuntimeNode* MostRelevantDescendant(Instruction* ins, RuntimeNode* current);
   RuntimeNode* UpdateRuntime(Instruction* ins, RuntimeNode* current_runtime, char stall_type);
 
   void PrintProfile(std::vector<Instruction*>& instructions, long long int total_thread_cycles);

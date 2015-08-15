@@ -5,6 +5,7 @@
 #include "DwarfReader.h"
 #include "Assembler.h"
 
+extern std::vector<std::string> source_names;
 
 // Helpers
 unsigned char readByte(const char* jump_table, int& addr);
@@ -12,6 +13,10 @@ uint16_t readHalf(const char* jump_table, int& addr);
 uint32_t readWord(const char* jump_table, int& addr);
 unsigned int readVarSize(const char* jump_table, int& addr, int size);
 unsigned int readVarType(const char* jump_table, int& addr, int type);
+Location evalDwarfExpression( const char* jump_table, int& addr, int numBytes);
+int decodeSLEB128(const char* jump_table, int& addr, int maxRead);
+
+void advanceDtablePtr(const std::vector<symbol*> data_table, int& dtable_ptr, int numBytes);
 
 DwarfReader::DwarfReader()
 {
@@ -48,7 +53,7 @@ bool DwarfReader::BuildSourceTree(const std::vector<symbol*> labels, std::vector
   for(size_t i = 0; i < rootSource.children.size(); i++)
     AddUnitList(&(rootSource.children[i]));
 
-  // Update names of reference units (DW_AT_specification, DW_AT_abstract_origin)
+  // Update names of reference units (DW_AT_specification, DW_AT_abstract_origin, DW_AT_type)
   // N^2 algorithm, but who cares, N is small
   // Meanwhile, find "main"
   for(size_t i = 0; i < unit_list.size(); i++)
@@ -71,6 +76,17 @@ bool DwarfReader::BuildSourceTree(const std::vector<symbol*> labels, std::vector
 		unit_list[i]->name = unit_list[j]->name;
 	      }
 	}
+
+      // Check if the unit has a type reference
+      if(unit_list[i]->typeRef >= 0)
+	{
+	  for(size_t j = 0; j < unit_list.size(); j++)
+	    if(unit_list[j]->addr == unit_list[i]->typeRef)
+	      {
+		unit_list[i]->typeUnit = unit_list[j];
+	      }
+	}
+
     }
 
   if(rootRuntime == NULL)
@@ -230,6 +246,10 @@ bool DwarfReader::ReadAttribute(CompilationUnit& retval, unsigned int attribute,
   int high_pc = -1;
   bool unused_attribute = false;
   int tmpAddr;
+
+  //printf("reading attribute %x with type %x\n", attribute, type);
+  //printf("\tjump addr = %d, dtable_addr = %d\n", current_addr, dtable_ptr);
+
   switch(attribute)
     {
     case DW_AT_name:
@@ -293,6 +313,67 @@ bool DwarfReader::ReadAttribute(CompilationUnit& retval, unsigned int attribute,
 	  rangePtr+=2;
 	}
       break;
+    case DW_AT_frame_base: // frame pointer
+      {
+	if(type == DW_FORM_exprloc)
+	  {
+	    if(data_table[dtable_ptr]->size == 1) // TODO: Parse the LEB128 number. I'm only supporting single byte sizes for now. 
+	      {
+		value = readByte(jump_table, current_addr);
+		retval.loc = evalDwarfExpression(jump_table, current_addr, value);
+		advanceDtablePtr(data_table, dtable_ptr, value);
+	      }
+	  }
+	else
+	  {
+	    printf("Error: Unsupported DW_AT_frame_base format %d\n", type);
+	    exit(1);
+	  }
+      }
+      break;
+    case DW_AT_location:
+      {
+
+	if(type != DW_FORM_exprloc)
+	  {
+	    printf("Error: DW_AT_location only handles DW_FORM_exprloc for now\n");
+	    exit(1);
+	  }
+	// Read the number of bytes in the exprloc
+	value = readByte(jump_table, current_addr); // I'm only supporting single byte sizes for now.
+	Location loc = evalDwarfExpression( jump_table, current_addr, value );
+	retval.loc = loc;
+
+	advanceDtablePtr(data_table, dtable_ptr, value);
+      }
+      break;
+    case DW_AT_type:
+      {
+	if(type == DW_FORM_ref_addr)
+	  retval.typeRef = readVarType(jump_table, current_addr, type) + debug_start;
+	else if(type == DW_FORM_ref4)
+	  retval.typeRef = readVarType(jump_table, current_addr, type) + retval.top_level_addr;
+	else
+	  {
+	    printf("Warning: Unhandled form in DW_AT_type\n");
+	  }
+      }
+      break;
+    case DW_AT_data_member_location:
+      {
+	if(type == DW_FORM_data1)
+	  {
+	    Location loc;
+	    loc.value = readByte(jump_table, current_addr);
+	    loc.type = Location::MEMBER_OFFSET;
+	    retval.loc = loc;
+	  }
+	else
+	  {
+	    printf("WARNING: Unhandled type in DW_AT_data_member_location\n");
+	  }
+      }
+      break;
     case DW_AT_specification: // These two attributes indicate the unit references another for information
     case DW_AT_abstract_origin:
       if(type == DW_FORM_ref_addr)
@@ -310,14 +391,32 @@ bool DwarfReader::ReadAttribute(CompilationUnit& retval, unsigned int attribute,
   // or back if it contained no data
   switch(type)
     {
-    case DW_FORM_exprloc: // Variable-sized attributes
+      // Variable-sized attributes
+      //case DW_FORM_exprloc:
     case DW_FORM_block:
     case DW_FORM_block1:
     case DW_FORM_block2:
     case DW_FORM_block4:
-      value = readVarSize(jump_table, current_addr, data_table[dtable_ptr]->size);
-      current_addr += value;
-      dtable_ptr += value;
+      {
+	if(attribute != DW_AT_frame_base) // really need to clean up the way this is handled.
+	  {
+	    value = readVarSize(jump_table, current_addr, data_table[dtable_ptr]->size);
+	    // Advance the dtable_ptr until it's passed the right number of entries corresponding to the expression size
+	    int bytesPassed = 0;
+	    while(bytesPassed < value)
+	      {
+		dtable_ptr++;
+		bytesPassed += data_table[dtable_ptr]->size;
+	      }
+	    if(bytesPassed != value)
+	      {
+		printf("Error: mismatch between data symbols and data size\n");
+		exit(1);
+	      }
+	    current_addr += value;
+	  }
+      }
+      
       break;
     case DW_FORM_flag_present:
       // Flags in the abbrev table have no corresponding entry in the debug unit, don't advance current_addr
@@ -540,5 +639,224 @@ unsigned int readVarType(const char* jump_table, int& addr, int type)
       exit(1);
       break;
     }
+}
+
+Location evalDwarfExpression( const char* jump_table, int& addr, int numBytes )
+{
+  int stop = addr + numBytes;
+  Location retVal;
+  while(addr != stop)
+    {
+      // Read the opcode
+      int opcode = readByte(jump_table, addr);
+      if(opcode >= DW_OP_reg0 && opcode <= DW_OP_reg31)
+	{
+	  retVal.type = Location::REGISTER;
+	  retVal.value = opcode;
+	}
+      if(opcode == DW_OP_fbreg)
+	{
+	  retVal.value = decodeSLEB128(jump_table, addr, stop - addr);
+	  retVal.type = Location::FRAME_OFFSET;
+	}
+    }
+  return retVal;
+}
+
+
+int decodeSLEB128(const char* jump_table, int& addr, int maxRead)
+{
+  int result = 0;
+  int shift = 0;
+  int low7BitMask = 0x7f;
+  int highOrderBitMask = 0x80;
+  int iter = 0;
+  while(true)
+    {
+      char byte = jump_table[addr++];
+      result |= ((byte & low7BitMask) << shift);
+      if ((byte & highOrderBitMask) == 0)
+	break;
+      shift += 7;
+      if(iter++ > maxRead)
+	{
+	  printf("Error: invalid signed LEB128 number in DWARF data\n");
+	  exit(1);
+	}
+    }
+  return result;
+}
+
+
+void advanceDtablePtr(const std::vector<symbol*> data_table, int& dtable_ptr, int numBytes)
+{
+  // Advance the dtable_ptr until it's passed the right number of entries corresponding to the expression size
+  int bytesPassed = 0;
+  while(bytesPassed < numBytes)
+    {
+      dtable_ptr++;
+      bytesPassed += data_table[dtable_ptr]->size;
+    }
+  if(bytesPassed != numBytes)
+    {
+      printf("Error: mismatch between data symbols and data size\n");
+      exit(1);
+    }
+}
+
+RuntimeNode* DwarfReader::UpdateRuntime(Instruction* ins, RuntimeNode* current_runtime, char stall_type)
+{
+  // Can only happen on the first instruction
+  // Set the runtime node to "main"
+  if(current_runtime == NULL)
+    {
+      if(stall_type)
+	rootRuntime->AddInstructionContribution(stall_type);
+      return rootRuntime;
+    }
+
+  // Find the most relevant runtime node for the instruction
+  RuntimeNode* mostRelevant = MostRelevantAncestor(ins, current_runtime);
+  // If this found NULL, either we are still in the preamble, or we found a non-inlined function call
+  if(mostRelevant == NULL)
+    {
+      // Check if the function has already been called within this node (possibly by another thread)
+      mostRelevant = MostRelevantDescendant(ins, current_runtime);
+      if(mostRelevant != current_runtime)
+	{
+	  if(stall_type)
+	    mostRelevant->AddInstructionContribution(stall_type);
+	  return mostRelevant;
+	}
+      
+      // Find the function call
+      CompilationUnit* cu = NULL;
+      for(size_t i = 0; i < rootSource.children.size(); i++)
+	{
+	  cu = rootSource.children[i].FindFunctionCall(ins);
+	  if(cu != NULL)
+	    break;
+	}
+      
+      // Found no unit containing the instruction (this can happen in the preamble for example)
+      // Just put it in to "main"
+      if(cu == NULL)
+	{
+	  mostRelevant = rootRuntime;
+	}
+      else // otherwise we found a function call from a different debug unit
+	{
+	  mostRelevant = new RuntimeNode();
+	  mostRelevant->parent = current_runtime;
+	  mostRelevant->source_node = cu;
+	  current_runtime->children.push_back(mostRelevant);
+	  // Descend to the most specific unit within the new unit
+	  mostRelevant = MostRelevantDescendant(ins, mostRelevant);
+	}
+    }
+  else
+    {
+      // Find the most specific child, will also create new nodes as needed
+      mostRelevant = MostRelevantDescendant(ins, mostRelevant);
+    }
+  
+  // Now update the cycle count for that node
+  if(stall_type)
+    mostRelevant->AddInstructionContribution(stall_type);
+  return mostRelevant;
+}
+
+
+// Finds the most specific unit containing the instruction
+// Assumes that current's range contains the instruction's PC
+// Creates new RuntimeNodes if needed to match the most relevant CompilationUnit
+RuntimeNode* DwarfReader::MostRelevantDescendant(Instruction* ins, RuntimeNode* current)
+{
+  for(size_t i = 0; i < current->children.size(); i++)
+    if(current->children[i]->ContainsPC(ins->pc_address))
+      return MostRelevantDescendant(ins, current->children[i]);
+
+  // If no existing runtime node, find the source tree node that contains the PC, and make a new runtime node
+  for(size_t i = 0; i < current->source_node->children.size(); i++)
+    {
+      if(current->source_node->children[i].ContainsPC(ins->pc_address))
+	{
+	  RuntimeNode* rn = new RuntimeNode();
+	  rn->source_node = &(current->source_node->children[i]);
+	  rn->parent = current;
+	  current->children.push_back(rn);
+	  return MostRelevantDescendant(ins, rn);
+	}
+    }
+  return current;
+}
+
+// Traverse up the tree from the current unit until any unit containing the instruction
+RuntimeNode* DwarfReader::MostRelevantAncestor(Instruction* ins, RuntimeNode* current)
+{
+  if(current == NULL)
+    return NULL;
+  
+  // DW_TAG_compile_units aren't functions, don't want them acting as contributors to the profile
+  if(current->ContainsPC(ins->pc_address) && (current->source_node->tag != DW_TAG_compile_unit))
+    return current;
+  
+  if(current->parent == NULL)
+    return NULL;
+    
+  return MostRelevantAncestor(ins, current->parent);
+}
+
+
+RuntimeNode* RuntimeNode::FindContainingFunction()
+{
+  if((source_node->tag == DW_TAG_subprogram) && (source_node->loc.type != Location::UNDEFINED))
+    return this;
+  
+  if(parent == NULL)
+    return NULL;
+    
+  return parent->FindContainingFunction();
+}
+
+// Find the tightest scope that has a variable with the given name.
+CompilationUnit* RuntimeNode::GetVariable(std::string varname)
+{  
+  // Search the current scope first
+  CompilationUnit* retVal = source_node->SearchVariableDown(varname);
+  if(retVal)
+    return retVal;
+
+  // After searching the current scope and its children, move out a level.
+  if(parent != NULL)
+    return parent->GetVariable(varname);
+
+  return NULL;
+}
+
+CompilationUnit* CompilationUnit::SearchVariableDown(std::string varname)
+{
+
+  if(tag == DW_TAG_formal_parameter || tag == DW_TAG_member || tag == DW_TAG_variable)
+    if(varname == name)
+      return this;
+  
+  for(size_t i = 0; i < children.size(); i++)
+    {
+      CompilationUnit* retval = children[i].SearchVariableDown(varname);
+      if(retval)
+	return retval;
+    }
+  return NULL;
+}
+
+
+void RuntimeNode::PrintBacktrace(int depth)
+{
+  if(source_node->name.length() > 0)
+    printf("%d: %s at %s:%d\n", depth++, source_node->name.c_str(), source_names[executionPoint.fileNum].c_str(), executionPoint.lineNum);
+
+  if(parent != NULL)
+    parent->PrintBacktrace(depth);
 }
 

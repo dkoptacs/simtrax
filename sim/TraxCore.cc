@@ -63,7 +63,11 @@ void TraxCore::initialize(const char* icache_params_file, int issue_verbosity,
       for (size_t i = 0; i < functional_units.size(); i++) {
 	DebugUnit* debug = dynamic_cast<DebugUnit*>(functional_units[i]);
 	if(debug)
-	  debug->setLocalStore(ls_unit);
+	  {
+	    debug->setLocalStore(ls_unit);
+	    if(debugger) // I know, these names are a bit confusing. debug is the DebugUnit, debugger is the Debugger.
+	      debugger->setLocalStore(ls_unit);
+	  }
       }
     }
     utilizations.push_back(0.0);

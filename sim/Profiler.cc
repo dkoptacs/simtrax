@@ -115,49 +115,6 @@ void Profiler::PrintProfile(std::vector<Instruction*>& instructions, long long i
 }
 
 
-// Traverse up the tree from the current unit until any unit containing the instruction
-RuntimeNode* Profiler::MostRelevantAncestor(Instruction* ins, RuntimeNode* current)
-{
-
-  if(current == NULL)
-    return NULL;
-  
-  // Compile units aren't functions, don't want them acting as contributors to the profile
-  if(current->ContainsPC(ins->pc_address) && (current->source_node->tag != DW_TAG_compile_unit))
-    return current;
-  
-  if(current->parent == NULL)
-    return NULL;
-    
-  return MostRelevantAncestor(ins, current->parent);
-}
-
-
-// Finds the most specific unit containing the instruction
-// Assumes that current's range contains the instruction's PC
-// Creates new RuntimeNodes if needed to match the most relevant CompilationUnit
-RuntimeNode* Profiler::MostRelevantDescendant(Instruction* ins, RuntimeNode* current)
-{
-  for(size_t i = 0; i < current->children.size(); i++)
-    if(current->children[i]->ContainsPC(ins->pc_address))
-      return MostRelevantDescendant(ins, current->children[i]);
-
-  // If no existing runtime node, find the source tree node that contains the PC, and make a new runtime node
-  for(size_t i = 0; i < current->source_node->children.size(); i++)
-    {
-      if(current->source_node->children[i].ContainsPC(ins->pc_address))
-	{
-	  RuntimeNode* rn = new RuntimeNode();
-	  rn->source_node = &(current->source_node->children[i]);
-	  rn->parent = current;
-	  current->children.push_back(rn);
-	  return MostRelevantDescendant(ins, rn);
-	}
-    }
-  return current;
-}
-
-
 // Increments contribution based on stall type
 void RuntimeNode::AddInstructionContribution(char stall_type)
 {
@@ -180,62 +137,7 @@ void RuntimeNode::AddInstructionContribution(char stall_type)
 // Must be invoked at simulator real time to track the call stack
 RuntimeNode* Profiler::UpdateRuntime(Instruction* ins, RuntimeNode* current_runtime, char stall_type)
 {
-
-  // Can only happen on the first instruction
-  // Set the runtime node to "main"
-  if(current_runtime == NULL)
-    {
-      dwarfReader->rootRuntime->AddInstructionContribution(stall_type);
-      return dwarfReader->rootRuntime;
-    }
-
-  // Find the most relevant runtime node for the instruction
-  RuntimeNode* mostRelevant = MostRelevantAncestor(ins, current_runtime);
-  // If this found NULL, either we are still in the preamble, or we found a non-inlined function call
-  if(mostRelevant == NULL)
-    {
-      // Check if the function has already been called within this node (possibly by another thread)
-      mostRelevant = MostRelevantDescendant(ins, current_runtime);
-      if(mostRelevant != current_runtime)
-	{
-	  mostRelevant->AddInstructionContribution(stall_type);
-	  return mostRelevant;
-	}
-      
-      // Find the function call
-      CompilationUnit* cu = NULL;
-      for(size_t i = 0; i < dwarfReader->rootSource.children.size(); i++)
-	{
-	  cu = dwarfReader->rootSource.children[i].FindFunctionCall(ins);
-	  if(cu != NULL)
-	    break;
-	}
-      
-      // Found no unit containing the instruction (this can happen in the preamble for example)
-      // Just put it in to "main"
-      if(cu == NULL)
-	{
-	  mostRelevant = dwarfReader->rootRuntime;
-	}
-      else // otherwise we found a function call from a different debug unit
-	{
-	  mostRelevant = new RuntimeNode();
-	  mostRelevant->parent = current_runtime;
-	  mostRelevant->source_node = cu;
-	  current_runtime->children.push_back(mostRelevant);
-	  // Descend to the most specific unit within the new unit
-	  mostRelevant = MostRelevantDescendant(ins, mostRelevant);
-	}
-    }
-  else
-    {
-      // Find the most specific child, will also create new nodes as needed
-      mostRelevant = MostRelevantDescendant(ins, mostRelevant);
-    }
-  
-  // Now update the cycle count for that node
-  mostRelevant->AddInstructionContribution(stall_type);
-  return mostRelevant;
+  return dwarfReader->UpdateRuntime(ins, current_runtime, stall_type);
 }
 
 

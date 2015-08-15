@@ -12,6 +12,22 @@ struct AbbreviationCode
   int addr;
 };
 
+struct Location
+{
+  enum LocType
+    {
+      UNDEFINED,
+      REGISTER,
+      FRAME_OFFSET,
+      MEMBER_OFFSET
+    };
+  LocType type;
+  int value;
+
+Location() :
+  type(UNDEFINED), value(-1){}
+
+};
 
 // This class represents any DWARF debugging entry (not just a DWARF "compilation unit")
 class CompilationUnit
@@ -19,7 +35,7 @@ class CompilationUnit
  public:
  CompilationUnit() :
   name(""), addr(-1), top_level_addr(-1), pointsTo(-1), num_instructions(0), 
-    num_data_stalls(0), num_contention_stalls(0){}
+    num_data_stalls(0), num_contention_stalls(0), typeUnit(NULL){}
   
  CompilationUnit(std::string _name) :
   name(_name)
@@ -38,21 +54,25 @@ class CompilationUnit
     return false;
   }
   
-  // Helpers for the Profiler
+  // Helpers for the Profiler/Debugger
   void AddInstructionContribution(Instruction* ins);
   void PrintUnitContribution(int indent_level, long long int total_thread_cycles);
   CompilationUnit* FindRelevantUnit(Instruction* ins);
   CompilationUnit* FindFunctionCall(Instruction* ins);
-  
+  CompilationUnit* SearchVariableDown(std::string varname);  
+
   std::string name;
   char tag;
   int addr;
   int top_level_addr;
   int pointsTo;
+  int typeRef;
   int abbrev;
   int num_instructions; // These 3 counters are deprecated (now tracked in RuntimeNode)
   int num_data_stalls;
   int num_contention_stalls;
+  Location loc;
+  CompilationUnit* typeUnit;
   std::vector<CompilationUnit> children;
   std::vector<std::pair<int, int> > ranges;
 };
@@ -74,6 +94,10 @@ class RuntimeNode
   void Print(int indent_level, long long int total_thread_cycles);
   void WriteDot(const char* filename, long long int total_thread_cycles);
   void WriteDotRecursive(FILE* output, long long int total_thread_cycles);
+  // Helpers for the Debugger
+  RuntimeNode* FindContainingFunction();
+  void PrintBacktrace(int depth = 0);
+  CompilationUnit* GetVariable(std::string varname);
 
   CompilationUnit* source_node;
   RuntimeNode* parent;
@@ -82,6 +106,7 @@ class RuntimeNode
   int num_instructions;
   int num_data_stalls;
   int num_contention_stalls;
+  SourceInfo executionPoint;
 
   // Comparator for sort
   static bool compare(RuntimeNode* a, RuntimeNode* b)
@@ -121,6 +146,10 @@ class DwarfReader
 
   void WriteDot(const char* filename);
   void WriteDotRecursive(FILE* output, CompilationUnit node);
+
+  RuntimeNode* UpdateRuntime(Instruction* ins, RuntimeNode* current_runtime, char stall_type = 0);
+  static RuntimeNode* MostRelevantAncestor(Instruction* ins, RuntimeNode* current);
+  static RuntimeNode* MostRelevantDescendant(Instruction* ins, RuntimeNode* current);
 
   CompilationUnit rootSource;
   RuntimeNode* rootRuntime;
@@ -255,8 +284,48 @@ class DwarfReader
 #define DW_FORM_ref_sig8 0x20
 
 // DWARF tags (only ones we care about for now)
-#define DW_TAG_class_type 2
-#define DW_TAG_compile_unit 17 
+#define DW_TAG_class_type 0x2
+#define DW_TAG_formal_parameter 0x05
+#define DW_TAG_member 0x0d
+#define DW_TAG_variable 0x34
+#define DW_TAG_compile_unit 0x11 
+#define DW_TAG_base_type 0x24
+#define DW_TAG_subprogram 0x2e
 
 
+// DWARF opcodes
+
+#define DW_OP_reg0 0x50
+#define DW_OP_reg1 0x51
+#define DW_OP_reg2 0x52
+#define DW_OP_reg3 0x53
+#define DW_OP_reg4 0x54
+#define DW_OP_reg5 0x55
+#define DW_OP_reg6 0x56
+#define DW_OP_reg7 0x57
+#define DW_OP_reg8 0x58
+#define DW_OP_reg9 0x59
+#define DW_OP_reg10 0x5a
+#define DW_OP_reg11 0x5b
+#define DW_OP_reg12 0x5c
+#define DW_OP_reg13 0x5d
+#define DW_OP_reg14 0x5e
+#define DW_OP_reg15 0x5f
+#define DW_OP_reg16 0x60
+#define DW_OP_reg17 0x61
+#define DW_OP_reg18 0x62
+#define DW_OP_reg19 0x63
+#define DW_OP_reg20 0x64
+#define DW_OP_reg21 0x65
+#define DW_OP_reg22 0x66
+#define DW_OP_reg23 0x67
+#define DW_OP_reg24 0x68
+#define DW_OP_reg25 0x69
+#define DW_OP_reg26 0x6a
+#define DW_OP_reg27 0x6b
+#define DW_OP_reg28 0x6c
+#define DW_OP_reg29 0x6d
+#define DW_OP_reg30 0x6e
+#define DW_OP_reg31 0x6f
+#define DW_OP_fbreg 0x91 // offset from frame_base
 #endif  //__SIMHWRT_DWARF_READER_H_

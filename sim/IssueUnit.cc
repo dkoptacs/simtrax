@@ -663,7 +663,9 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
     // TODO: Need to design a multi-threaded debugger.
     // For now, not supported with --num-simulations-threads > 1    
     if(debugger->isEnabled())
-      debugger->run(thread, fetched_instruction);
+      {
+	debugger->run(thread, fetched_instruction);
+      }
 
     // stats and info
     simd_issue++;

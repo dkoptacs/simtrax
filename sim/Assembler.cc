@@ -9,11 +9,6 @@
 int Assembler::num_instructions = 0;
 int Assembler::num_regs = 1;
 
-int jtable_size;
-int jtable_ptr;
-int debug_start;
-int abbrev_start;
-int ascii_table_size;
 
 //-------------------------------------------------------------------------
 // regex matchers for various assembly items
@@ -74,6 +69,13 @@ std::string expFile( "\\.file" );
 std::string expAssign( "=" );
 // String literal
 std::string expString("\".+\"");
+
+
+int jtable_size;
+int jtable_ptr;
+int debug_start;
+int abbrev_start;
+int ascii_table_size;
 
 
 // add special handler for .section
@@ -1108,7 +1110,7 @@ void Assembler::PrintSymbols(std::vector<symbol*>& regs, std::vector<symbol*>& l
 
 // Checks whether or not the given set of symbols (labels, registers, elf_vars), has the specified symbol
 // Returns index or -1
-int Assembler::HasSymbol(std::string name, std::vector<symbol*>& syms)
+int Assembler::HasSymbol(std::string name, const std::vector<symbol*>& syms)
 {
   unsigned int i, j;
   for(i=0; i<syms.size(); i++)

@@ -39,11 +39,16 @@ struct SourceInfo
 
   bool operator!=(const SourceInfo& rhs)
   {
-    return (fileNum != rhs.fileNum) || 
-      (lineNum != rhs.lineNum);
+    return (fileNum != rhs.fileNum) || (lineNum != rhs.lineNum);
     // For these purposes we don't care about column number
   }
 
+  bool operator==(const SourceInfo& rhs)
+  {
+    return (fileNum == rhs.fileNum) && (lineNum == rhs.lineNum);
+    // For these purposes we don't care about column number
+  }
+  
 };
 
 class Instruction {
