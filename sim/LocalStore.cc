@@ -3,14 +3,11 @@
 #include <stdlib.h> // for gcc (exit)
 //#include <string>
 
-#define LOCAL_SIZE 16384
-
 extern std::vector<std::string> source_names;
 
 LocalStore::LocalStore(int _latency, int _width) :
     FunctionalUnit(_latency)
 {
-
   // Hard-code area and energy since they are unlikely to change
   area = 0.01396329 * _width;
   energy = 0.00692867;
@@ -18,11 +15,12 @@ LocalStore::LocalStore(int _latency, int _width) :
   issued_this_cycle = 0;
   width = _width;
   jtable_size = 0;
+  watchPointHit = false;
 
   storage = new FourByte*[width];
   for (int i = 0; i < width; ++i)
   {
-    storage[i] = new FourByte[LOCAL_SIZE];
+    storage[i] = new FourByte[LOCAL_SIZE / 4];
   }
 }
 
@@ -33,6 +31,20 @@ LocalStore::~LocalStore()
     delete [] storage[i];
   }
   delete [] storage;
+}
+
+
+void LocalStore::AddWatchPoint(ThreadState* thread, int address)
+{
+  std::map<int, std::vector<ThreadState*> >::iterator watchPointsForThread = watchpoints.find(address);
+  if(watchPointsForThread != watchpoints.end())
+    watchPointsForThread->second.push_back(thread);
+  else
+    watchpoints.insert(std::make_pair(address, std::vector<ThreadState*>())).first->second.push_back(thread);
+}
+
+void LocalStore::RemoveWatchPoint(ThreadState* thread, int address)
+{
 }
 
 bool LocalStore::SupportsOp(Instruction::Opcode op) const
@@ -161,6 +173,12 @@ bool LocalStore::IssueStore(reg_value write_val, int address, ThreadState* threa
     exit(1);
     }*/
   
+
+  std::map<int, std::vector<ThreadState*> >::iterator watchedAddress = watchpoints.find(address);
+  FourByte oldval;
+  if(watchedAddress != watchpoints.end())
+    oldval = *((FourByte *)((char *)(storage[thread->thread_id]) + address));
+
   static int max_addr = 0;
   if (address > max_addr) 
     max_addr = address;
@@ -198,6 +216,14 @@ bool LocalStore::IssueStore(reg_value write_val, int address, ThreadState* threa
       ((FourByte *)((char *)(storage[thread->thread_id]) + address + 8))->uvalue = write_val.udataMSA[1];
       ((FourByte *)((char *)(storage[thread->thread_id]) + address + 12))->uvalue = write_val.udataMSA[2];
     }
+
+  if(watchedAddress != watchpoints.end()){
+    printf("Watchpoint %x reached\n", address);
+    printf("\told value: <%f(f) %u<u> %d<i>\n", oldval.fvalue, oldval.uvalue, oldval.ivalue);
+    FourByte newval = *((FourByte *)((char *)(storage[thread->thread_id]) + address));
+    printf("\tnew value: <%f(f) %u<u> %d<i>\n", newval.fvalue, newval.uvalue, newval.ivalue);
+    watchPointHit = true;
+  }
 
   return true;
 }

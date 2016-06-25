@@ -18,6 +18,7 @@ Instruction::Instruction(Opcode code,
   depends[0] = depends[1] = -1;
   executions = 0;
   data_stalls = 0;
+  cycles = 0;
 
   srcInfo.lineNum = -1;
   srcInfo.colNum = -1;
@@ -45,6 +46,7 @@ Instruction::Instruction(Opcode code,
   depends[0] = depends[1] = -1;
   executions = 0;
   data_stalls = 0;
+  cycles = 0;
 
   srcInfo = _srcInfo;
   asmLine = _asmLine;
@@ -63,6 +65,7 @@ Instruction::Instruction(const Instruction& ins)
   depends[1] = ins.depends[1];
   executions = ins.executions;
   data_stalls = ins.data_stalls;
+  cycles = ins.cycles;
 
   srcInfo = ins.srcInfo;
   asmLine = ins.asmLine;

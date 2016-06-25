@@ -382,6 +382,7 @@ class Instruction {
   // Keep track of performance data
   long long int executions;
   long long int data_stalls;
+  long long int cycles;
   SourceInfo srcInfo;
   std::string asmLine;
   int lineNum;

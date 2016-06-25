@@ -1,7 +1,8 @@
 #ifndef __SIMHWRT_DWARF_READER_H_
 #define __SIMHWRT_DWARF_READER_H_
-#include <vector>
+#include <map>
 #include <string>
+#include <vector>
 #include "Assembler.h"
 
 struct symbol;
@@ -35,16 +36,18 @@ class CompilationUnit
  public:
  CompilationUnit() :
   name(""), addr(-1), top_level_addr(-1), pointsTo(-1), num_instructions(0), 
-    num_data_stalls(0), num_contention_stalls(0), typeUnit(NULL){}
+    num_data_stalls(0), num_contention_stalls(0), typeUnit(NULL), typeRef(0),
+    hasThisPointer(false){}
   
  CompilationUnit(std::string _name) :
   name(_name)
   {}
-  
-  void AddChild(CompilationUnit c)
+  /*
+  void AddChild(CompilationUnit* c)
   {
     children.push_back(c);
   }
+  */
   
   bool ContainsPC(int pc)
   {
@@ -53,13 +56,18 @@ class CompilationUnit
 	return true;
     return false;
   }
-  
+
+  void SetParents();
+
   // Helpers for the Profiler/Debugger
   void AddInstructionContribution(Instruction* ins);
   void PrintUnitContribution(int indent_level, long long int total_thread_cycles);
   CompilationUnit* FindRelevantUnit(Instruction* ins);
   CompilationUnit* FindFunctionCall(Instruction* ins);
   CompilationUnit* SearchVariableDown(std::string varname);  
+  CompilationUnit* GetTypeUnit();
+  CompilationUnit* FindContainingFunction();
+  CompilationUnit* GetVariable(std::string varname);
 
   std::string name;
   char tag;
@@ -71,9 +79,11 @@ class CompilationUnit
   int num_instructions; // These 3 counters are deprecated (now tracked in RuntimeNode)
   int num_data_stalls;
   int num_contention_stalls;
+  bool hasThisPointer;
   Location loc;
   CompilationUnit* typeUnit;
-  std::vector<CompilationUnit> children;
+  CompilationUnit* parent;
+  std::vector<CompilationUnit*> children;
   std::vector<std::pair<int, int> > ranges;
 };
 
@@ -89,15 +99,27 @@ class RuntimeNode
   {
     return source_node->ContainsPC(pc);
   }
+
+  bool ContainsPCBelow( int PC )
+  {
+    for( size_t i = 0; i < children.size(); ++i )
+    {
+      if( children[i]->ContainsPC( PC ) )
+	return true;
+      if( children[i]->ContainsPCBelow( PC ) )
+	return true;
+    }
+    return false;
+  }
+
   void AddInstructionContribution(char stall_type);
   void DistributeTime();
-  void Print(int indent_level, long long int total_thread_cycles);
+  void Print(int indent_level, long long int total_thread_cycles, std::vector<Instruction*>& instructions);
   void WriteDot(const char* filename, long long int total_thread_cycles);
   void WriteDotRecursive(FILE* output, long long int total_thread_cycles);
   // Helpers for the Debugger
-  RuntimeNode* FindContainingFunction();
   void PrintBacktrace(int depth = 0);
-  CompilationUnit* GetVariable(std::string varname);
+  void UpdateExecutionPoint(SourceInfo info);
 
   CompilationUnit* source_node;
   RuntimeNode* parent;
@@ -125,15 +147,17 @@ class DwarfReader
   
   bool BuildSourceTree(const std::vector<symbol*> labels, std::vector<symbol*> elf_vars, 
 		       const std::vector<symbol*> data_table, const char* jump_table, 
-		       int jtable_size, int debug_start, int abbrev_start);
+		       int jtable_size, int debug_start, int debug_end, int abbrev_start);
 
-  CompilationUnit ReadCompilationUnit(const std::vector<symbol*> labels, std::vector<symbol*> elf_vars, 
+  CompilationUnit* ReadCompilationUnit(const std::vector<symbol*> labels, std::vector<symbol*> elf_vars, 
 				      const std::vector<symbol*> data_table, const char* jump_table, 
 				      int jtable_size, int& current_addr, 
-				      int debug_start, int abbrev_start, int top_unit_start,
+				      int debug_start, int debug_end, int abbrev_start, int top_unit_start,
 				      int top_unit_pc);
 
-  bool ReadAttribute(CompilationUnit& retval, unsigned int attribute, unsigned int type, 
+  void MergeInto(CompilationUnit* from, CompilationUnit* into);
+
+  bool ReadAttribute(CompilationUnit* retval, unsigned int attribute, unsigned int type, 
 		     int debug_start, const char* jump_table, int& current_addr, 
 		     const std::vector<symbol*> data_table, int& dtable_ptr,
 		     int top_unit_pc);
@@ -145,7 +169,7 @@ class DwarfReader
   void AddUnitList(CompilationUnit* cu);
 
   void WriteDot(const char* filename);
-  void WriteDotRecursive(FILE* output, CompilationUnit node);
+  void WriteDotRecursive(FILE* output, CompilationUnit* node);
 
   RuntimeNode* UpdateRuntime(Instruction* ins, RuntimeNode* current_runtime, char stall_type = 0);
   static RuntimeNode* MostRelevantAncestor(Instruction* ins, RuntimeNode* current);
@@ -155,6 +179,7 @@ class DwarfReader
   RuntimeNode* rootRuntime;
   std::vector<AbbreviationCode>abbrevCodes;
   std::vector<CompilationUnit*> unit_list;
+  std::map<int, CompilationUnit*> unitsByAddress;
 };
 
 
@@ -286,7 +311,10 @@ class DwarfReader
 // DWARF tags (only ones we care about for now)
 #define DW_TAG_class_type 0x2
 #define DW_TAG_formal_parameter 0x05
+#define DW_TAG_lexical_block 0x0b
 #define DW_TAG_member 0x0d
+#define DW_TAG_pointer_type 0x0f
+#define DW_TAG_reference_type 0x10
 #define DW_TAG_variable 0x34
 #define DW_TAG_compile_unit 0x11 
 #define DW_TAG_base_type 0x24
@@ -294,7 +322,7 @@ class DwarfReader
 
 
 // DWARF opcodes
-
+#define DW_OP_plus_uconst 0x23
 #define DW_OP_reg0 0x50
 #define DW_OP_reg1 0x51
 #define DW_OP_reg2 0x52
@@ -327,5 +355,6 @@ class DwarfReader
 #define DW_OP_reg29 0x6d
 #define DW_OP_reg30 0x6e
 #define DW_OP_reg31 0x6f
+#define DW_OP_regx 0x90 // offset from frame_base
 #define DW_OP_fbreg 0x91 // offset from frame_base
 #endif  //__SIMHWRT_DWARF_READER_H_

@@ -368,9 +368,9 @@ void IssueUnit::IssueVerbosity(ThreadState* thread, Instruction* fetched_instruc
 {
   if (verbosity == 1)
   {
-    printf("Cycle %lld: Thread %d: Instruction PC: %d (%s), ISSUED\n",
+    printf("Cycle %lld: Thread %p: Instruction PC: %d (%s), ISSUED\n",
            current_cycle,
-           static_cast<int>(proc_id),
+           thread,
            fetched_instruction->pc_address,
            Instruction::Opnames[fetched_instruction->op].c_str() );
   }
@@ -384,9 +384,9 @@ void IssueUnit::IssueVerbosity(ThreadState* thread, Instruction* fetched_instruc
     fprintf(thread_trace[proc_id], "%s", buf );
     fprintf(all_trace, "%s", buf );
 
-    sprintf(buf, "Cycle %lld: Thread %d: Instruction PC: %d (%s), ISSUED\n",
+    sprintf(buf, "Cycle %lld: Thread %p: Instruction PC: %d (%s), ISSUED\n",
             current_cycle,
-            static_cast<int>(proc_id),
+            thread,
             fetched_instruction->pc_address,
             Instruction::Opnames[fetched_instruction->op].c_str() );
 
@@ -651,6 +651,7 @@ bool IssueUnit::Issue(ThreadProcessor* tp, ThreadState* thread, Instruction* fet
 
   if (issued)
   {
+    // TODO: If the debugger and profler are enabled at the same time, everything will get counted twice.
     if(enable_profiling)
     {
       // All threads point to the same list of Instructions, must protect modifications to it

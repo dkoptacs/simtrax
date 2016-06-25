@@ -74,6 +74,7 @@ std::string expString("\".+\"");
 int jtable_size;
 int jtable_ptr;
 int debug_start;
+int debug_end;
 int abbrev_start;
 int ascii_table_size;
 
@@ -110,6 +111,7 @@ int Assembler::LoadAssem(char *filename,
   jtable_size = 0;
   jtable_ptr = 0;
   debug_start = 0;
+  debug_end = 0;
   abbrev_start = 0;
   ascii_table_size = 0;
   currentSourceInfo.lineNum = -1;
@@ -232,7 +234,7 @@ int Assembler::LoadAssem(char *filename,
 
   if(needs_debug_symbols)
     {
-      dwarfReader->BuildSourceTree(labels, elf_vars, data_table, jump_table, jtable_size, debug_start, abbrev_start);
+      dwarfReader->BuildSourceTree(labels, elf_vars, data_table, jump_table, jtable_size, debug_start, debug_end, abbrev_start);
     }
 
   return end_data;
@@ -422,16 +424,23 @@ int Assembler::HandleLabel(std::string line, int pass, std::vector<symbol*>& lab
 	  break;
 	}
 
+  if(m.str().compare("$.debug_info_begin0") == 0)
+    {
+      debug_start = jtable_size;
+    }
+
+
   // Address defaults to a PC address. Data labels will have their addresses fixed when data is encountered
   // Certain labels are within sections that must be treated as data
   symbol* r = MakeSymbol(m.str());
-  if(current_section == SECTION_DATA)
+  if(current_section == SECTION_DATA || current_section == SECTION_DEBUG)
     {
       r->address = jtable_size;
       r->isJumpTable = true;
     }
   else
     r->address = num_instructions; 
+  
   labels.push_back(r);
   
   return 1;
@@ -1007,6 +1016,9 @@ int Assembler::HandleSection(std::string line, int pass, std::vector<symbol*>& l
   if(pass == 2)
     return 1;
 
+  if(current_section == SECTION_DEBUG)
+    debug_end = jtable_size;
+
   boost::smatch m;
 
   // text section
@@ -1019,7 +1031,7 @@ int Assembler::HandleSection(std::string line, int pass, std::vector<symbol*>& l
   // Start of debug section
   if(boost::regex_search(line, m, boost::regex(std::string( "\\.debug_info" ))))
     {
-      current_section = SECTION_DATA;
+      current_section = SECTION_DEBUG;
       debug_start = jtable_size;
       return 1;
     }

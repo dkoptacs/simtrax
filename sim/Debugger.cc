@@ -8,7 +8,7 @@
 #include "Assembler.h"
 #include "Debugger.h"
 #include "Profiler.h"
-
+#include "LocalStore.h"
 // Command regex matchers
 
 extern std::vector<std::string> source_names;
@@ -25,6 +25,8 @@ std::string expRun( "(run)|(r)|(continue)|(c)" );
 std::string expPrint( "((print)|(p))" );
 std::string expInfo( "((info)|(i))" );
 std::string expBacktrace( "((backtrace)|(bt))" );
+std::string expHexLiteral( "0x[0-9a-fA-F]+" );
+std::string expWatch( "((watch)|(w))");
 
 Debugger::Debugger()
 {
@@ -49,7 +51,7 @@ void Debugger::setRegisterSymbols(const std::vector<symbol*>* _regs)
   reg0Id = Assembler::HasSymbol("$at", *regs);
 }
 
-void Debugger::setLocalStore(const LocalStore* _ls_unit)
+void Debugger::setLocalStore(LocalStore* _ls_unit)
 {
   ls_unit = _ls_unit;
 }
@@ -62,6 +64,7 @@ void Debugger::enable()
 void Debugger::disable()
 {
   enabled = false;
+  ls_unit->watchpoints.clear();
 }
 
 bool Debugger::isEnabled()
@@ -125,7 +128,7 @@ void Debugger::run(ThreadState* thread, Instruction* ins)
       if(ins->srcInfo != currentSourceInfo)
 	{
 	  currentSourceInfo = ins->srcInfo;
-	  currentFrame->executionPoint = currentSourceInfo;
+	  currentFrame->UpdateExecutionPoint(currentSourceInfo);
 	  // Check for breakpoints
 	  if( isBreakPoint(currentSourceInfo) )
 	    {
@@ -134,6 +137,11 @@ void Debugger::run(ThreadState* thread, Instruction* ins)
 	      readCommand(thread, ins);
 	    }
 	}
+      if(ls_unit->watchPointHit){
+	ls_unit->watchPointHit = false;
+	printSourceInfo(currentSourceInfo);
+	readCommand(thread, ins);
+      }
     }
 }
 
@@ -178,6 +186,10 @@ void Debugger::readCommand(ThreadState* thread, Instruction* ins)
     {
       lastCommand = INFO;
     }
+  else if(boost::regex_search(command, m, boost::regex(expWatch)) && m.position() == 0)
+    {
+      lastCommand = WATCH;
+    }
   else if(command.size() != 0) // If no other commands were recognized
     {
       lastCommand = NONE;
@@ -210,7 +222,7 @@ void Debugger::readCommand(ThreadState* thread, Instruction* ins)
 	    
 	    if( fileIndex == -1 )
 	      {
-		printf("Can't find file \"%s\", breakpoint not set\n", filename.c_str());
+		printf("Can't find symbols for file \"%s\", breakpoint not set\n", filename.c_str());
 	      }
 	    else
 	      {
@@ -225,6 +237,31 @@ void Debugger::readCommand(ThreadState* thread, Instruction* ins)
 	lastCommand = NONE;
       }
       break;
+    case WATCH:
+      {
+	bool foundAddress = false;
+	// Read the rest of the watch command
+	std::string stripped = command.substr(command.find(m.str()) + m.str().length());
+	// Check for a hard-coded address watch point
+	if( boost::regex_search(stripped, m, boost::regex(expHexLiteral)) ){
+	    long address = strtol(m.str().c_str() + 2, NULL, 16);
+	    ls_unit->AddWatchPoint(thread, address);
+	    foundAddress = true;
+	  }
+	else{
+	  std::string typeName;
+	  Location varLoc = findVariable(currentFrame, m.str(), thread, typeName);
+	  if(varLoc.value >= 0){
+	    ls_unit->AddWatchPoint(thread, varLoc.value);
+	    printf("added watch to address %d\n", varLoc.value);
+	    foundAddress = true;
+	  }
+	}
+	if(!foundAddress)
+	  printf("Unknown watch address or symbol: %s\n", stripped.c_str());
+	lastCommand = NONE;
+      }
+      break;
     case PRINT:
       {
 	if( !isInitialized() )
@@ -235,7 +272,20 @@ void Debugger::readCommand(ThreadState* thread, Instruction* ins)
 	  }
 	// Read the rest of the print command
 	std::string stripped = command.substr(command.find(m.str()) + m.str().length());
-	if( boost::regex_search(stripped, m, boost::regex(expSymbol)) )
+
+	if( boost::regex_search(stripped, m, boost::regex(expHexLiteral))){
+	  long address = strtol(m.str().c_str() + 2, NULL, 16);
+	  if(address < 0 || address >= LOCAL_SIZE)
+	    printf("Can't print invalid address (not in [0 .. %d)\n", LOCAL_SIZE);
+	  else{
+	    int      ivalToPrint = ((FourByte *)((char *)(ls_unit->storage[thread->thread_id]) + address))->ivalue;
+	    unsigned uvalToPrint = ((FourByte *)((char *)(ls_unit->storage[thread->thread_id]) + address))->uvalue;
+	    float    fvalToPrint = ((FourByte *)((char *)(ls_unit->storage[thread->thread_id]) + address))->fvalue;
+	    printf("0x%x: = %di %uu %ff\n", address, ivalToPrint, uvalToPrint, fvalToPrint);
+	  }
+	}
+
+	else if( boost::regex_search(stripped, m, boost::regex(expSymbol)) )
 	  {
 	    int symbId = Assembler::HasSymbol(m.str(), *regs);
 	    if(symbId >= 0) // Look for a register name
@@ -257,43 +307,42 @@ void Debugger::readCommand(ThreadState* thread, Instruction* ins)
 	      }
 	    else // Look for a source variable name
 	      {
-		RuntimeNode* containingFrame = currentFrame->FindContainingFunction();
+		std::string typeName;
+		Location varLoc = findVariable(currentFrame, m.str(), thread, typeName);
 
-		if(containingFrame)
+		if(varLoc.value >= 0)
 		  {
-		    //CompilationUnit* instanceVar = containingFrame->GetVariable(m.str());
-		    CompilationUnit* instanceVar;
-		    CompilationUnit* typeUnit;
-		    Location varLoc = findVariableUnits(instanceVar, typeUnit, containingFrame, m.str(), thread);
-		    
-		    if(instanceVar)
-		      {
-			int location = varLoc.value;
-			std::string typeName;
-			if(typeUnit)
-			  {
-			    typeName = typeUnit->name;
-			    if(typeName == "int")
-			      {			    
-				int ivalToPrint = ((FourByte *)((char *)(ls_unit->storage[thread->thread_id]) + location))->ivalue;
-				printf("%s (0x%x) = %d\n", m.str().c_str(), location, ivalToPrint);
-			      }
-			    else if(typeName == "float")
-			      {
-				float fvalToPrint = ((FourByte *)((char *)(ls_unit->storage[thread->thread_id]) + location))->fvalue;
-				printf("%s (0x%x) = %f\n", m.str().c_str(), location, fvalToPrint);
-			      }
-			    else
-			      printf("%s (0x%x) (unknown type)\n", m.str().c_str(), location);
-			  }
-			else
-			  {
-			    printf("%s (0x%x) (unknown type)\n", m.str().c_str(), location);
-			  }
-		      }
-		    else
-		      printf("can't find symbol: %s\n", m.str().c_str());
+		      int location = varLoc.value;
+		      FourByte* value = ((FourByte *)((char *)(ls_unit->storage[thread->thread_id]) + location));
+		      if(typeName == "int")
+			{			    
+			  int ivalToPrint = value->ivalue;
+			  printf("%s (0x%x) = %d\n", m.str().c_str(), location, ivalToPrint);
+			}
+		      else if(typeName == "char")
+			{			    
+			  int ivalToPrint = value->ivalue;
+			  printf("%s (0x%x) = %d(\'%c\')\n", m.str().c_str(), location, (char)(ivalToPrint & 0xff), (char)(ivalToPrint & 0xff));
+			}
+		      else if(typeName == "float")
+			{
+			  float fvalToPrint = value->fvalue;
+			  printf("%s (0x%x) = %f\n", m.str().c_str(), location, fvalToPrint);
+			}
+		      else if(typeName == "bool")
+			{
+			  int ivalToPrint = value->ivalue;
+			  printf("%s (0x%x) = ", m.str().c_str(), location);
+			  if(ivalToPrint == 0)
+			    printf("false\n");
+			  else
+			    printf("true\n");
+			}
+		      else
+			printf("%s (0x%x) (unknown type %s)\n", m.str().c_str(), location, typeName.c_str());
 		  }
+		else 
+		  printf("Can't find symbol %s\n", m.str().c_str());
 	      }
 	  }
 	lastCommand = NONE;
@@ -312,6 +361,27 @@ void Debugger::readCommand(ThreadState* thread, Instruction* ins)
       printf("(tdb) Unknown command: %s\n", command.c_str());
       break;
     }
+}
+
+
+Location
+Debugger::findVariable(RuntimeNode* currentFrame, std::string name, ThreadState* thread, std::string& typeName)
+{
+ 
+  Location retval;
+  if(!currentFrame)
+    return retval;
+
+  CompilationUnit* containingFrame = currentFrame->source_node;
+  Location baseLoc = containingFrame->loc;
+  if(baseLoc.type == Location::UNDEFINED)
+    baseLoc = containingFrame->FindContainingFunction()->loc;
+
+  CompilationUnit* instanceVar;
+  CompilationUnit* typeUnit;
+  retval = findVariableLocation(containingFrame, name, thread, baseLoc, typeName);
+
+  return retval;
 }
 
 bool Debugger::isExecutingCommand(int command )
@@ -377,6 +447,7 @@ Location Debugger::evaluateLocation(ThreadState* thread, Location varLoc, Locati
   Instruction::Opcode failop = Instruction::NOP;
   if(varLoc.type == Location::REGISTER)
     {
+      // TODO: Move dwOpToRegId in to the dwarf reader, and save the register number as the value, instead of the DW opcode for it.
       if(!thread->ReadRegister(dwOpToRegId(varLoc.value), 90000000000, arg, failop))
 	{
 	  printf("Unable to read register %d\n", dwOpToRegId(varLoc.value));
@@ -386,89 +457,120 @@ Location Debugger::evaluateLocation(ThreadState* thread, Location varLoc, Locati
     }
   else if(varLoc.type == Location::FRAME_OFFSET)
     {
-      if(base.type != Location::REGISTER)
-	{
-	  printf("Error: Unsupported frame base type %d\n", base.type);
-	  exit(1);
-	}
-
-      if(!thread->ReadRegister(dwOpToRegId(base.value), 90000000000, arg, failop))
-	{
-	  printf("Unable to read register %d\n", dwOpToRegId(varLoc.value));
+      if(base.type == Location::REGISTER)
+	{ 
+	  if(!thread->ReadRegister(dwOpToRegId(base.value), 90000000000, arg, failop))
+	    {
+	      printf("Unable to read register %d\n", dwOpToRegId(varLoc.value));
+	    }
+	  else
+	    {
+	      retVal.value =  arg.idata + varLoc.value;
+	    }
 	}
       else
 	{
-	  retVal.value =  arg.idata + varLoc.value;
+	  // TODO: We need to handle more types here. I'm assuming all other types are just a uconst stored in the base location.
+	  //       Will need to define a Location::type that encodes uconst numbers
+	  if(base.type != Location::UNDEFINED){
+	    printf("error: Unhandled base location type in FRAME_OFFSET\n");
+	    exit(1);
+	  }
+	  retVal.value =  varLoc.value + base.value; 
 	}
     }
   else if(varLoc.type == Location::MEMBER_OFFSET)
     {
       retVal.value =  varLoc.value + base.value;
     }
+  else
+    printf("Unknown location\n");
 
   return retVal;
 }
 
 
-Location Debugger::findVariableUnits(CompilationUnit* &instanceUnit, CompilationUnit* &typeUnit, RuntimeNode* frame, std::string name, ThreadState* thread)
+
+Location Debugger::findVariableLocation(CompilationUnit* containingFrame, std::string name, ThreadState* thread, Location baseLoc, std::string& type)
 {
   std::string firstName;
   std::string remainingName = name;
-  std::string prefix;
-  instanceUnit = NULL;
-  typeUnit = NULL;
-  Location retVal;
-  retVal.value = -1;
-
-  do {
-    // Strip out each object's name
-    int separatorIndex = remainingName.find(".");
-    if(separatorIndex < 0)
-      {
-	firstName = remainingName;
-	remainingName = "";
-      }
-    else
-      {
-	firstName = remainingName.substr(0, separatorIndex);
-	remainingName = remainingName.substr(separatorIndex + 1);
-      }
-    if(!instanceUnit)
-      {
-	instanceUnit = frame->GetVariable(firstName);
-	if(instanceUnit->typeUnit)
-	  typeUnit = instanceUnit->typeUnit;
-	else
-	  {
-	    printf("WARNING: Couldn't find type unit for variable %s\n", name.c_str());
-	    break;
-	  }
-      }
-    else
-      {
-	if(typeUnit)
-	  {
-	    instanceUnit = typeUnit->SearchVariableDown(prefix + firstName);
-	    if(instanceUnit && instanceUnit->typeUnit) // really bad names here. clean this up
-	      typeUnit = instanceUnit->typeUnit;
-	  }
-	if(!typeUnit)
-	  {
-	    printf("WARNING: Couldn't find type unit for variable %s\n", name.c_str());
-	    break;
-	  }
-      }
-    if(typeUnit)
-      {
-	if(retVal.value == -1)
-	  retVal = evaluateLocation(thread, instanceUnit->loc, frame->source_node->loc);
-	else
-	  retVal = evaluateLocation(thread, instanceUnit->loc, retVal);
-	prefix = typeUnit->name + "::";
-      }
-  }
-  while( remainingName.length() > 0 );
+  Location notFound;
   
-  return retVal;
+  // Strip out each object's name
+  int separatorIndex = remainingName.find(".");
+  if(separatorIndex < 0)
+    {
+      firstName = remainingName;
+      remainingName = "";
+    }
+  else
+    {
+      firstName = remainingName.substr(0, separatorIndex);
+      remainingName = remainingName.substr(separatorIndex + 1);	
+    } 
 
+  CompilationUnit* instanceUnit = containingFrame->GetVariable(firstName);
+  if(instanceUnit){
+    CompilationUnit* typeUnit = instanceUnit->typeUnit;
+    int objectAddr = 0;
+    if(typeUnit){
+      if(typeUnit->tag == DW_TAG_reference_type || typeUnit->tag == DW_TAG_pointer_type){
+	// Find the location of the pointer
+	Location ref_loc = evaluateLocation(thread, instanceUnit->loc, baseLoc);
+	// Then get the pointer itself
+	if(ref_loc.type == Location::REGISTER)
+	  objectAddr = readRegister(ref_loc, thread);
+	else
+	  objectAddr = readStack(ref_loc, thread);
+	baseLoc.value = objectAddr;
+	baseLoc.type = Location::UNDEFINED;
+
+	// TODO: This may only work for "this" pointers
+	if(typeUnit->tag == DW_TAG_pointer_type){
+	  //typeUnit = typeUnit->typeUnit;//->GetVariable(firstName);
+	  remainingName = name;
+	}
+
+	if(remainingName.length() == 0)
+	  return baseLoc;
+	//return evaluateLocation(thread, instanceUnit->loc, baseLoc);
+	//return findVariableLocation(typeUnit, remainingName, thread, baseLoc, type);
+      }
+    }
+    if(!typeUnit)
+      return notFound;
+    
+    if( remainingName.length() != 0 ){
+      if(typeUnit->tag != DW_TAG_reference_type && typeUnit->tag != DW_TAG_pointer_type){
+	baseLoc = evaluateLocation(thread, instanceUnit->loc, baseLoc);
+      }
+      
+      return findVariableLocation(typeUnit, remainingName, thread, baseLoc, type);
+    }
+    
+    type = typeUnit->name;
+    return evaluateLocation(thread, instanceUnit->loc, baseLoc);
+  }
+  printf("Unable to find instance unit for variable %s\n", firstName.c_str());
+  return notFound;
+}
+
+
+int Debugger::readRegister(const Location& loc, ThreadState* thread)
+{
+  reg_value arg;
+  Instruction::Opcode failop = Instruction::NOP;
+  // We don't care about ready_cycle, we just want to read whatever is in the register, 
+  // so just pass in a huge number so it always reads
+  if(!thread->ReadRegister(dwOpToRegId(loc.value), 90000000000, arg, failop)){
+    printf("failed to read register from dwarf location\n");
+    exit(1);
+  }
+  return arg.idata;
+}
+
+int Debugger::readStack(const Location& loc, ThreadState* thread)
+{
+  return ((FourByte *)((char *)(ls_unit->storage[thread->thread_id]) + loc.value))->ivalue;	
 }

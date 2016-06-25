@@ -208,6 +208,7 @@ void *CoreThread( void* args ) {
   // main loop for this core
   while (true) {
     // Choose the first core to issue from
+
     int start_core = 0;
     long long int max_stall_cycles = -1;
     std::vector<TraxCore*>::iterator tpIter = core_args->cores->begin() + core_args->start_core;
@@ -1571,7 +1572,7 @@ void PrintProfile(const char* assem_file, std::vector<Instruction*>& instruction
 	  StrReplace(line, '\n', ' ');
 	  
 	  fprintf(profile_output, "%d: ", line_num);
-      fprintf(profile_output, "%s", line);
+	  fprintf(profile_output, "%s", line);
 	  
 	  if(isInstruction)
 	    {

@@ -115,6 +115,14 @@ def main():
     sys.stdout.write('\tnop\n')
     sys.stdout.write('\tHALT\n')
 
+    # Add a label for __stack_chk_guard, which contains 0
+    # Simulator checks for stack safety on its own
+    sys.stdout.write('__stack_chk_guard:\n')
+    sys.stdout.write('.4byte 0\n')
+    sys.stdout.write('__stack_chk_fail:\n')
+    sys.stdout.write('jr $ra\n')
+    sys.stdout.write('nop\n')
+
     # the abort library call
     sys.stdout.write('abort:\n')
     sys.stdout.write('\taddi\t$5, $zero, -1\n')
@@ -137,14 +145,6 @@ def main():
         sys.stdout.write('\tFTOD $2 $3 $f12\n')
         sys.stdout.write('\tjr $ra\n')
         sys.stdout.write('\tnop\n')
-
-    # Add a label for __stack_chk_guard, which contains 0
-    # Simulator checks for stack safety on its own
-    sys.stdout.write('__stack_chk_guard:\n')
-    sys.stdout.write('.4byte 0\n')
-    sys.stdout.write('__stack_chk_fail:\n')
-    sys.stdout.write('jr $ra\n')
-    sys.stdout.write('nop\n')
 
     # Add a label for TRaX initialization 
     sys.stdout.write('.TRaX_INIT:\n')

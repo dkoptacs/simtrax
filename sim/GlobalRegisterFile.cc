@@ -289,6 +289,7 @@ bool GlobalRegisterFile::AcceptInstruction(Instruction& ins, IssueUnit* issuer, 
 
   pthread_mutex_unlock(&global_mutex);
   issued_this_cycle++;
+
   return true;
 }
 

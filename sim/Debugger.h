@@ -31,7 +31,7 @@ class Debugger
   Debugger();
   void setDwarfReader(DwarfReader* _dwarfReader);
   void setRegisterSymbols(const std::vector<symbol*>* _regs);
-  void setLocalStore(const LocalStore* _ls_unit);
+  void setLocalStore(LocalStore* _ls_unit);
   void enable();
   void disable();
   bool isEnabled();
@@ -44,7 +44,7 @@ class Debugger
   bool       enabled;
   std::vector<BreakPoint> breakPoints;
   const std::vector<symbol*>* regs;
-  const LocalStore* ls_unit;
+  LocalStore* ls_unit;
   RuntimeNode* currentFrame;
   int reg0Id;
 
@@ -53,7 +53,10 @@ class Debugger
   int findSourceFile(std::string name);
   bool isInitialized();
   Location evaluateLocation(ThreadState* thread, Location varLoc, Location frameBase);
-  Location findVariableUnits(CompilationUnit* &instanceUnit, CompilationUnit* &typeUnit, RuntimeNode* frame, std::string name, ThreadState* thread);
+  Location findVariable(RuntimeNode* currentFrame, std::string name, ThreadState* thread, std::string& typeName);
+  Location findVariableLocation(CompilationUnit* containingFrame, std::string name, ThreadState* thread, Location baseLoc, std::string& type);
+  int readRegister(const Location& loc, ThreadState* thread);
+  int readStack(const Location& loc, ThreadState* thread);
 
   inline int dwOpToRegId(int dwOp)
   {
@@ -74,6 +77,7 @@ class Debugger
     QUIT,
     CONTINUE,
     BREAK,
+    WATCH,
     PRINT,
     BACKTRACE,
     INFO,
@@ -99,6 +103,8 @@ extern std::string expRun;
 extern std::string expPrint;
 extern std::string expInfo;
 extern std::string expBacktrace;
+extern std::string expHexLiteral;
+extern std::string expWatch;
 
 
 #endif  //__SIMHWRT_DEBUGGER_H_

@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <algorithm>
 #include <queue>
+#include <set>
 #include "Profiler.h"
 
 
@@ -37,6 +38,7 @@ void RuntimeNode::DistributeTime()
       // Promote unnamed child's children to a direct child of this
       // Since unnamed children affect the order of children after sorting in Print(), 
       // The unnamed child's children would be printed out of order, since it's depth first
+      // Also promote DWARF sub-entries (DW_AT_specification)
       if(child->source_node->name.compare("") == 0)
 	{
 	  for(size_t i = 0; i < child->children.size(); i++)
@@ -74,40 +76,63 @@ void RuntimeNode::DistributeTime()
 }
 
 // Recursively print a single debug entry's profile information
-void RuntimeNode::Print(int indent_level, long long int total_thread_cycles)
+void RuntimeNode::Print(int indent_level, long long int total_thread_cycles, std::vector<Instruction*>& instructions)
 {
-  if(num_instructions > 0)
-    {
-      if((source_node->tag != DW_TAG_compile_unit) && (source_node->name.compare(std::string(""))))
-	{
-	  for(int i=0; i < indent_level; i++) // print the depth separator
-	    printf("| ");
-	  printf("%s\t%2.2f\n", source_node->name.c_str(),
-		 100.f * (float)(num_instructions + num_data_stalls + num_contention_stalls) / (float)total_thread_cycles);
-
-	  // If we want to print the time consumed by separate stall types instead:
-	  //printf("%s\t%2.2f (%2.2f) (%2.2f)\n", source_node->name.c_str(), 
-	  //	 100.f * (float)(num_instructions + num_data_stalls + num_contention_stalls) / (float)total_thread_cycles,
-	  //	 100.f * (float)(num_data_stalls) / (float)total_thread_cycles,
-	  //	 100.f * (float)(num_contention_stalls) / (float)total_thread_cycles);
-	  indent_level++;
-	}
-
-      // Sort by time contribution
-      std::sort(children.begin(), children.end(), RuntimeNode::compare);
-
-      for(size_t i = 0; i < children.size(); i++)
-	children[i]->Print(indent_level, total_thread_cycles);
+  if(num_instructions > 0){
+    if((source_node->tag != DW_TAG_compile_unit) && (source_node->name.compare(std::string("")))){
+      for(int i=0; i < indent_level; i++) // print the depth separator
+	printf("| ");
+      printf("%s\t%2.2f\n", source_node->name.c_str(),
+	     100.f * (float)(num_instructions + num_data_stalls + num_contention_stalls) / (float)total_thread_cycles);
+      
+      // If we want to print the time consumed by separate stall types instead:
+      //printf("%s\t%2.2f (%2.2f) (%2.2f)\n", source_node->name.c_str(), 
+      //	 100.f * (float)(num_instructions + num_data_stalls + num_contention_stalls) / (float)total_thread_cycles,
+      //	 100.f * (float)(num_data_stalls) / (float)total_thread_cycles,
+      //	 100.f * (float)(num_contention_stalls) / (float)total_thread_cycles);
+      indent_level++;
     }
+    
+    // Sort by time contribution
+    std::sort(children.begin(), children.end(), RuntimeNode::compare);
+    
+    for(size_t i = 0; i < children.size(); i++)
+      children[i]->Print(indent_level, total_thread_cycles, instructions);
+
+
+    // If we want to print individual instruction contributions.
+#if 0
+    std::set<std::pair<int, int> > allRanges;
+    allRanges.insert(source_node->ranges.begin(), source_node->ranges.end());
+    
+    for(size_t i = 0; i < children.size(); ++i)
+      if((source_node->pointsTo == children[i]->source_node->pointsTo) || (source_node->addr == children[i]->source_node->pointsTo))
+	allRanges.insert(children[i]->source_node->ranges.begin(), children[i]->source_node->ranges.end());
+    
+    // Write individual instruction contributions from this function if they are above a threshold.
+    if((source_node->tag != DW_TAG_compile_unit) && (source_node->name.compare(std::string("")))){
+      for(std::set<std::pair<int, int> >::iterator it = allRanges.begin(); it != allRanges.end(); ++it){
+	for(int j = it->first; j < it->second; ++j){
+	  float instContribution = 100.f * ((float)(instructions[j]->cycles) / (float)total_thread_cycles);
+	  // Avoid printing the same instruction multiple times because of inclusive PC ranges. Only print the contribution from the lowest node.
+	  if((!ContainsPCBelow(j)) && (instContribution > 1.f)){
+	    for(int k=0; k < indent_level; ++k) // print the depth separator
+	      printf("| ");
+	    printf("%s[%d]\t%2.2f\n", Instruction::Opnames[instructions[j]->op].c_str(), j, instContribution);
+	  }
+	}
+      }
+    }
+#endif
+  }
 }
-
-
+  
 // Prints the full runtime profile information, regardless of how insignificant a unit's contribution was
 void Profiler::PrintProfile(std::vector<Instruction*>& instructions, long long int total_thread_cycles)
 {
 
   dwarfReader->rootRuntime->DistributeTime();
-  dwarfReader->rootRuntime->Print(0, total_thread_cycles);
+  dwarfReader->rootRuntime->Print(0, total_thread_cycles, instructions);
 
   // Write out a graphviz file representing the profile information
   dwarfReader->rootRuntime->WriteDot("runtime.dot", total_thread_cycles);
@@ -118,6 +143,15 @@ void Profiler::PrintProfile(std::vector<Instruction*>& instructions, long long i
 // Increments contribution based on stall type
 void RuntimeNode::AddInstructionContribution(char stall_type)
 {
+#if 1
+  if(source_node->pointsTo >= 0){
+    if(parent && ((parent->source_node->pointsTo == source_node->pointsTo) || (parent->source_node->addr == source_node->pointsTo))){
+      parent->AddInstructionContribution(stall_type);
+      return;
+    }
+  }
+#endif
+
   switch(stall_type)
     {
     case STALL_EXECUTE:
@@ -193,7 +227,7 @@ void CompilationUnit::AddInstructionContribution(Instruction* ins)
 	num_instructions += ins->executions;
 	num_data_stalls += ins->data_stalls;
 	for(size_t i = 0; i < children.size(); i++)
-	  children[i].AddInstructionContribution(ins);
+	  children[i]->AddInstructionContribution(ins);
 	break;
       }
 }
@@ -214,7 +248,7 @@ void CompilationUnit::PrintUnitContribution(int indent_level, long long int tota
 	  indent_level++;
 	}
       for(size_t i = 0; i < children.size(); i++)
-	children[i].PrintUnitContribution(indent_level, total_thread_cycles);
+	children[i]->PrintUnitContribution(indent_level, total_thread_cycles);
     }
 }
 
@@ -229,7 +263,7 @@ CompilationUnit* CompilationUnit::FindRelevantUnit(Instruction* ins)
 	{
 	  for(size_t j = 0; j < children.size(); j++)
 	    {
-	      CompilationUnit* cuChild = children[j].FindRelevantUnit(ins);
+	      CompilationUnit* cuChild = children[j]->FindRelevantUnit(ins);
 	      if(cuChild != NULL)
 		return cuChild;
 	    }

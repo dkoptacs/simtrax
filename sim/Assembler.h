@@ -112,8 +112,9 @@ class Assembler
 
 };
 
-#define SECTION_DATA          0
-#define SECTION_OTHER         1
+#define SECTION_DATA           0
+#define SECTION_DEBUG          1
+#define SECTION_OTHER          2
 
 
 
