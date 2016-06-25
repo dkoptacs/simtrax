@@ -26,7 +26,7 @@ std::string expPrint( "((print)|(p))" );
 std::string expInfo( "((info)|(i))" );
 std::string expBacktrace( "((backtrace)|(bt))" );
 std::string expHexLiteral( "0x[0-9a-fA-F]+" );
-std::string expWatch( "((watch)|(w))");
+std::string expWatch( "((watch)|(w))[\\s]+");
 
 Debugger::Debugger()
 {
@@ -194,7 +194,6 @@ void Debugger::readCommand(ThreadState* thread, Instruction* ins)
     {
       lastCommand = NONE;
     }
- 
 
   switch(lastCommand)
     {
@@ -246,13 +245,17 @@ void Debugger::readCommand(ThreadState* thread, Instruction* ins)
 	if( boost::regex_search(stripped, m, boost::regex(expHexLiteral)) ){
 	    long address = strtol(m.str().c_str() + 2, NULL, 16);
 	    ls_unit->AddWatchPoint(thread, address);
+	    printf("added watch to address %d\n", address);
 	    foundAddress = true;
 	  }
 	else{
 	  std::string typeName;
-	  Location varLoc = findVariable(currentFrame, m.str(), thread, typeName);
+	  Location varLoc = findVariable(currentFrame, stripped, thread, typeName);
 	  if(varLoc.value >= 0){
 	    ls_unit->AddWatchPoint(thread, varLoc.value);
+	    // TODO: This just uses the raw address. 
+	    //       Add variable information to watchpoints so the location of the watchpoint can be dynamic with respect to the variable.
+	    //       This would require tracking which frame the variable is in, and its relative location in that frame.
 	    printf("added watch to address %d\n", varLoc.value);
 	    foundAddress = true;
 	  }
@@ -367,7 +370,7 @@ void Debugger::readCommand(ThreadState* thread, Instruction* ins)
 Location
 Debugger::findVariable(RuntimeNode* currentFrame, std::string name, ThreadState* thread, std::string& typeName)
 {
- 
+
   Location retval;
   if(!currentFrame)
     return retval;
